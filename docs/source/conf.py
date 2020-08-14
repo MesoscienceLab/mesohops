@@ -10,9 +10,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
-sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/PythonLibrary/pyhopslib/pyhops'))
+#import os
+#import sys
+#sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/PythonLibrary/pyhopslib/pyhops'))
 #sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/Sphinx/copy_pyhops/pyhops'))
 
 # -- Project information -----------------------------------------------------
