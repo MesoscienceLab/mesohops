@@ -12,12 +12,13 @@
 #
 #import os
 #import sys
+#sys.path.insert(0, os.path.abspath('/mesohops'))
 #sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/PythonLibrary/pyhopslib/pyhops'))
 #sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/Sphinx/copy_pyhops/pyhops'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'PYHOPS'
+project = 'MESOHOPS'
 copyright = '2020, Doran Bennett, Leonel Varvelo'
 author = 'Doran Bennett, Leonel Varvelo'
 
@@ -47,7 +48,8 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinxdoc'
+html_theme = 'pyramid'
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
