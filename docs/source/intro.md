@@ -157,7 +157,7 @@ noise_param = {
 
     "MODEL": "FFT_FILTER", # This sets the noise model to be used
 
-    "TLEN": 25000.0, # Units: fs (the total time length of the noise trajectory) 
+    "TLEN": 500.0, # Units: fs (the total time length of the noise trajectory) 
 
     "TAU": 1.0, # Units: fs  (the time-step resolution of the noise trajectory)
 
@@ -165,11 +165,11 @@ noise_param = {
 
 nsite = 4  # The number of pigments in the linear chain we are simulating
 
-e_lambda = 20.0  # The reorganization energy in wavenumbers
+e_lambda = 50.0  # The reorganization energy in wavenumbers
 
 gamma = 50.0  # The reorganization timescale in wavenumbers
 
-temp = 140.0  # The temperature in Kelvin
+temp = 295.0  # The temperature in Kelvin
 
 (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)  
 
@@ -263,7 +263,7 @@ t_max = 200.0  # The length of the time axis in fs
 
 t_step = 4.0  # The time resolution in fs
 
-delta = 1e-4 # The bound on derivative error
+delta = 1e-3 # The bound on derivative error
 
 hops = HOPS(  
 
@@ -271,7 +271,7 @@ hops = HOPS(
 
   noise_param=noise_param,  
 
-  hierarchy_param={"MAXHIER": 2},  
+  hierarchy_param={"MAXHIER": 10},  
 
   eom_param=eom_param,  
 

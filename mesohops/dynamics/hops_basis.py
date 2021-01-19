@@ -723,7 +723,7 @@ class HopsBasis(object):
             shape=H2_sparse_hamiltonian.shape,
         )
         return (
-            np.array(np.sum(H2_sparse_hamiltonian, axis=0))[:, 0]
+            np.array(np.sum(np.abs(H2_sparse_hamiltonian), axis=0))[:, 0]
             * np.sum(np.abs(C2_phi), axis=1)
             / hbar
         )
