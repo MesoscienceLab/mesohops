@@ -98,6 +98,7 @@ def check_markovian(aux, list_boolean):
     """
     This function checks whether a auxiliary is a an allowed markovian mode or a
     non-markovian mode
+
     PARAMETERS
     ----------
     1. aux : AuxiliaryVector object
@@ -122,6 +123,7 @@ def filter_markovian(list_aux, list_boolean):
     """
     This function filter's a list of auxiliaries based on whether it is a non markovian
     auxiliary or an allowed markovian auxiliary
+
     Parameters
     ----------
     1. list_aux : list

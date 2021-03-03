@@ -221,8 +221,8 @@ class HopsEOM(Dict_wDefaults):
                 The nonlinear evolution equation used to perform this calculation
                 takes the following form:
                 ~
-                Ψ̇_t^(k)=(-iH-kw+(z~_t)L)ψ_t^(k) + κα(0)Lψ_t^(k-1) - (L†-〈L†〉_t)ψ_t^(k+1)
-                with z~ = z^* + ∫ds(a^*)(t-s)〈L†〉
+                Ψ̇_t^(k)=(-iH-kw+(z~_t)L)ψ_t^(k) + κα(0)Lψ_t^(k-1) - (L†-〈L†〉_t)ψ_t^(k+1)
+                with z~ = z^* + ∫ds(a^*)(t-s)〈L†〉
                 A super operator notation is implemented in this code.
 
                 PARAMETERS
@@ -316,7 +316,8 @@ class HopsEOM(Dict_wDefaults):
                 Φ_deriv -= norm_corr * Φ
                 for j in range(len(list_avg_L2)):
                     # ASSUMING: L = L^*
-                    Φ_deriv += (z_hat1_tmp[j] + 2*np.real(z_tmp2[j])) * (Z2_k[j] @ Φ)
+                    Φ_deriv += (z_hat1_tmp[j] - 2.0j * np.real(z_tmp2[j])) * (
+                                Z2_k[j] @ Φ)
                     Φ_deriv += np.conj(list_avg_L2[j]) * (Z2_kp1[j] @ Φ)
 
                 # calculate dz/dt
@@ -397,7 +398,9 @@ class HopsEOM(Dict_wDefaults):
                 # -----------------
                 Φ_deriv = K2_stable @ Φ
                 for j in range(len(Z2_k)):
-                    Φ_deriv += (z_hat1_tmp[j] + 2*np.real(z_rnd2_tmp[j])) * (Z2_k[j]@Φ)
+                    Φ_deriv += (z_hat1_tmp[j] - 2.0j * np.real(z_rnd2_tmp[j])) * (
+                                Z2_k[j] @ Φ)
+
 
                 # calculate dz/dt
                 # ---------------

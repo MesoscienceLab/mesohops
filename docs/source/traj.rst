@@ -1,19 +1,21 @@
 Trajectory package
 ==================
 
-mesohops.dynamics.hops\_trajectory class
+dynamics.hops\_trajectory class
 -------------------------------
 
-.. automodule:: mesohops.dynamics.hops_trajectory
+.. automodule:: dynamics.hops_trajectory
    :members:
    :show-inheritance:
    :exclude-members:
 
-mesoshops.dynamics.hops\_storage class
---------------------------------------
+dynamics.hops\_storage class
+----------------------------
 
-.. automodule:: mesohops.dynamics.hops_storage
+.. automodule:: dynamics.hops_storage
    :members:
    :show-inheritance:
    :exclude-members:   
-      
+
+
+.. image:: pyhops_struct.png        

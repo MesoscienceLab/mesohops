@@ -2,7 +2,7 @@ import numpy as np
 from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.util.exceptions import LockedException
 
-__title__ = "Pyhops Noise"
+__title__ = "mesohops Noise"
 __author__ = "D. I. G. Bennett"
 __version__ = "1.0"
 

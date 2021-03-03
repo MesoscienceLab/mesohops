@@ -17,8 +17,8 @@ class HopsSystem(object):
 
     def __init__(self, system_param):
         """
-        PARAMETERS
-        ----------
+        INPUTS
+        ------
         1. system_param : dict
                           A dictionary with the system and system-bath coupling
                           parameters defined.

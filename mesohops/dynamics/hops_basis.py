@@ -520,11 +520,8 @@ class HopsBasis(object):
 
     def error_boundary_state(self, Φ, list_index_stable, list_index_aux_stable):
         """
-        This function determines the error associated with neglecting flux into n' not
-        a member of S_t.
-
-        .. math::
-            \sum_{\\vec{k} \in \mathcal{H}_{t}} \\left \\vert (\\hat{H} \psi^{(\\vec{k})}_t)_n \\right\\vert^2
+        This function determines the error associated with neglecting flux into n not
+        a member of S_t. This corresponds to equations 43-45 in arXiv:2008.06496
 
         PARAMETERS
         ----------
@@ -591,10 +588,12 @@ class HopsBasis(object):
 
     def error_stable_state(self, Φ, delta_t, z_step, list_index_aux_stable):
         """
-        This function finds the total error associated with neglecting n' in the state
+        This function finds the total error associated with neglecting n in the state
         basis S_t. This includes the error associated with deleting a state from the basis,
         the error associated with losing all flux into a state, and the error associated
-        with losing all flux out of a state.
+        with losing all flux out of a state. This corresponds to equations 37-42 in
+        arXiv:2008.06496
+
 
         PARAMETERS
         ----------
@@ -605,7 +604,7 @@ class HopsBasis(object):
         3. z_step : list
                     the list of noise terms (compressed) for the next timestep
         4. list_index_aux_stable : list
-                                   a list relative indices for the stable auxiliaries (H_S)
+                                   a list relative indices for the stable auxiliaries (A_p)
 
         RETURNS
         -------
@@ -644,10 +643,8 @@ class HopsBasis(object):
 
     def hier_stable_error(self, Φ, delta_t, z_step):
         """
-        This function finds the total error associated with removing k' in H_t.
-        This includes the error associated with deleting a auxiliary from the basis,
-        the error associated with losing all flux into a k' auxiliary, and the error
-        associated with losing all flux out of a k' auxiliary.
+        This function finds the total error associated with removing k in A_t.
+        This corresponds to the sum of equations 29,30,31,33, and 34 in arXiv:2008.06496
 
         PARAMETERS
         ----------
@@ -661,13 +658,13 @@ class HopsBasis(object):
         RETURNS
         -------
         1. error : np.array
-                   list of error associated with removing each auxiliary in H_t
+                   list of error associated with removing each auxiliary in A_t
         2. E2_flux_up : np.array
-                        the error induced by neglecting flux from H_t (or H_S)
-                                to auxiliaries with lower summed index in H_t^C.
+                        the error induced by neglecting flux from A_t (or A_p)
+                                to auxiliaries with lower summed index in A_t^C.
         3. E2_flux_down : np.array
-                          the error induced by neglecting flux from H_t (or H_S)
-                                to auxiliaries with higher summed index in H_t^C.
+                          the error induced by neglecting flux from A_t (or A_p)
+                                to auxiliaries with higher summed index in A_t^C.
         """
         # Construct the error terms
         # -------------------------
@@ -692,19 +689,17 @@ class HopsBasis(object):
 
     def error_sflux_state(self, Φ, list_index_aux_stable, list_states):
         """
-        The error associated with losing all flux out of n’ in S_t. This flux always involves
+        The error associated with losing all flux out of n in S_t. This flux always involves
         changing the state index and, as a result, can be rewritten in terms of the -iH
-        component of the self-interaction.
-
-        .. math::
-            \sum_{\\vec{k} \in \mathcal{H}_{t}} \sum_{n' \\notin \mathcal{S}_t} \\vert \\hat{H}_{n',n} \\vert^2 \\vert \psi^{(\\vec{k})}_{t,n} \\vert^2
+        component of the self-interaction. This corresponds to equation 38 and 39 in
+        arXiv:2008.06496
 
         PARAMETERS
         ----------
         1. Φ : np.array
                the current full hierarchy vector
         2. list_index_aux_stable : list
-                                   a list relative indices for the stable auxiliaries (H_S)
+                                   a list relative indices for the stable auxiliaries (A_p)
         3. list_states : list
                          the list of current states (absolute index)
 
@@ -722,19 +717,16 @@ class HopsBasis(object):
             format="csc",
             shape=H2_sparse_hamiltonian.shape,
         )
-        return (
-            np.array(np.sum(H2_sparse_hamiltonian, axis=0))[:, 0]
-            * np.sum(np.abs(C2_phi), axis=1)
-            / hbar
-        )
+        V1_norm_squared = np.array(
+            np.sum(np.abs(H2_sparse_hamiltonian).power(2), axis=0))[:, 0]
+        C1_norm_squared_by_state = np.sum(np.abs(C2_phi) ** 2, axis=1)
+        return np.sqrt(V1_norm_squared * C1_norm_squared_by_state) / hbar
 
     def error_sflux_hier(self, Φ, list_s0):
         """
         The error associated with losing all flux terms inside the kth auxiliary to
-        states not contained in S_t.
+        states not contained in S_t. This corresponds to equation 30 in arXiv:2008.06496
 
-        .. math::
-            \sum_{n \\notin \mathcal{S}_{t}} \\left \\vert (\\hat{H} \psi^{(\\vec{k})}_t)_n \\right\\vert^2
 
         PARAMETERS
         ----------
@@ -747,7 +739,7 @@ class HopsBasis(object):
         -------
         1. E2_flux_state : array
                            the error introduced by losing flux within k from S_t to S_t^C
-                           for each k in H_t
+                           for each k in A_t
 
         """
         # Construct the 2D phi and sparse Hamiltonian
@@ -773,26 +765,14 @@ class HopsBasis(object):
             shape=H2_sparse_hamiltonian.shape,
         )
         H2_sparse_hamiltonian = H2_sparse_hamiltonian - H2_removal
-
-        return np.array(
-            np.sum(
-                np.abs(H2_sparse_hamiltonian @ sparse.csc_matrix(C2_phi) / hbar).power(
-                    2
-                ),
-                axis=0,
-            )
-        )[0]
+        D2_derivative_abs_sq = np.abs(
+            H2_sparse_hamiltonian @ sparse.csc_matrix(C2_phi) / hbar).power(2)
+        return np.sqrt(np.array(np.sum(D2_derivative_abs_sq, axis=0))[0])
 
     def error_deriv(self, Φ, z_step, list_index_aux_stable=None):
         """
-        The error associated with losing all flux terms into the k auxiliary and n’ state.
-        Where k is in H_t and n' is in S_t.
-
-        .. math::
-            \sum_{n \in \mathcal{S}_{t}} \\left\\vert \\frac{\delta_{a} \psi^{(\\vec{k})}_{t,n}}{\delta t_a} \\right\\vert^2
-
-        .. math::
-            \sum_{\\vec{k} \in \mathcal{H}_{t}} \\left\\vert \\frac{\delta_{a} \psi^{(\\vec{k})}_{t,n}}{\delta t_a} \\right\\vert^2
+        The error associated with losing all flux terms into the k auxiliary and n state,
+        where k is in A_t and n is in S_t. This corresponds to equation 29 in arXiv:2008.06496
 
         PARAMETERS
         ----------
@@ -840,15 +820,8 @@ class HopsBasis(object):
 
     def error_deletion(self, Φ, delta_t):
         """
-        The error associated with setting the corresponding component of Phi to 0. This
-        is equivalent to adding a term to our approximate derivative that is absent in
-        the full derivative, corresponding to
-
-        .. math::
-            \sum_{n \in \mathcal{S}_{t}} \\frac{\\vert \psi^{(\\vec{k})}_{t,n}\\vert^2}{dt}
-
-        .. math::
-            \sum_{\\vec{k} \in \mathcal{H}_{t}} \\frac{\\vert \psi^{(\\vec{k})}_{t,n}\\vert^2}{dt}
+        The error associated with setting the corresponding component of Phi to 0,
+        corresponding to equation 34 and 42 in arXiv:2008.06496
 
         PARAMETERS
         ----------
@@ -860,7 +833,7 @@ class HopsBasis(object):
         RETURNS
         -------
         1. E2_site_aux : np.array
-                         the error induced by removing components of Φ in H_t+S_t
+                         the error induced by removing components of Φ in A_t+S_t
         """
 
         # Error arising from removing the auxiliary directly
@@ -874,9 +847,8 @@ class HopsBasis(object):
     def error_flux_down(self, Φ, type):
         """
         A function that returns the error associated with neglecting flux from members of
-        H_t to auxiliaries in H_t^C that arise due to flux from higher auxiliaries to
-        lower auxiliaries.
-
+        A_t to auxiliaries in A_t^C that arise due to flux from higher auxiliaries to
+        lower auxiliaries. This corresponds to equation 33 and 41 in arXiv:2008.06496
         .. math::
             \sum_{n \in \mathcal{S}_{t}} \\left \\vert F[\\vec{k}-\\vec{e}_n] \\frac{g_n}{\gamma_n} N^{(\\vec{k})}_t \psi_{t,n}^{(\\vec{k})}\\right \\vert^2
 
@@ -894,8 +866,8 @@ class HopsBasis(object):
         RETURNS
         -------
         1. E2_flux_down_error : np.array
-                                the error induced by neglecting flux from H_t (or H_S)
-                                to auxiliaries with higher summed index in H_t^C.
+                                the error induced by neglecting flux from A_t (or A_S)
+                                to auxiliaries with higher summed index in A_t^C.
         """
         # Constants
         # ---------
@@ -987,8 +959,8 @@ class HopsBasis(object):
     def error_flux_up(self, Φ):
         """
         A function that returns the error associated with neglecting flux from members of
-        H_t to auxiliaries in H_t^C that arise due to flux from lower auxiliaries to
-        higher auxiliaries.
+        A_t to auxiliaries in A_t^C that arise due to flux from lower auxiliaries to
+        higher auxiliaries. This corresponds to equation 31 and 40 in arXiv:2008.06496
 
         .. math::
             \sum_{n \in \mathcal{S}_{t}} \\left \\vert F[\\vec{k}+\\vec{e}_n] \gamma_n (1+\\vec{k}[n]) \psi_{t,n}^{(\\vec{k})}   \\right \\vert^2
@@ -1004,8 +976,8 @@ class HopsBasis(object):
         RETURNS
         -------
         1. E2_flux_up_error : np. array
-                              the error induced by neglecting flux from H_t (or H_S)
-                              to auxiliaries with lower summed index in H_t^C.
+                              the error induced by neglecting flux from A_t (or A_S)
+                              to auxiliaries with lower summed index in A_t^C.
         """
         # Constants
         # ---------

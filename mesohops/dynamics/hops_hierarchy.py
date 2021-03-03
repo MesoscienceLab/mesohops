@@ -1,5 +1,6 @@
 from collections import Counter
 import itertools as it
+import numpy as np
 from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.dynamics.hierarchy_functions import (
@@ -66,6 +67,8 @@ class HopsHierarchy(Dict_wDefaults):
         self.param = hierarchy_param
         self.n_hmodes = system_param["N_HMODES"]
         self._auxiliary_list = []
+        self._auxiliary_by_depth = {depth: [] for depth in range(self.param['MAXHIER']+1)}
+        self._hash_by_depth = {depth : [] for depth in range(self.param['MAXHIER']+1)}
 
     def initialize(self, flag_adaptive):
         """
@@ -228,8 +231,8 @@ class HopsHierarchy(Dict_wDefaults):
 
         RETURNS
         -------
-        1 aux : Auxiliary object
-                the auxiliary at the the edge node
+        1. aux : Auxiliary object
+                 the auxiliary at the the edge node
 
         """
         return AuxVec([(absindex_mode, depth)], n_hmodes)
@@ -273,7 +276,118 @@ class HopsHierarchy(Dict_wDefaults):
     @auxiliary_list.setter
     def auxiliary_list(self, aux_list):
         aux_list.sort()
-        if aux_list[0].absolute_index == 0:
-            self._auxiliary_list = aux_list
-        else:
+        if not aux_list[0].absolute_index == 0:
             raise AuxError("Zero Vector not contained in list_aux!")
+
+        # Determine the added and removed aux
+        set_aux_add = set(aux_list) - set(self.auxiliary_list)
+        set_aux_remove = set(self.auxiliary_list) - set(aux_list)
+
+        # Update auxiliary_by_depth
+        for aux in set_aux_add:
+            self._auxiliary_by_depth[np.sum(aux)].append(aux)
+            self._hash_by_depth[np.sum(aux)].append(aux.hash)
+
+        for aux in set_aux_remove:
+            self._auxiliary_by_depth[np.sum(aux)].remove(aux)
+            self._hash_by_depth[np.sum(aux)].remove(aux.hash)
+
+        # Update auxiliary_list
+        self._auxiliary_list = aux_list
+        for (index, aux) in enumerate(aux_list):
+            aux.index = index
+
+        # Add auxiliary connections
+        self.add_connections(set_aux_add)
+
+        # Remove auxiliary connections
+        for aux in set_aux_remove:
+            aux.remove_pointers()
+
+    def add_connections(self, list_aux_add):
+        """
+        The method responsible for adding the connections between HopsAux objects
+        composing an auxiliary list.
+
+        Parameters
+        ----------
+        1. list_aux_add : list
+                          a list of HopsAux objects being added to the auxiliary list
+
+        Returns
+        -------
+        1. None
+        """
+        for aux in list_aux_add:
+            sum_aux = np.sum(aux)
+            # add connections to k+1
+            if sum_aux < self.param['MAXHIER']:
+                # if there are fewer possible k+1 auxiliaries than the number of modes
+                # in the hierarchy then loop over list of auxiliaries
+                if len(self._auxiliary_by_depth[sum_aux + 1]) <= self.n_hmodes:
+                    for aux_p1 in self._auxiliary_by_depth[sum_aux + 1]:
+                        index_mode = aux.difference_by_mode(aux_p1)
+                        if index_mode is not False:
+                            aux.add_aux_connect(index_mode, aux_p1, 1)
+                            aux_p1.add_aux_connect(index_mode, aux, -1)
+                # otherwise loop over the modes
+                else:
+                    for index_mode in range(self.n_hmodes):
+                        aux_p1_hash = aux.hash_from_e_step(index_mode, 1)
+                        aux_p1 = listobj_or_none(aux_p1_hash,
+                                                 self._auxiliary_by_depth[
+                                                     sum_aux + 1],
+                                                 self._hash_by_depth[sum_aux + 1])
+                        if aux_p1 is not None:
+                            aux.add_aux_connect(index_mode, aux_p1, 1)
+                            aux_p1.add_aux_connect(index_mode, aux, -1)
+
+            # add connections to k-1
+            if sum_aux > 0:
+                # if there are fewer possible k-1 auxiliaries than the number of modes
+                # in the hierarchy then loop over list of auxiliaries
+                if len(self._auxiliary_by_depth[sum_aux - 1]) <= self.n_hmodes:
+                    for aux_m1 in self._auxiliary_by_depth[sum_aux - 1]:
+                        index_mode = aux.difference_by_mode(aux_m1)
+                        if index_mode is not False:
+                            aux.add_aux_connect(index_mode, aux_m1, -1)
+                            aux_m1.add_aux_connect(index_mode, aux, 1)
+                # otherwise loop over the modes
+                else:
+                    for index_mode in range(self.n_hmodes):
+                        aux_m1_hash = aux.hash_from_e_step(index_mode, -1)
+                        aux_m1 = listobj_or_none(aux_m1_hash,
+                                                 self._auxiliary_by_depth[
+                                                     sum_aux - 1],
+                                                 self._hash_by_depth[sum_aux - 1])
+                        if aux_m1 is not None:
+                            aux.add_aux_connect(index_mode, aux_m1, -1)
+                            aux_m1.add_aux_connect(index_mode, aux, 1)
+
+def listobj_or_none(hash, list_obj, list_hash):
+    """
+    A convenience function for determining which object in a list to return
+    based on a list of the hash values for the objects.
+
+    Parameters
+    ----------
+    1. hash : int
+              The hash value for the desired object
+    2. list_obj : list
+                  A list of objects
+    3. list_hash : list
+                   The hash values for the objects in list_obj
+
+    Returns
+    -------
+    1. obj : object or None
+             The object from list_obj with matching hash or None (if there was no
+             such object)
+    """
+    try:
+        index = list_hash.index(hash)
+        obj_new = list_obj[index]
+    except:
+        obj_new = None
+
+    return obj_new

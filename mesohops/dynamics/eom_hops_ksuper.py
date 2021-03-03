@@ -27,10 +27,9 @@ def _permute_aux_by_matrix(K, Pkeep):
               the permuted sparse matrix
     """
     # Multiplication to remove indices
-    Ktmp = Pkeep * K * Pkeep.transpose()
+    Ktmp = Pkeep @ K @ Pkeep.transpose()
     Ktmp.eliminate_zeros()
     return Ktmp
-
 
 def _add_self_interactions(
     list_add_aux,
@@ -116,7 +115,7 @@ def _add_self_interactions(
 
     for aux_ref in list_add_aux:
 
-        i_aux = hierarchy._aux_index(aux_ref)
+        i_aux = aux_ref.index
 
         # Self-interaction in the hierarchy
         # -iH*phi(k)
@@ -138,6 +137,7 @@ def _add_self_interactions(
             Z0_data[i_lop].extend(l_sparse[i_lop].data)
             Z0_row[i_lop].extend(i_aux * n_site + l_sparse[i_lop].row)
             Z0_col[i_lop].extend(i_aux * n_site + l_sparse[i_lop].col)
+
 
     # Add terms for each new state
     # ============================
@@ -168,7 +168,7 @@ def _add_self_interactions(
         #       connects to a single state
 
         for aux_ref in list_stable_aux:
-            i_aux = hierarchy._aux_index(aux_ref)
+            i_aux = aux_ref.index
 
             # -iH*phi(k)
             K0_data.extend(h_new_sparse.data)
@@ -284,56 +284,56 @@ def _add_crossterms(
     # Prepare Constants
     # =================
     n_site = system.size
-    n_mode = system.n_hmodes
-
-    list_hash_aux_from = [aux.hash for aux in aux_from_list]
+    list_index_from_list = [aux.index for aux in aux_from_list]
 
     for aux_ref in aux_to_list:
 
-        i_aux = hierarchy._aux_index(aux_ref)
+        i_aux = aux_ref.index
 
-        for l_mod in range(n_mode):
+        # HIGHER TO LOWER AUX
+        # sum_n sum_jn -(L*[n]-<L*[n]>_t) * phi_(k+e_jn)
+        # integrand -= np.dot(np.conj(self.L[n]),phi[one_p])
+        # integrand += np.conj(Ls[n])*phi[one_p] #empty_phi
+        for (l_mod_abs, aux_p1) in aux_ref.dict_aux_p1.items():
+            if l_mod_abs in system.list_absindex_mode:
 
-            # The index of the corresponding L-Operator
-            i_lop = system.list_index_L2_by_hmode[l_mod]
+                # The index of the corresponding L-Operator
+                l_mod = list(system.list_absindex_mode).index(l_mod_abs)
+                i_lop = system.list_index_L2_by_hmode[l_mod]
 
-            # HIGHER TO LOWER AUX
-            # sum_n sum_jn -(L*[n]-<L*[n]>_t) * phi_(k+e_jn)
-            # integrand -= np.dot(np.conj(self.L[n]),phi[one_p])
-            # integrand += np.conj(Ls[n])*phi[one_p] #empty_phi
-            hash_aux_p1 = aux_ref.hash_from_e_step(system.list_absindex_mode[l_mod], 1)
-            if hash_aux_p1 in list_hash_aux_from:
-                aux_p1 = aux_ref.e_step(system.list_absindex_mode[l_mod], 1)
-                j_aux = hierarchy._aux_index(aux_p1)
+                if aux_p1.index in list_index_from_list:
+                    j_aux = aux_p1.index
 
-                Kp1_data.extend(
-                    -(system.g[l_mod] / system.w[l_mod]) * l_sparse[i_lop].data
-                )
-                Kp1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
-                Kp1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
+                    Kp1_data.extend(
+                        -(system.g[l_mod] / system.w[l_mod]) * l_sparse[i_lop].data
+                    )
+                    Kp1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
+                    Kp1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
 
-                Zp1_data[i_lop].extend(
-                    (system.g[l_mod] / system.w[l_mod]) * np.ones(n_site)
-                )
-                Zp1_row[i_lop].extend(i_aux * n_site + np.arange(n_site))
-                Zp1_col[i_lop].extend(j_aux * n_site + np.arange(n_site))
+                    Zp1_data[i_lop].extend(
+                        (system.g[l_mod] / system.w[l_mod]) * np.ones(n_site)
+                    )
+                    Zp1_row[i_lop].extend(i_aux * n_site + np.arange(n_site))
+                    Zp1_col[i_lop].extend(j_aux * n_site + np.arange(n_site))
 
-            # LOWER TO HIGHER AUX
-            # sum_n sum_jn k_jn alpha_nj phi_(k-e_jn)
-            # integrand += order[iterator]*self.g[iterator]*np.dot(self.L[n],phi[one_min])
+        # LOWER TO HIGHER AUX
+        # sum_n sum_jn k_jn alpha_nj phi_(k-e_jn)
+        # integrand += order[iterator]*self.g[iterator]*np.dot(self.L[n],phi[one_min])
+        for (l_mod_abs, aux_m1) in aux_ref.dict_aux_m1.items():
+            if l_mod_abs in system.list_absindex_mode:
+                l_mod = list(system.list_absindex_mode).index(l_mod_abs)
+                i_lop = system.list_index_L2_by_hmode[l_mod]
 
-            hash_aux_m1 = aux_ref.hash_from_e_step(system.list_absindex_mode[l_mod], -1)
-            if hash_aux_m1 in list_hash_aux_from:
-                aux_m1 = aux_ref.e_step(system.list_absindex_mode[l_mod], -1)
-                j_aux = hierarchy._aux_index(aux_m1)
+                if aux_m1.index in list_index_from_list:
+                    j_aux = aux_m1.index
 
-                Km1_data.extend(
-                    (aux_m1[system.list_absindex_mode[l_mod]] + 1)
-                    * system.w[l_mod]
-                    * l_sparse[i_lop].data
-                )
-                Km1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
-                Km1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
+                    Km1_data.extend(
+                        (aux_m1[system.list_absindex_mode[l_mod]] + 1)
+                        * system.w[l_mod]
+                        * l_sparse[i_lop].data
+                    )
+                    Km1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
+                    Km1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
     return (
         Kp1_data,
         Kp1_row,
@@ -441,15 +441,14 @@ def _add_crossterms_stable(
     # Prepare Constants
     # =================
     n_site = system.size
-    n_mode = system.n_hmodes
-    list_hash_aux_stable = [aux.hash for aux in aux_stable]
+    list_index_aux_stable = [aux.index for aux in aux_stable]
 
     # Add terms for each new state
     # ============================
     # If a new state has been added to the state basis, then
     # we need to update the previous cross-terms for the 'stable'
     # members of the hierarchy.
-    irel_new_state = [list(system.state_list).index(i) for i in list_add_state]
+    list_irel_new_state = [list(system.state_list).index(i) for i in list_add_state]
     # irel_stable_state = [
     #     i
     #     for i in np.arange(len(system.state_list))
@@ -460,10 +459,10 @@ def _add_crossterms_stable(
     # ]
     # vmask_mat = np.outer(v_mask_tmp, v_mask_tmp)
 
-    if len(irel_new_state) > 0:
+    if len(list_irel_new_state) > 0:
         # NOTE: THE LINE BELOW ASSUMES THAT IF AN L-OPERATOR IS CONNECTED TO A NEW
         #        NEW STATE THEN IT IS A NEW OPERATOR, BUT THIS IS A SPECIAL CASE.
-        ilop_add = [
+        list_ilop_add = [
             ilop
             for ilop in range(len(system.list_absindex_L2))
             if system.state_list[system.list_state_indices_by_index_L2[ilop][0]]
@@ -474,99 +473,97 @@ def _add_crossterms_stable(
 
         for aux_ref in aux_stable:
 
-            i_aux = hierarchy._aux_index(aux_ref)
+            i_aux = aux_ref.index
 
-            for l_mod in range(n_mode):
+            for (l_mod_abs, aux_p1) in aux_ref.dict_aux_p1.items():
+                if l_mod_abs in system.list_absindex_mode:
 
-                # The index of the corresponding L-Operator
-                i_lop = system.list_index_L2_by_hmode[l_mod]
+                    # The index of the corresponding L-Operator
+                    l_mod = list(system.list_absindex_mode).index(l_mod_abs)
+                    i_lop = system.list_index_L2_by_hmode[l_mod]
 
-                # HIGHER TO LOWER AUX
-                # sum_n sum_jn -(L*[n]-<L*[n]>_t) * phi_(k+e_jn)
-                # integrand -= np.dot(np.conj(self.L[n]),phi[one_p])
-                # integrand += np.conj(Ls[n])*phi[one_p] #empty_phi
+                    # HIGHER TO LOWER AUX
+                    # sum_n sum_jn -(L*[n]-<L*[n]>_t) * phi_(k+e_jn)
+                    # integrand -= np.dot(np.conj(self.L[n]),phi[one_p])
+                    # integrand += np.conj(Ls[n])*phi[one_p] #empty_phi
+                    if aux_p1.index in list_index_aux_stable:
+                        j_aux = aux_p1.index
 
-                hash_aux_p1 = aux_ref.hash_from_e_step(
-                    system.list_absindex_mode[l_mod], 1
-                )
-                if hash_aux_p1 in list_hash_aux_stable:
-                    aux_p1 = aux_ref.e_step(system.list_absindex_mode[l_mod], 1)
-                    j_aux = hierarchy._aux_index(aux_p1)
+                        if i_lop in list_ilop_add:
+                            # if this L-operator has not been present before
+                            # then we should add all the associated terms
+                            Kp1_data.extend(
+                                -(system.g[l_mod] / system.w[l_mod]) * l_sparse[i_lop].data
+                            )
+                            Kp1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
+                            Kp1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
 
-                    if i_lop in ilop_add:
-                        # if this L-operator has not been present before
-                        # then we should add all the associated terms
-                        Kp1_data.extend(
-                            -(system.g[l_mod] / system.w[l_mod]) * l_sparse[i_lop].data
-                        )
-                        Kp1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
-                        Kp1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
+                            Zp1_data[i_lop].extend(
+                                (system.g[l_mod] / system.w[l_mod]) * np.ones(n_site)
+                            )
+                            Zp1_row[i_lop].extend(i_aux * n_site + np.arange(n_site))
+                            Zp1_col[i_lop].extend(j_aux * n_site + np.arange(n_site))
+                        else:
+                            # if the L-operator has been present before this
+                            # then we need to add only the terms associated
+                            # with the new states.
+                            Zp1_data[i_lop].extend(
+                                (system.g[l_mod] / system.w[l_mod])
+                                * np.ones(len(list_irel_new_state))
+                            )
+                            Zp1_row[i_lop].extend(i_aux * n_site + np.array(list_irel_new_state))
+                            Zp1_col[i_lop].extend(j_aux * n_site + np.array(list_irel_new_state))
 
-                        Zp1_data[i_lop].extend(
-                            (system.g[l_mod] / system.w[l_mod]) * np.ones(n_site)
-                        )
-                        Zp1_row[i_lop].extend(i_aux * n_site + np.arange(n_site))
-                        Zp1_col[i_lop].extend(j_aux * n_site + np.arange(n_site))
-                    else:
-                        # if the L-operator has been present before this
-                        # then we need to add only the terms associated
-                        # with the new states.
-                        Zp1_data[i_lop].extend(
-                            (system.g[l_mod] / system.w[l_mod])
-                            * np.ones(len(irel_new_state))
-                        )
-                        Zp1_row[i_lop].extend(i_aux * n_site + np.array(irel_new_state))
-                        Zp1_col[i_lop].extend(j_aux * n_site + np.array(irel_new_state))
-
-                        # this only applies if L operators can interact with more than
-                        # one state
-                        # l_tmp = l_sparse[i_lop].multiply(vmask_mat)
-                        # if len(l_tmp.nonzero()[0]) > 0:
-                        #     l_tmp.eliminate_zeros()
-                        #     Kp1_data.extend(
-                        #         -(system.g[l_mod] / system.w[l_mod]) * l_tmp.data
-                        #     )
-                        #     Kp1_row.extend(i_aux * n_site + l_tmp.row)
-                        #     Kp1_col.extend(j_aux * n_site + l_tmp.col)
+                            # this only applies if L operators can interact with more than
+                            # one state
+                            # l_tmp = l_sparse[i_lop].multiply(vmask_mat)
+                            # if len(l_tmp.nonzero()[0]) > 0:
+                            #     l_tmp.eliminate_zeros()
+                            #     Kp1_data.extend(
+                            #         -(system.g[l_mod] / system.w[l_mod]) * l_tmp.data
+                            #     )
+                            #     Kp1_row.extend(i_aux * n_site + l_tmp.row)
+                            #     Kp1_col.extend(j_aux * n_site + l_tmp.col)
 
                 # LOWER TO HIGHER AUX
                 # sum_n sum_jn k_jn alpha_nj phi_(k-e_jn)
                 # integrand += order[iterator]*self.g[iterator]*np.dot(self.L[n],phi[one_min])
 
-                hash_aux_m1 = aux_ref.hash_from_e_step(
-                    system.list_absindex_mode[l_mod], -1
-                )
-                if hash_aux_m1 in list_hash_aux_stable:
-                    aux_m1 = aux_ref.e_step(system.list_absindex_mode[l_mod], -1)
-                    j_aux = hierarchy._aux_index(aux_m1)
+            for (l_mod_abs, aux_m1) in aux_ref.dict_aux_m1.items():
+                if l_mod_abs in system.list_absindex_mode:
+                    l_mod = list(system.list_absindex_mode).index(l_mod_abs)
+                    i_lop = system.list_index_L2_by_hmode[l_mod]
 
-                    if i_lop in ilop_add:
-                        # if this L-operator has not been present before
-                        # then we should add all the associated terms
-                        Km1_data.extend(
-                            (aux_m1[system.list_absindex_mode[l_mod]] + 1)
-                            * system.w[l_mod]
-                            * l_sparse[i_lop].data
-                        )
-                        Km1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
-                        Km1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
-                    else:
-                        pass
-                        # if thie L-operator has been present before this
-                        # then we need to add only the terms associated
-                        # with the new states.
-                        # this only applies if L operators can interact with more than
-                        # one state
-                        # l_tmp = l_sparse[i_lop].multiply(vmask_mat)
-                        # if len(l_tmp.nonzero()[0]) > 0:
-                        #     l_tmp.eliminate_zeros()
-                        #     Km1_data.extend(
-                        #         (aux_m1[system.list_absindex_mode[l_mod]] + 1)
-                        #         * system.w[l_mod]
-                        #         * l_tmp.data
-                        #     )
-                        #     Km1_row.extend(i_aux * n_site + l_tmp.row)
-                        #     Km1_col.extend(j_aux * n_site + l_tmp.col)
+                    if aux_m1.index in list_index_aux_stable:
+                        j_aux = aux_m1.index
+
+                        if i_lop in list_ilop_add:
+                            # if this L-operator has not been present before
+                            # then we should add all the associated terms
+                            Km1_data.extend(
+                                (aux_m1[system.list_absindex_mode[l_mod]] + 1)
+                                * system.w[l_mod]
+                                * l_sparse[i_lop].data
+                            )
+                            Km1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
+                            Km1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
+                        else:
+                            pass
+                            # if thie L-operator has been present before this
+                            # then we need to add only the terms associated
+                            # with the new states.
+                            # this only applies if L operators can interact with more than
+                            # one state
+                            # l_tmp = l_sparse[i_lop].multiply(vmask_mat)
+                            # if len(l_tmp.nonzero()[0]) > 0:
+                            #     l_tmp.eliminate_zeros()
+                            #     Km1_data.extend(
+                            #         (aux_m1[system.list_absindex_mode[l_mod]] + 1)
+                            #         * system.w[l_mod]
+                            #         * l_tmp.data
+                            #     )
+                            #     Km1_row.extend(i_aux * n_site + l_tmp.row)
+                            #     Km1_col.extend(j_aux * n_site + l_tmp.col)
     return (
         Kp1_data,
         Kp1_row,

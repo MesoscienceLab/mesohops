@@ -18,11 +18,13 @@ class AuxiliaryVector(Mapping):
     it cannot be changed.
 
     """
+    __slots__ = ('dict_aux_vec', 'tuple_aux_vec', 'array_aux_vec', '__abs_index', '__len'
+                  , 'hash', 'index', '_sum', '_dict_aux_p1', '_dict_aux_m1')
 
     def __init__(self, aux_array, nmodes):
         """
-        INPUTS:
-        -------
+        INPUTS
+        ------
         1. aux_array : iterable
                       list of (mode, value) pairs for all non-zero indices of the auxiliary
                       vector
@@ -30,8 +32,8 @@ class AuxiliaryVector(Mapping):
                    the number of modes in the hierarchy which is the length of the dense
                    auxiliary vector.
 
-        RETURNS:
-        --------
+        RETURNS
+        -------
         None
         """
         self.dict_aux_vec = {
@@ -41,9 +43,16 @@ class AuxiliaryVector(Mapping):
             [tuple([mode, value]) for (mode, value) in aux_array]
         )
         self.array_aux_vec = np.array(aux_array)
+        if len(self.array_aux_vec)>0 and not np.all(np.diff(self.array_aux_vec[:,0])>0):
+            raise AuxError("array_aux_vec not properly ordered")
         self.__abs_index = None
         self.__len = nmodes
         self.hash = hash(self.tuple_aux_vec)
+        self.index = None
+        self._sum = np.sum(self.values())
+
+        self._dict_aux_p1 = {}
+        self._dict_aux_m1 = {}
 
     # Dictionary-like methods overwriting Mutable Mapping
     # ===================================================
@@ -146,6 +155,46 @@ class AuxiliaryVector(Mapping):
 
     # Special Methods
     # ===============
+    def difference_by_mode(self, other):
+        """
+        Compares the current HopsAux object to another HopsAux object. If they differ
+        by only 1 step, then it returns the mode along which they differ.
+
+        Parameters
+        ----------
+        1. other: HopsAux object
+                  The HopsAux object to which the current object is compared.
+
+        Returns
+        -------
+        1. diff_mode : int or False
+                       The mode index along which they differ or False if they differ
+                       by more than 1 step.
+        """
+        set_key_self = set(self.keys())
+        set_key_other = set(other.keys())
+
+        # Check that the two HopsAux belong to the same hierarchy
+        assert self.__len == len(other)
+
+        if np.abs(self._sum - other._sum) == 1:
+            if set_key_self == set_key_other:
+                values = np.abs(self.array_aux_vec[:,1]- other.array_aux_vec[:,1])
+                if np.sum(values) == 1:
+                    return self.array_aux_vec[np.where(values)[0][0],0]
+            elif (len(set_key_self | set_key_other)
+                  - len(set_key_self & set_key_other)) == 1:
+                value = 0
+                for key in set_key_self | set_key_other:
+                    value += np.abs(self[key] - other[key])
+
+                if value == 1:
+                    index = list((set_key_self | set_key_other) - (set_key_self &
+                                                              set_key_other))[0]
+                    return index
+
+        return False
+
     def dot(self, vec):
         """
         This is a function that performs a sparse dot product between the
@@ -180,7 +229,10 @@ class AuxiliaryVector(Mapping):
         1. sum : float
                  the sum of the nonzero values of the auxiliary vectors
         """
-        return np.sum(self.values())
+        try:
+            return self._sum
+        except:
+            return np.sum(self.values())
 
     def todense(self):
         """
@@ -286,7 +338,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. hash :
+        1. hash : int
                   the hash of the tuple sparse auxiliary vector created from e_step
         """
         return hash(self.tuple_from_e_step(mode, step))
@@ -413,9 +465,88 @@ class AuxiliaryVector(Mapping):
 
             return int(n_aux_below_l + m + n_plus - n_minus)
 
+    def add_aux_connect(self, index_mode, aux_other, type):
+        """
+        The function that updates the HopsAux object to contain a pointer to the
+        other HopsAux objects it is connected to.
+
+        Parameters
+        ----------
+        1. index_mode : int
+                        the mode along which the two HopsAux objects are connected
+        2. aux_other : HopsAux
+                       the HopsAux object it is connected to
+        3. type : int
+                  +1 or -1 depending on if the other aux has a larger or smaller sum
+
+        Returns
+        -------
+        1. None
+        """
+        if type == 1:
+            self._dict_aux_p1.update({index_mode: aux_other})
+        elif type == -1:
+            self._dict_aux_m1.update({index_mode: aux_other})
+        else:
+            raise AuxError('add_aux_connect does not support type={}'.format(type))
+
+    def remove_aux_connect(self, index_mode, type):
+        """
+        The function that removes the connection between the HopsAux object and another
+        connected with type (+1/-1) along index mode.
+
+        Parameters
+        ----------
+        1. index_mode : int
+                        the mode along which the two HopsAux objects are connected
+        2. type : int
+                  +1 or -1 depending on if the other aux has a larger or smaller sum
+        Returns
+        -------
+        1. None
+        """
+        if type == 1:
+            self._dict_aux_p1.pop(index_mode)
+        elif type == -1:
+            self._dict_aux_m1.pop(index_mode)
+        else:
+            raise AuxError('add_aux_connect does not support type={}'.format(type))
+
+    def remove_pointers(self):
+        """
+        The function that removes all pointers targeting the current HopsAux object
+        from the set of HopsAux objects it has connections to.
+
+        Parameters
+        ----------
+        1. None
+
+        Returns
+        -------
+        1. None
+        """
+        for (index_mode, aux) in self.dict_aux_p1.items():
+            aux.remove_aux_connect(index_mode, -1)
+
+        for (index_mode, aux) in self.dict_aux_m1.items():
+            aux.remove_aux_connect(index_mode, 1)
+
+        self._dict_aux_m1 = {}
+        self._dict_aux_p1 = {}
+
     @property
     def absolute_index(self):
         if self.__abs_index is None:
             self.__abs_index = self.index_analytic()
 
         return self.__abs_index
+
+    @property
+    def dict_aux_p1(self):
+        return self._dict_aux_p1
+
+    @property
+    def dict_aux_m1(self):
+        return self._dict_aux_m1
+
+

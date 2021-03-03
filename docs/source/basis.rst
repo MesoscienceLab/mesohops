@@ -3,10 +3,10 @@ Basis package
 
 Basis Class
 ^^^^^^^^^^^
-mesohops.dynamics.hops\_basis class
------------------------------------
+dynamics.hops\_basis class
+--------------------------
 
-.. automodule:: mesohops.dynamics.hops_basis
+.. automodule:: dynamics.hops_basis
    :members:
    :show-inheritance:
    :private-members:
@@ -14,62 +14,62 @@ mesohops.dynamics.hops\_basis class
 
 System Class
 ^^^^^^^^^^^^
-mesohops.dynamics.hops\_system class
-------------------------------------
+dynamics.hops\_system class
+---------------------------
 
-.. automodule:: mesohops.dynamics.hops_system
+.. automodule:: dynamics.hops_system
    :members:
    :show-inheritance:
    :exclude-members:
 
 Hierarchy Class
 ^^^^^^^^^^^^^^^
-mesohops.dynamics.hierarchy\_functions module
----------------------------------------------
+dynamics.hierarchy\_functions module
+------------------------------------
 
-.. automodule:: mesohops.dynamics.hierarchy_functions
+.. automodule:: dynamics.hierarchy_functions
    :members:
    :show-inheritance:
    :exclude-members:
 
-mesohops.dynamics.hops\_hierarchy class
----------------------------------------
+dynamics.hops\_hierarchy class
+------------------------------
 
-.. automodule:: mesohops.dynamics.hops_hierarchy
+.. automodule:: dynamics.hops_hierarchy
    :members:
    :show-inheritance:
    :exclude-members:
 
-mesohops.dynamics.hops\_aux class
----------------------------------
+dynamics.hops\_aux class
+------------------------
 
-.. automodule:: mesohops.dynamics.hops_aux
+.. automodule:: dynamics.hops_aux
    :members:
    :show-inheritance:
    :exclude-members:
 
 EOM Class
 ^^^^^^^^^
-mesohops.dynamics.eom\_functions module
----------------------------------------
+dynamics.eom\_functions module
+------------------------------
 
-.. automodule:: mesohops.dynamics.eom_functions
+.. automodule:: dynamics.eom_functions
    :members:
    :show-inheritance:
    :exclude-members:
 
-mesohops.dynamics.eom\_hops\_ksuper module
-------------------------------------------
-
-.. automodule:: mesohops.dynamics.eom_hops_ksuper
-   :members:
-   :show-inheritance:
-   :exclude-members:
-
-mesohops.dynamics.hops\_eom class
+dynamics.eom\_hops\_ksuper module
 ---------------------------------
 
-.. automodule:: mesohops.dynamics.hops_eom
+.. automodule:: dynamics.eom_hops_ksuper
+   :members:
+   :show-inheritance:
+   :exclude-members:
+
+dynamics.hops\_eom class
+------------------------
+
+.. automodule:: dynamics.hops_eom
    :members:
    :show-inheritance:
    :exclude-members:

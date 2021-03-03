@@ -465,20 +465,6 @@ def test_update_basis():
     state_update = (state_new, state_stable, state_bound)
 
     # hierarchy update
-    hier_new = [
-        AuxiliaryVector([], 20),
-        AuxiliaryVector([(5, 1)], 20),
-        AuxiliaryVector([(9, 1)], 20),
-        AuxiliaryVector([(10, 1)], 20),
-        AuxiliaryVector([(11, 1)], 20),
-        AuxiliaryVector([(13, 1)], 20),
-        AuxiliaryVector([(14, 1)], 20),
-        AuxiliaryVector([(10, 1), (11, 1)], 20),
-        AuxiliaryVector([(11, 2)], 20),
-        AuxiliaryVector([(10, 1), (11, 2)], 20),
-        AuxiliaryVector([(11, 3)], 20),
-        AuxiliaryVector([(11, 4)], 20),
-    ]
     hier_stable = [
         AuxiliaryVector([], 20),
         AuxiliaryVector([(9, 1)], 20),
@@ -495,6 +481,8 @@ def test_update_basis():
         AuxiliaryVector([(13, 1)], 20),
         AuxiliaryVector([(14, 1)], 20),
     ]
+    
+    hier_new = hier_stable+hier_bound
     hier_update = (hier_new, hier_stable, hier_bound)
 
     phi, _ = hops_ad.basis.update_basis(hops_ad.phi, state_update, hier_update)
@@ -1207,7 +1195,7 @@ def test_error_stable_state():
     error = hops_ad.basis.error_stable_state(
         hops_ad.phi, 2.0, z_step, list_index_aux_stable
     )
-    known_error = [0.00753443 + 0.0j, 0.51769299 + 0.0j, 0.00188361 + 0.0j]
+    known_error = [0.00753443 + 0.0j, 0.51766558 + 0.0j, 0.00188361 + 0.0j]
     assert np.allclose(error, known_error)
 
 
@@ -1449,20 +1437,18 @@ def test_error_sflux_hier():
 
     hops_ad.propagate(10, 2)
     E2_flux_state = hops_ad.basis.error_sflux_hier(hops_ad.phi, [4, 5, 6])
-    known_error = [
-        4.41017874e-08,
-        6.25730675e-12,
-        2.79827656e-09,
-        8.35537498e-11,
-        2.83286739e-09,
-        2.67725191e-09,
-        5.43756095e-10,
-        7.32738552e-11,
-        1.25275631e-13,
-        1.06073503e-11,
-        3.93302668e-10,
-        3.81794277e-10,
-    ]
+    known_error = [2.10004255e-04,
+                   2.50146052e-06,
+                   5.28986969e-05,
+                   9.14077348e-06,
+                   5.32245330e-05,
+                   5.17421294e-05,
+                   2.33186603e-05,
+                   8.56003704e-06,
+                   3.53943880e-07,
+                   3.25690823e-06,
+                   1.98318688e-05,
+                   1.95396184e-05]
     assert np.allclose(E2_flux_state, known_error)
 
 

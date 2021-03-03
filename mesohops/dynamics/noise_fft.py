@@ -3,7 +3,7 @@ from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.dynamics.noise_trajectories import NumericNoiseTrajectory
 from mesohops.util.exceptions import UnsupportedRequest, LockedException
 
-__title__ = "pyhops noise"
+__title__ = "mesohops noise"
 __author__ = "D. I. G. Bennett"
 __version__ = "1.0"
 

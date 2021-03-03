@@ -1,5 +1,19 @@
+import pytest
 import numpy as np
 from mesohops.dynamics.hops_aux import AuxiliaryVector
+from mesohops.util.exceptions import AuxError
+
+
+def test_auxvec_ordering():
+    """
+    This function test whether an incorrectly ordered array_aux_vex properly raises
+    the correct AuxError
+    """
+    aux_1010 = AuxiliaryVector([(0, 1), (2, 1)], 4)
+    assert type(aux_1010) == AuxiliaryVector
+    with pytest.raises(AuxError) as excinfo:
+        aux_1010 = AuxiliaryVector([(2, 1), (0, 1)], 4)
+        assert 'array_aux_vec not properly ordered' in str(excinfo.value)
 
 
 def test_keys():
@@ -228,3 +242,123 @@ def test_tuple_from_e_step():
     # test else
     known_tuple = ((0, 1), (2, 1), (3, 1))
     assert known_tuple == aux_1010.tuple_from_e_step(3, 1)
+
+
+def test_add_aux_connect():
+    """
+    Test whether add_aux_connect updates the HopsAux object to contain a pointer to the
+    other HopsAux objects it is connected to.
+    """
+    # Define Constants
+    aux_1001 = AuxiliaryVector([(0, 1), (3, 1)], 4)
+    aux_1011 = AuxiliaryVector([(0, 1), (2, 1), (3, 1)], 4)
+    aux_1000 = AuxiliaryVector([(0, 1)], 4)
+    aux_1002 = AuxiliaryVector([(0, 1), (3, 2)], 4)
+
+    # Test when type == 1
+    aux_1001.add_aux_connect(2, aux_1011, 1)
+    assert aux_1001.dict_aux_p1[2] == aux_1011
+
+    # Test when type == -1
+    aux_1001.add_aux_connect(3, aux_1000, -1)
+    assert aux_1001.dict_aux_m1[3] == aux_1000
+
+    # # Test when type != +/- 1
+    with pytest.raises(AuxError) as excinfo:
+        aux_1002.add_aux_connect(3, aux_1000, 2)
+        assert 'There is a problem in the hierarchy: add_aux_connect does not support ' \
+               'type=2' in str(excinfo.value)
+
+
+def test_remove_aux_connect():
+    """
+    Test whether the remove_aux_connect function removes the connection between the
+    HopsAux object and another connected with type (+1/-1) along index mode.
+    """
+
+    # Define Constants
+    aux_1001 = AuxiliaryVector([(0, 1), (3, 1)], 4)
+    aux_1011 = AuxiliaryVector([(0, 1), (2, 1), (3, 1)], 4)
+    aux_1000 = AuxiliaryVector([(0, 1)], 4)
+
+    # Test when type == 1
+    aux_1001.add_aux_connect(2, aux_1011, 1)
+    aux_1001.remove_aux_connect(2, 1)
+    assert aux_1001.dict_aux_p1 == {}
+
+    # Test when type == -1
+    aux_1001.add_aux_connect(3, aux_1000, -1)
+    aux_1001.remove_aux_connect(3, -1)
+    assert aux_1001.dict_aux_m1 == {}
+
+    # Test when type != +/- 1
+    with pytest.raises(AuxError) as excinfo:
+        aux_1001.remove_aux_connect(3, 2)
+        assert 'There is a problem in the hierarchy: remove_aux_connect does not ' \
+               'support ' \
+               'type=2' in str(excinfo.value)
+
+
+def test_remove_pointers():
+    """
+    This will test if the remove_pointers function removes all pointers targeting the
+    current HopsAux object from the set of HopsAux objects it has connections to.
+    """
+
+    # Define Constants
+    aux_1012 = AuxiliaryVector([(0, 1), (2, 1), (3, 2)], 4)
+    aux_1011 = AuxiliaryVector([(0, 1), (2, 1), (3, 1)], 4)
+    aux_1010 = AuxiliaryVector([(0, 1), (2, 1)], 4)
+
+    # Test with both +/- 1 additions
+    aux_1011.add_aux_connect(3, aux_1012, 1)
+    aux_1011.add_aux_connect(3, aux_1010, -1)
+    aux_1012.add_aux_connect(3,aux_1011,-1)
+    aux_1010.add_aux_connect(3,aux_1011,1)
+    aux_1011.remove_pointers()
+    assert aux_1011.dict_aux_p1 == {}
+    assert aux_1011.dict_aux_m1 == {}
+    assert aux_1012.dict_aux_m1 == {}
+    assert aux_1010.dict_aux_p1 == {}
+
+
+def test_difference_by_mode():
+    """
+    This test will ensure that the difference_by_mode function is returning the
+    correct mode in which one HopsAux object differs by another HopsAux object, if the
+    difference is only 1 step. This function will also test that an error is called
+    if the two objects differ by more than 1 step.
+    """
+
+    # Define Constants
+    aux_1012 = AuxiliaryVector([(0, 1), (2, 1), (3, 2)], 4)
+    aux_3012 = AuxiliaryVector([(0, 3), (2, 1), (3, 2)], 4)
+    aux_2012 = AuxiliaryVector([(0, 2), (2, 1), (3, 2)], 4)
+    aux_1112 = AuxiliaryVector([(0, 1), (1, 1), (2, 1), (3, 2)], 4)
+    aux_1022 = AuxiliaryVector([(0, 1), (2, 2), (3, 2)], 4)
+    aux_1013 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 4)
+    aux_10130 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 5)
+
+    # Test mode 0
+    difference_0 = aux_1012.difference_by_mode(aux_3012)
+    assert difference_0 is False
+
+    # Test mode 1
+    difference_1 = aux_1012.difference_by_mode(aux_1112)
+    assert difference_1 == [1]
+
+    # Test mode 2
+    difference_2 = aux_1012.difference_by_mode(aux_1022)
+    assert difference_2 == [2]
+
+    # Test mode 3
+    difference_3 = aux_1012.difference_by_mode(aux_1013)
+    assert difference_3 == [3]
+
+    # Test when mode of difference is more than one
+    difference_many = aux_2012.difference_by_mode(aux_1112)
+    assert difference_many is False
+
+    # Test when the two HopsAux objects don't belong to the same hierarchy
+    with pytest.raises(AssertionError):
+        aux_10130.difference_by_mode(aux_1013)
