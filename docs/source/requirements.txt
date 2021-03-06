@@ -1,3 +1,5 @@
+-e git+https://github.com/MesoscienceLab/mesohops.git#egg=mesohops
+#-e git+https://github.com/MesoscienceLab/mesohops.git@f3cb4b44a00e99636328231296694c0c838fd053#egg=mesohops
 alabaster==0.7.12
 appdirs==1.4.3
 atomium==1.0.2
@@ -40,7 +42,7 @@ pycparser==2.19
 pycryptodome==3.9.7
 Pygments==2.5.2
 # Editable install with no version control (pyhops==0.2)
--e /Users/leovarvelo/Documents/PythonLibrary/pyhopslib
+#-e /Users/leovarvelo/Documents/PythonLibrary/pyhopslib
 PyNaCl==1.3.0
 pyOpenSSL==19.1.0
 pyparsing==2.4.6

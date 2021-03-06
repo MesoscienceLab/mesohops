@@ -4,8 +4,8 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>dynamics package &#8212; PYHOPS 1.0 documentation</title>
-    <link rel="stylesheet" href="_static/sphinxdoc.css" type="text/css" />
+    <title>dynamics package &#8212; MESOHOPS 1.1 documentation</title>
+    <link rel="stylesheet" href="_static/pyramid.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
@@ -14,8 +14,15 @@
     <script src="_static/language_data.js"></script>
     <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Neuton&amp;subset=latin" type="text/css" media="screen" charset="utf-8" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Nobile:regular,italic,bold,bolditalic&amp;subset=latin" type="text/css" media="screen" charset="utf-8" />
+<!--[if lte IE 6]>
+<link rel="stylesheet" href="_static/ie6.css" type="text/css" media="screen" charset="utf-8" />
+<![endif]-->
+
   </head><body>
+
     <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
@@ -25,56 +32,9 @@
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">PYHOPS 1.0 documentation</a> &#187;</li> 
+        <li class="nav-item nav-item-0"><a href="index.html">MESOHOPS 1.1 documentation</a> &#187;</li> 
       </ul>
-    </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper">
-  <h3><a href="index.html">Table of Contents</a></h3>
-  <ul>
-<li><a class="reference internal" href="#">dynamics package</a><ul>
-<li><a class="reference internal" href="#submodules">Submodules</a></li>
-<li><a class="reference internal" href="#module-dynamics.bath_corr_functions">dynamics.bath_corr_functions module</a></li>
-<li><a class="reference internal" href="#module-dynamics.eom_functions">dynamics.eom_functions module</a></li>
-<li><a class="reference internal" href="#module-dynamics.eom_hops_ksuper">dynamics.eom_hops_ksuper module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hierarchy_functions">dynamics.hierarchy_functions module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_aux">dynamics.hops_aux module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_basis">dynamics.hops_basis module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_eom">dynamics.hops_eom module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_hierarchy">dynamics.hops_hierarchy module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_noise">dynamics.hops_noise module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_storage">dynamics.hops_storage module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_system">dynamics.hops_system module</a></li>
-<li><a class="reference internal" href="#module-dynamics.hops_trajectory">dynamics.hops_trajectory module</a></li>
-<li><a class="reference internal" href="#module-dynamics.integrator_rk">dynamics.integrator_rk module</a></li>
-<li><a class="reference internal" href="#module-dynamics.noise_fft">dynamics.noise_fft module</a></li>
-<li><a class="reference internal" href="#module-dynamics.noise_trajectories">dynamics.noise_trajectories module</a></li>
-<li><a class="reference internal" href="#module-dynamics.noise_zero">dynamics.noise_zero module</a></li>
-<li><a class="reference internal" href="#module-dynamics.prepare_functions">dynamics.prepare_functions module</a></li>
-<li><a class="reference internal" href="#module-dynamics">Module contents</a></li>
-</ul>
-</li>
-</ul>
-
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="_sources/dynamics.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3 id="searchlabel">Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" />
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</div>
-<script>$('#searchbox').show(0);</script>
-        </div>
-      </div>
+    </div>  
 
     <div class="document">
       <div class="documentwrapper">
@@ -152,6 +112,50 @@ alpha(t) = displastyleg exp(-w*t)</p>
 <dl class="function">
 <dt id="dynamics.eom_functions.calc_delta_zmem">
 <code class="sig-name descname">calc_delta_zmem</code><span class="sig-paren">(</span><em class="sig-param">z_mem</em>, <em class="sig-param">list_avg_L2</em>, <em class="sig-param">list_g</em>, <em class="sig-param">list_w</em>, <em class="sig-param">list_index_L2_by_mode</em>, <em class="sig-param">list_absindex_mode</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.eom_functions.calc_delta_zmem" title="Permalink to this definition">¶</a></dt>
+<dd><p>This updates the memory term. The form of the equation depends on expanding the
+memory integral assuming an exponential expansion.</p>
+<p>NOTE: THIS ASSUMES THE NOISE HAS EXPONENTIAL FORM.</p>
+<dl class="simple">
+<dt>NOTE: Again this function mixes relative and absolute</dt><dd><p>indexing which makes it much more confusing.
+z_mem : absolute
+list_avg_L2 : relative
+list_g : absolute
+list_w : absolute
+list_absindex_L2_by_mode : relative
+list_absindex_mode : mapping from relative–&gt;absolute</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>1. z_mem</strong><span class="classifier">list</span></dt><dd><p>a list of memory terms in absolute indices</p>
+</dd>
+<dt><strong>2. list_avg_L2</strong><span class="classifier">list</span></dt><dd><p>relative list of the expectation values of the L operators</p>
+</dd>
+<dt><strong>3. list_g</strong><span class="classifier">list</span></dt><dd><p>list of pre exponential factors for bath correlation functions [absolute]</p>
+</dd>
+<dt><strong>3. list_w</strong><span class="classifier">list</span></dt><dd><p>list of exponents for bath correlation functions (w = γ+iΩ) [absolute]</p>
+</dd>
+<dt><strong>4. list_absindex_L2_by_mode</strong><span class="classifier">list</span></dt><dd><p>list of length equal to the number of ‘modes’ in the
+current hierarchy basis and each entry is an index for
+the absolute list_L2.</p>
+</dd>
+<dt><strong>5. list_absindex_mode</strong><span class="classifier">list</span></dt><dd><p>list of the absolute indices  of the modes in current basis</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>1. delta_z_mem</strong><span class="classifier">list</span></dt><dd><p>a list of updated memory terms</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="dynamics.eom_functions.calc_delta_zmem_absorption">
+<code class="sig-name descname">calc_delta_zmem_absorption</code><span class="sig-paren">(</span><em class="sig-param">z_mem</em>, <em class="sig-param">list_avg_L2</em>, <em class="sig-param">list_g</em>, <em class="sig-param">list_w</em>, <em class="sig-param">list_index_L2_by_mode</em>, <em class="sig-param">list_absindex_mode</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.eom_functions.calc_delta_zmem_absorption" title="Permalink to this definition">¶</a></dt>
 <dd><p>This updates the memory term. The form of the equation depends on expanding the
 memory integral assuming an exponential expansion.</p>
 <p>NOTE: THIS ASSUMES THE NOISE HAS EXPONENTIAL FORM.</p>
@@ -522,6 +526,13 @@ it cannot be changed.</p>
 <dt class="field-odd">Attributes</dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>absolute_index</strong></dt><dd></dd>
+<dt><strong>array_aux_vec</strong></dt><dd></dd>
+<dt><strong>dict_aux_m1</strong></dt><dd></dd>
+<dt><strong>dict_aux_p1</strong></dt><dd></dd>
+<dt><strong>dict_aux_vec</strong></dt><dd></dd>
+<dt><strong>hash</strong></dt><dd></dd>
+<dt><strong>index</strong></dt><dd></dd>
+<dt><strong>tuple_aux_vec</strong></dt><dd></dd>
 </dl>
 </dd>
 </dl>
@@ -532,6 +543,12 @@ it cannot be changed.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.add_aux_connect" title="dynamics.hops_aux.AuxiliaryVector.add_aux_connect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_aux_connect</span></code></a>(self, index_mode, aux_other, …)</p></td>
+<td><p>The function that updates the HopsAux object to contain a pointer to the other HopsAux objects it is connected to.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.difference_by_mode" title="dynamics.hops_aux.AuxiliaryVector.difference_by_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">difference_by_mode</span></code></a>(self, other)</p></td>
+<td><p>Compares the current HopsAux object to another HopsAux object.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.dot" title="dynamics.hops_aux.AuxiliaryVector.dot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dot</span></code></a>(self, vec)</p></td>
 <td><p>This is a function that performs a sparse dot product between the auxiliary index vector and another vector.</p></td>
 </tr>
@@ -559,6 +576,12 @@ it cannot be changed.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.keys" title="dynamics.hops_aux.AuxiliaryVector.keys"><code class="xref py py-obj docutils literal notranslate"><span class="pre">keys</span></code></a>(self)</p></td>
 <td><p>This function returns an array of mode indices for the auxiliary vectors</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.remove_aux_connect" title="dynamics.hops_aux.AuxiliaryVector.remove_aux_connect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_aux_connect</span></code></a>(self, index_mode, type)</p></td>
+<td><p>The function that removes the connection between the HopsAux object and another connected with type (+1/-1) along index mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.remove_pointers" title="dynamics.hops_aux.AuxiliaryVector.remove_pointers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_pointers</span></code></a>(self)</p></td>
+<td><p>The function that removes all pointers targeting the current HopsAux object from the set of HopsAux objects it has connections to.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_aux.AuxiliaryVector.sum" title="dynamics.hops_aux.AuxiliaryVector.sum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sum</span></code></a>(self, \*\*unused_kwargs)</p></td>
 <td><p>This function returns the sum of the auxiliary vector values</p></td>
 </tr>
@@ -580,6 +603,74 @@ it cannot be changed.</p>
 <dt id="dynamics.hops_aux.AuxiliaryVector.absolute_index">
 <em class="property">property </em><code class="sig-name descname">absolute_index</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.absolute_index" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="method">
+<dt id="dynamics.hops_aux.AuxiliaryVector.add_aux_connect">
+<code class="sig-name descname">add_aux_connect</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">index_mode</em>, <em class="sig-param">aux_other</em>, <em class="sig-param">type</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.add_aux_connect" title="Permalink to this definition">¶</a></dt>
+<dd><p>The function that updates the HopsAux object to contain a pointer to the
+other HopsAux objects it is connected to.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>1. index_mode</strong><span class="classifier">int</span></dt><dd><p>the mode along which the two HopsAux objects are connected</p>
+</dd>
+<dt><strong>2. aux_other</strong><span class="classifier">HopsAux</span></dt><dd><p>the HopsAux object it is connected to</p>
+</dd>
+<dt><strong>3. type</strong><span class="classifier">int</span></dt><dd><p>+1 or -1 depending on if the other aux has a larger or smaller sum</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><ol class="arabic simple">
+<li><dl class="simple">
+<dt>None</dt><dd></dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dynamics.hops_aux.AuxiliaryVector.array_aux_vec">
+<code class="sig-name descname">array_aux_vec</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.array_aux_vec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="dynamics.hops_aux.AuxiliaryVector.dict_aux_m1">
+<em class="property">property </em><code class="sig-name descname">dict_aux_m1</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.dict_aux_m1" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="dynamics.hops_aux.AuxiliaryVector.dict_aux_p1">
+<em class="property">property </em><code class="sig-name descname">dict_aux_p1</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.dict_aux_p1" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="dynamics.hops_aux.AuxiliaryVector.dict_aux_vec">
+<code class="sig-name descname">dict_aux_vec</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.dict_aux_vec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="dynamics.hops_aux.AuxiliaryVector.difference_by_mode">
+<code class="sig-name descname">difference_by_mode</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">other</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.difference_by_mode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compares the current HopsAux object to another HopsAux object. If they differ
+by only 1 step, then it returns the mode along which they differ.
+Parameters
+———-
+1. other: HopsAux object</p>
+<blockquote>
+<div><p>The HopsAux object to which the current object is compared.</p>
+</div></blockquote>
+<ol class="arabic simple">
+<li><dl class="simple">
+<dt>diff_mode<span class="classifier">int or False</span></dt><dd><p>The mode index along which they differ or False if they differ
+by more than 1 step.</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd></dl>
 
 <dl class="method">
 <dt id="dynamics.hops_aux.AuxiliaryVector.dot">
@@ -669,6 +760,11 @@ mode</p>
 </dl>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="dynamics.hops_aux.AuxiliaryVector.hash">
+<code class="sig-name descname">hash</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.hash" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
 <dt id="dynamics.hops_aux.AuxiliaryVector.hash_from_e_step">
 <code class="sig-name descname">hash_from_e_step</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">mode</em>, <em class="sig-param">step</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.hash_from_e_step" title="Permalink to this definition">¶</a></dt>
@@ -695,6 +791,11 @@ in the given mode</p>
 </dl>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="dynamics.hops_aux.AuxiliaryVector.index">
+<code class="sig-name descname">index</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.index" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
 <dt id="dynamics.hops_aux.AuxiliaryVector.index_analytic">
 <code class="sig-name descname">index_analytic</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.index_analytic" title="Permalink to this definition">¶</a></dt>
@@ -715,7 +816,10 @@ of non-zero terms in aux.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>None</strong></dt><dd></dd>
+<dt><strong>1. tup_aux</strong><span class="classifier">tuple</span></dt><dd><p>index for the auxiliary represented by aux</p>
+</dd>
+<dt><strong>2. n_hmodes</strong><span class="classifier">int</span></dt><dd><p>number of modes that appear in the hierarchy</p>
+</dd>
 </dl>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -742,6 +846,48 @@ of non-zero terms in aux.</p>
 <dt><strong>1. keys</strong><span class="classifier">array</span></dt><dd><p>an array of mode indices with nonzero auxiliary index</p>
 </dd>
 </dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dynamics.hops_aux.AuxiliaryVector.remove_aux_connect">
+<code class="sig-name descname">remove_aux_connect</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">index_mode</em>, <em class="sig-param">type</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.remove_aux_connect" title="Permalink to this definition">¶</a></dt>
+<dd><p>The function that removes the connection between the HopsAux object and another
+connected with type (+1/-1) along index mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>1. index_mode</strong><span class="classifier">int</span></dt><dd><p>the mode along which the two HopsAux objects are connected</p>
+</dd>
+<dt><strong>2. type</strong><span class="classifier">int</span></dt><dd><p>+1 or -1 depending on if the other aux has a larger or smaller sum</p>
+</dd>
+<dt><strong>Returns</strong></dt><dd></dd>
+<dt><strong>——-</strong></dt><dd></dd>
+<dt><strong>1. None</strong></dt><dd></dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dynamics.hops_aux.AuxiliaryVector.remove_pointers">
+<code class="sig-name descname">remove_pointers</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.remove_pointers" title="Permalink to this definition">¶</a></dt>
+<dd><p>The function that removes all pointers targeting the current HopsAux object
+from the set of HopsAux objects it has connections to.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>1. None</strong></dt><dd></dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><ol class="arabic simple">
+<li><dl class="simple">
+<dt>None</dt><dd></dd>
+</dl>
+</li>
+</ol>
 </dd>
 </dl>
 </dd></dl>
@@ -803,6 +949,11 @@ of non-zero terms in aux.</p>
 </dl>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="dynamics.hops_aux.AuxiliaryVector.tuple_aux_vec">
+<code class="sig-name descname">tuple_aux_vec</code><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.tuple_aux_vec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
 <dt id="dynamics.hops_aux.AuxiliaryVector.tuple_from_e_step">
 <code class="sig-name descname">tuple_from_e_step</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">mode</em>, <em class="sig-param">step</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_aux.AuxiliaryVector.tuple_from_e_step" title="Permalink to this definition">¶</a></dt>
@@ -854,7 +1005,7 @@ length along the given absolute mode index away from the current auxiliary.</p>
 <dt id="dynamics.hops_basis.HopsBasis">
 <em class="property">class </em><code class="sig-name descname">HopsBasis</code><span class="sig-paren">(</span><em class="sig-param">system</em>, <em class="sig-param">hierarchy</em>, <em class="sig-param">eom</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Every HOPS calculation is defines by the HopsSystem, HopsHierarchy, and HopsEOM
+<p>Every HOPS calculation is defined by the HopsSystem, HopsHierarchy, and HopsEOM
 classes (and their associated parameters). These form the basis set for the
 calculation. HopsBasis is the class that contains all of these sub-classes and
 mediates the way the HopsTrajectory will interact with them.</p>
@@ -883,31 +1034,13 @@ mediates the way the HopsTrajectory will interact with them.</p>
 <td><p>This is the function that determines what basis is needed for a given full hierarchy (Φ) in order to construct an approximate derivative with error below the specified threshold.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_boundary_state" title="dynamics.hops_basis.HopsBasis.error_boundary_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_boundary_state</span></code></a>(self, Φ, …)</p></td>
-<td><p>This function determines the error associated with neglecting flux into n’ not a member of S_t.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_deletion" title="dynamics.hops_basis.HopsBasis.error_deletion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_deletion</span></code></a>(self, Φ, delta_t)</p></td>
-<td><p>The error associated with setting the corresponding component of Phi to 0.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_deriv" title="dynamics.hops_basis.HopsBasis.error_deriv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_deriv</span></code></a>(self, Φ, z_step[, …])</p></td>
-<td><p>The error associated with losing all flux terms into the k auxiliary and n’ state.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_flux_down" title="dynamics.hops_basis.HopsBasis.error_flux_down"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_flux_down</span></code></a>(self, Φ, type)</p></td>
-<td><p>A function that returns the error associated with neglecting flux from members of H_t to auxiliaries in H_t^C that arise due to flux from higher auxiliaries to lower auxiliaries.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_flux_up" title="dynamics.hops_basis.HopsBasis.error_flux_up"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_flux_up</span></code></a>(self, Φ)</p></td>
-<td><p>A function that returns the error associated with neglecting flux from members of H_t to auxiliaries in H_t^C that arise due to flux from lower auxiliaries to higher auxiliaries.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_sflux_hier" title="dynamics.hops_basis.HopsBasis.error_sflux_hier"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_sflux_hier</span></code></a>(self, Φ, list_s0)</p></td>
-<td><p>The error associated with losing all flux terms inside the kth auxiliary to states not contained in S_t.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_sflux_state" title="dynamics.hops_basis.HopsBasis.error_sflux_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_sflux_state</span></code></a>(self, Φ, …)</p></td>
-<td><p>The error associated with losing all flux out of n’ in S_t.</p></td>
+<td><p>This function determines the set of states which were not in the previous basis S_0, but which need to be kept because there is sufficient flux going to them.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.error_stable_state" title="dynamics.hops_basis.HopsBasis.error_stable_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_stable_state</span></code></a>(self, Φ, delta_t, z_step, …)</p></td>
-<td><p>This function finds the total error associated with neglecting n’ in the state basis S_t.</p></td>
+<td><p>This function finds the total error associated with removing n’ from the state basis.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.hier_stable_error" title="dynamics.hops_basis.HopsBasis.hier_stable_error"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hier_stable_error</span></code></a>(self, Φ, delta_t, z_step)</p></td>
-<td><p>This function finds the total error associated with removing k’ in H_t.</p></td>
+<td><p>This function finds the total error associated with removing k’ in H_0 from H_1.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_basis.HopsBasis.initialize" title="dynamics.hops_basis.HopsBasis.initialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initialize</span></code></a>(self, psi_0)</p></td>
 <td><p>This function initializes the hierarchy and equations of motion classes so that everything is prepared for integration.</p></td>
@@ -1011,10 +1144,14 @@ error below the specified threshold.</p>
 <dl class="method">
 <dt id="dynamics.hops_basis.HopsBasis.error_boundary_state">
 <code class="sig-name descname">error_boundary_state</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">list_index_stable</em>, <em class="sig-param">list_index_aux_stable</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_boundary_state" title="Permalink to this definition">¶</a></dt>
-<dd><p>This function determines the error associated with neglecting flux into n’ not
-a member of S_t.</p>
+<dd><p>This function determines the set of states which were not in the previous basis
+S_0, but which need to be kept because there is sufficient flux going to them.
+We call these the <a href="#id1"><span class="problematic" id="id2">`</span></a>boundary’ states S_B. The error associated with not including
+n in the new basis is given by equation 61 in the LaTeX document. This can be
+simplified to an action of the Hamiltonian which is the only operator that can
+change the state index, giving equation 62 in the LaTeX document</p>
 <div class="math notranslate nohighlight">
-\[\sum_{\vec{k} \in \mathcal{H}_{t}} \left \vert (\hat{H} \psi^{(\vec{k})}_t)_n \right\vert^2\]</div>
+\[\sum_{\vec{k} \in \mathbb{H}_{stab}} \vert \sum_{n \in \mathbb{S}_{stab}} H[n', n] \tilde{\Phi}[n, \vec{k}; \tilde{z}_t]\vert^2\]</div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl class="simple">
@@ -1038,181 +1175,19 @@ a member of S_t.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="dynamics.hops_basis.HopsBasis.error_deletion">
-<code class="sig-name descname">error_deletion</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">delta_t</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_deletion" title="Permalink to this definition">¶</a></dt>
-<dd><p>The error associated with setting the corresponding component of Phi to 0. This
-is equivalent to adding a term to our approximate derivative that is absent in
-the full derivative, corresponding to</p>
-<div class="math notranslate nohighlight">
-\[\sum_{n \in \mathcal{S}_{t}} \frac{\vert \psi^{(\vec{k})}_{t,n}\vert^2}{dt}\]</div>
-<div class="math notranslate nohighlight">
-\[\sum_{\vec{k} \in \mathcal{H}_{t}} \frac{\vert \psi^{(\vec{k})}_{t,n}\vert^2}{dt}\]</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. Φ</strong><span class="classifier">np.array</span></dt><dd><p>The current position of the full hierarchy vector</p>
-</dd>
-<dt><strong>2. delta_t</strong><span class="classifier">float</span></dt><dd><p>the timestep for the calculation</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. E2_site_aux</strong><span class="classifier">np.array</span></dt><dd><p>the error induced by removing components of Φ in H_t+S_t</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_basis.HopsBasis.error_deriv">
-<code class="sig-name descname">error_deriv</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">z_step</em>, <em class="sig-param">list_index_aux_stable=None</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_deriv" title="Permalink to this definition">¶</a></dt>
-<dd><p>The error associated with losing all flux terms into the k auxiliary and n’ state.
-Where k is in H_t and n’ is in S_t.</p>
-<div class="math notranslate nohighlight">
-\[\sum_{n \in \mathcal{S}_{t}} \left\vert \frac{\delta_{a} \psi^{(\vec{k})}_{t,n}}{\delta t_a} \right\vert^2\]</div>
-<div class="math notranslate nohighlight">
-\[\sum_{\vec{k} \in \mathcal{H}_{t}} \left\vert \frac{\delta_{a} \psi^{(\vec{k})}_{t,n}}{\delta t_a} \right\vert^2\]</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. Φ</strong><span class="classifier">np.array</span></dt><dd><p>The current full hierarchy vector</p>
-</dd>
-<dt><strong>2. z_step</strong><span class="classifier">list</span></dt><dd><p>the list of noise terms (compressed) for the next timestep</p>
-</dd>
-<dt><strong>3. list_index_aux_stable</strong><span class="classifier">list</span></dt><dd><p>a list relative indices for the stable auxiliaries</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. E2_del_phi</strong><span class="classifier">np.array</span></dt><dd><p>the error associated with losing flux to a component (either
-hierarchy or state basis element) in H_t direct sum S_t</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_basis.HopsBasis.error_flux_down">
-<code class="sig-name descname">error_flux_down</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">type</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_flux_down" title="Permalink to this definition">¶</a></dt>
-<dd><p>A function that returns the error associated with neglecting flux from members of
-H_t to auxiliaries in H_t^C that arise due to flux from higher auxiliaries to
-lower auxiliaries.</p>
-<div class="math notranslate nohighlight">
-\[\sum_{n \in \mathcal{S}_{t}} \left \vert F[\vec{k}-\vec{e}_n] \frac{g_n}{\gamma_n} N^{(\vec{k})}_t \psi_{t,n}^{(\vec{k})}\right \vert^2\]</div>
-<div class="math notranslate nohighlight">
-\[\sum_{\vec{k} \in \mathcal{H}_{t}} \left \vert F[\vec{k}-\vec{e}_n] \frac{g_n}{\gamma_n} N^{(\vec{k})}_t \psi_{t,n}^{(\vec{k})}\right \vert^2\]</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. Φ</strong><span class="classifier">np.array</span></dt><dd><p>The current state of the hierarchy</p>
-</dd>
-<dt><strong>2. type: string</strong></dt><dd><p>‘H’ - Hierarchy type calculation
-‘S’ - State type calculation</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. E2_flux_down_error</strong><span class="classifier">np.array</span></dt><dd><p>the error induced by neglecting flux from H_t (or H_S)
-to auxiliaries with higher summed index in H_t^C.</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_basis.HopsBasis.error_flux_up">
-<code class="sig-name descname">error_flux_up</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_flux_up" title="Permalink to this definition">¶</a></dt>
-<dd><p>A function that returns the error associated with neglecting flux from members of
-H_t to auxiliaries in H_t^C that arise due to flux from lower auxiliaries to
-higher auxiliaries.</p>
-<div class="math notranslate nohighlight">
-\[\sum_{n \in \mathcal{S}_{t}} \left \vert F[\vec{k}+\vec{e}_n] \gamma_n (1+\vec{k}[n]) \psi_{t,n}^{(\vec{k})}   \right \vert^2\]</div>
-<div class="math notranslate nohighlight">
-\[\sum_{\vec{k} \in \mathcal{H}_{t}}\left \vert F[\vec{k}+\vec{e}_n] \gamma_n (1+\vec{k}[n]) \psi_{t,n}^{(\vec{k})}   \right \vert^2\]</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. Φ</strong><span class="classifier">np.array</span></dt><dd><p>The current state of the hierarchy</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. E2_flux_up_error</strong><span class="classifier">np. array</span></dt><dd><p>the error induced by neglecting flux from H_t (or H_S)
-to auxiliaries with lower summed index in H_t^C.</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_basis.HopsBasis.error_sflux_hier">
-<code class="sig-name descname">error_sflux_hier</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">list_s0</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_sflux_hier" title="Permalink to this definition">¶</a></dt>
-<dd><p>The error associated with losing all flux terms inside the kth auxiliary to
-states not contained in S_t.</p>
-<div class="math notranslate nohighlight">
-\[\sum_{n \notin \mathcal{S}_{t}} \left \vert (\hat{H} \psi^{(\vec{k})}_t)_n \right\vert^2\]</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. Φ</strong><span class="classifier">np.array</span></dt><dd><p>the current full hierarchy vector</p>
-</dd>
-<dt><strong>2. list_s0</strong><span class="classifier">list</span></dt><dd><p>a list of the current states (absolute index)</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. E2_flux_state</strong><span class="classifier">array</span></dt><dd><p>the error introduced by losing flux within k from S_t to S_t^C
-for each k in H_t</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_basis.HopsBasis.error_sflux_state">
-<code class="sig-name descname">error_sflux_state</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">list_index_aux_stable</em>, <em class="sig-param">list_states</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_sflux_state" title="Permalink to this definition">¶</a></dt>
-<dd><p>The error associated with losing all flux out of n’ in S_t. This flux always involves
-changing the state index and, as a result, can be rewritten in terms of the -iH
-component of the self-interaction.</p>
-<div class="math notranslate nohighlight">
-\[\sum_{\vec{k} \in \mathcal{H}_{t}} \sum_{n' \notin \mathcal{S}_t} \vert \hat{H}_{n',n} \vert^2 \vert \psi^{(\vec{k})}_{t,n} \vert^2\]</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. Φ</strong><span class="classifier">np.array</span></dt><dd><p>the current full hierarchy vector</p>
-</dd>
-<dt><strong>2. list_index_aux_stable</strong><span class="classifier">list</span></dt><dd><p>a list relative indices for the stable auxiliaries (H_S)</p>
-</dd>
-<dt><strong>3. list_states</strong><span class="classifier">list</span></dt><dd><p>the list of current states (absolute index)</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. E1_state_flux</strong><span class="classifier">array</span></dt><dd><p>the error associated with flux out of each state in S_t</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
 <dt id="dynamics.hops_basis.HopsBasis.error_stable_state">
 <code class="sig-name descname">error_stable_state</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">delta_t</em>, <em class="sig-param">z_step</em>, <em class="sig-param">list_index_aux_stable</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.error_stable_state" title="Permalink to this definition">¶</a></dt>
-<dd><p>This function finds the total error associated with neglecting n’ in the state
-basis S_t. This includes the error associated with deleting a state from the basis,
+<dd><p>This function finds the total error associated with removing n’ from the state
+basis. This includes the error associated with deleting a state from the basis,
 the error associated with losing all flux into a state, and the error associated
-with losing all flux out of a state.</p>
+with losing all flux out of a state. This is equation 59 in the LaTeX document</p>
+<div class="math notranslate nohighlight">
+\[\Delta_{S}^2(n') = \sum_{\vec{k} \in \mathbb{H}_0 \cap \mathbb{H}_1} \vert \tilde{\Phi}[n', \vec{k}]/\Delta t \vert^2
++ \sum_{\vec{k}'} \vert \frac{d\Phi_{stab}}{dt}[n', \vec{k}'] \vert^2\]</div>
+<div class="math notranslate nohighlight">
+\[+ \sum_{\vec{k}' \in \mathbb{H}_{B}} \vert \sum_{\vec{k} \in \mathbb{H}_{stab}} \hat{\mathcal{K}}(n', \vec{k}' \leftarrow n', \vec{k})\tilde{\Phi}[n', \vec{k}; \tilde{z}_t] \vert^2\]</div>
+<div class="math notranslate nohighlight">
+\[+ \sum_{\vec{k} \in \mathbb{H}_{stab}, n \in \{n'\}^\textrm{C}} \vert H[n, n'] \tilde{\Phi}[n', \vec{k}; \tilde{z}_t]\vert^2.\]</div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl class="simple">
@@ -1228,7 +1203,7 @@ with losing all flux out of a state.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><dl class="simple">
-<dt><strong>1. error</strong><span class="classifier">np.array</span></dt><dd><p>list of error associated with removing each state</p>
+<dt><strong>1. error</strong><span class="classifier">np.array</span></dt><dd><p>list of error associated with removing each state in S_0</p>
 </dd>
 </dl>
 </dd>
@@ -1238,10 +1213,19 @@ with losing all flux out of a state.</p>
 <dl class="method">
 <dt id="dynamics.hops_basis.HopsBasis.hier_stable_error">
 <code class="sig-name descname">hier_stable_error</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">Φ</em>, <em class="sig-param">delta_t</em>, <em class="sig-param">z_step</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_basis.HopsBasis.hier_stable_error" title="Permalink to this definition">¶</a></dt>
-<dd><p>This function finds the total error associated with removing k’ in H_t.
+<dd><p>This function finds the total error associated with removing k’ in H_0 from H_1.
 This includes the error associated with deleting a auxiliary from the basis,
 the error associated with losing all flux into a k’ auxiliary, and the error
-associated with losing all flux out of a k’ auxiliary.</p>
+associated with losing all flux out of a k’ auxiliary. This is equation 50 in
+the LaTeX document</p>
+<div class="math notranslate nohighlight">
+\[\Delta_{stable}^2(\vec{k}') =
+\sum_{n' \in \mathbb{S}_0} \vert \tilde{\Phi}[n', \vec{k}' ]/\Delta t \vert^2 \
++ \sum_{n' \in \mathbb{S}_0} \left\vert \frac{d \tilde{\Phi}}{dt}[,n',\vec{k}'; z_{step}] \right\vert^2\]</div>
+<div class="math notranslate nohighlight">
+\[+ \sum_{n' \in \mathbb{S}_0^\textrm{C}} \left \vert \sum_{n \in \mathbb{S}_0} H[n', n] \tilde{\Phi}[n,\vec{k}'] \right\vert^2\]</div>
+<div class="math notranslate nohighlight">
+\[+ \sum_{\vec{k} \in \mathbb{H}_T\setminus \{\vec{k}'\}, n'\in \mathbb{S}_0} \vert \hat{\mathcal{K}}(n',\vec{k} \leftarrow n',\vec{k}') \tilde{\Phi}[n',\vec{k}'; \tilde{z}_t]\vert^2\]</div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl class="simple">
@@ -1255,15 +1239,15 @@ associated with losing all flux out of a k’ auxiliary.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><dl class="simple">
-<dt><strong>1. error</strong><span class="classifier">np.array</span></dt><dd><p>list of error associated with removing each auxiliary in H_t</p>
+<dt><strong>1. error</strong><span class="classifier">np.array</span></dt><dd><p>list of error associated with removing each auxiliary in H_0</p>
 </dd>
 <dt><strong>2. E2_flux_up</strong><span class="classifier">np.array</span></dt><dd><dl class="simple">
-<dt>the error induced by neglecting flux from H_t (or H_S)</dt><dd><p>to auxiliaries with lower summed index in H_t^C.</p>
+<dt>the error induced by neglecting flux from H_0 (or H_S)</dt><dd><p>to auxiliaries with lower summed index in H0^C.</p>
 </dd>
 </dl>
 </dd>
 <dt><strong>3. E2_flux_down</strong><span class="classifier">np.array</span></dt><dd><dl class="simple">
-<dt>the error induced by neglecting flux from H_t (or H_S)</dt><dd><p>to auxiliaries with higher summed index in H_t^C.</p>
+<dt>the error induced by neglecting flux from H_0 (or H_S)</dt><dd><p>to auxiliaries with higher summed index in H_0^C.</p>
 </dd>
 </dl>
 </dd>
@@ -1397,16 +1381,19 @@ the list of all nodes contained in the hierarchy.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.apply_filter" title="dynamics.hops_hierarchy.HopsHierarchy.apply_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_filter</span></code></a>(self, list_aux, filter_name, params)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.add_connections" title="dynamics.hops_hierarchy.HopsHierarchy.add_connections"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_connections</span></code></a>(self, list_aux_add)</p></td>
+<td><p>The method responsible for adding the connections between HopsAux objects composing an auxiliary list.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.apply_filter" title="dynamics.hops_hierarchy.HopsHierarchy.apply_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_filter</span></code></a>(self, aux_list, filter_name, params)</p></td>
 <td><p>This is a function that implements a variety of different hierarchy filtering methods.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.define_triangular_hierarchy" title="dynamics.hops_hierarchy.HopsHierarchy.define_triangular_hierarchy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_triangular_hierarchy</span></code></a>(n_hmodes, maxhier)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.define_triangular_hierarchy" title="dynamics.hops_hierarchy.HopsHierarchy.define_triangular_hierarchy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_triangular_hierarchy</span></code></a>(n_hmodes, maxhier)</p></td>
 <td><p>This function creates a triangular hierarchy</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list" title="dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filter_aux_list</span></code></a>(self, list_aux)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list" title="dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filter_aux_list</span></code></a>(self, aux_list)</p></td>
 <td><p>A function that applies all of the filters defined for the hierarchy in “STATIC_FILTERS”</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.initialize" title="dynamics.hops_hierarchy.HopsHierarchy.initialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initialize</span></code></a>(self, flag_adaptive)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_hierarchy.HopsHierarchy.initialize" title="dynamics.hops_hierarchy.HopsHierarchy.initialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initialize</span></code></a>(self, flag_adaptive)</p></td>
 <td><p>This function will initialize the hierarchy.</p></td>
 </tr>
 </tbody>
@@ -1423,8 +1410,31 @@ the list of all nodes contained in the hierarchy.</p>
 </tbody>
 </table>
 <dl class="method">
+<dt id="dynamics.hops_hierarchy.HopsHierarchy.add_connections">
+<code class="sig-name descname">add_connections</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">list_aux_add</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.HopsHierarchy.add_connections" title="Permalink to this definition">¶</a></dt>
+<dd><p>The method responsible for adding the connections between HopsAux objects
+composing an auxiliary list.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>1. list_aux_add</strong><span class="classifier">list</span></dt><dd><p>a list of HopsAux objects being added to the auxiliary list</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><ol class="arabic simple">
+<li><dl class="simple">
+<dt>None</dt><dd></dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
 <dt id="dynamics.hops_hierarchy.HopsHierarchy.apply_filter">
-<code class="sig-name descname">apply_filter</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">list_aux</em>, <em class="sig-param">filter_name</em>, <em class="sig-param">params</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.HopsHierarchy.apply_filter" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">apply_filter</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">aux_list</em>, <em class="sig-param">filter_name</em>, <em class="sig-param">params</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.HopsHierarchy.apply_filter" title="Permalink to this definition">¶</a></dt>
 <dd><p>This is a function that implements a variety of different hierarchy filtering
 methods. In all cases, this filtering begins with the current list of auxiliaries
 and then prunes down from that list according to a set of rules.</p>
@@ -1493,13 +1503,13 @@ order than the other modes.</p>
 
 <dl class="method">
 <dt id="dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list">
-<code class="sig-name descname">filter_aux_list</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">list_aux</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">filter_aux_list</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">aux_list</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.HopsHierarchy.filter_aux_list" title="Permalink to this definition">¶</a></dt>
 <dd><p>A function that applies all of the filters defined for the hierarchy
 in “STATIC_FILTERS”</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>1. list_aux</strong><span class="classifier">list</span></dt><dd><p>the list of auxiliaries that is to be filtered</p>
+<dt><strong>1. aux_list</strong><span class="classifier">list</span></dt><dd><p>the list of auxiliaries that is to be filtered</p>
 </dd>
 </dl>
 </dd>
@@ -1538,6 +1548,32 @@ in “STATIC_FILTERS”</p>
 
 </dd></dl>
 
+<dl class="function">
+<dt id="dynamics.hops_hierarchy.listobj_or_none">
+<code class="sig-name descname">listobj_or_none</code><span class="sig-paren">(</span><em class="sig-param">hash</em>, <em class="sig-param">list_obj</em>, <em class="sig-param">list_hash</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.listobj_or_none" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function for determining which object in a list to return
+based on a list of the hash values for the objects.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>1. hash</strong><span class="classifier">int</span></dt><dd><p>The hash value for the desired object</p>
+</dd>
+<dt><strong>2. list_obj</strong><span class="classifier">list</span></dt><dd><p>A list of objects</p>
+</dd>
+<dt><strong>3. list_hash</strong><span class="classifier">list</span></dt><dd><p>The hash values for the objects in list_obj</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>1. obj</strong><span class="classifier">? or None</span></dt><dd><p>The object from list_obj with matching hash or None (if there was no
+such object)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
 </div>
 <div class="section" id="module-dynamics.hops_noise">
 <span id="dynamics-hops-noise-module"></span><h2>dynamics.hops_noise module<a class="headerlink" href="#module-dynamics.hops_noise" title="Permalink to this headline">¶</a></h2>
@@ -1563,7 +1599,7 @@ model-specific child classes.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="noise.html#dynamics.hops_noise.HopsNoise.get_noise" title="dynamics.hops_noise.HopsNoise.get_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code></a>(self, t_axis)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_noise.HopsNoise.get_noise" title="dynamics.hops_noise.HopsNoise.get_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code></a>(self, t_axis)</p></td>
 <td><p>Gets the noise</p></td>
 </tr>
 </tbody>
@@ -1574,7 +1610,10 @@ model-specific child classes.</p>
 <col style="width: 38%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><strong>update_param</strong></p></td>
+<tr class="row-odd"><td><p><strong>unlock</strong></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><strong>update_param</strong></p></td>
 <td></td>
 </tr>
 </tbody>
@@ -1605,6 +1644,11 @@ model-specific child classes.</p>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="dynamics.hops_noise.HopsNoise.unlock">
+<code class="sig-name descname">unlock</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_noise.HopsNoise.unlock" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="dynamics.hops_noise.HopsNoise.update_param">
 <code class="sig-name descname">update_param</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">param_usr</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_noise.HopsNoise.update_param" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1615,133 +1659,116 @@ model-specific child classes.</p>
 <div class="section" id="module-dynamics.hops_storage">
 <span id="dynamics-hops-storage-module"></span><h2>dynamics.hops_storage module<a class="headerlink" href="#module-dynamics.hops_storage" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage">
-<em class="property">class </em><code class="sig-name descname">AdaptiveTrajectoryStorage</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="traj.html#dynamics.hops_storage.TrajectoryStorage" title="dynamics.hops_storage.TrajectoryStorage"><code class="xref py py-class docutils literal notranslate"><span class="pre">dynamics.hops_storage.TrajectoryStorage</span></code></a></p>
-<p>This is an object that manages storing information for a
-HOPS trajectory.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Attributes</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>aux</strong></dt><dd></dd>
-<dt><strong>aux_list</strong></dt><dd></dd>
-<dt><strong>list_aux_boundary</strong></dt><dd></dd>
-<dt><strong>list_aux_new</strong></dt><dd></dd>
-<dt><strong>list_aux_pop</strong></dt><dd></dd>
-<dt><strong>list_nhier</strong></dt><dd></dd>
-<dt><strong>list_nstate</strong></dt><dd></dd>
-<dt><strong>n_dim</strong></dt><dd></dd>
-<dt><strong>phi</strong></dt><dd></dd>
-<dt><strong>phi_traj</strong></dt><dd></dd>
-<dt><strong>psi_traj</strong></dt><dd></dd>
-<dt><strong>state_list</strong></dt><dd></dd>
-<dt><strong>t</strong></dt><dd></dd>
-<dt><strong>t_axis</strong></dt><dd></dd>
-<dt><strong>z_mem</strong></dt><dd></dd>
-</dl>
-</dd>
-</dl>
+<dt id="dynamics.hops_storage.FullHierarchyStorage">
+<em class="property">class </em><code class="sig-name descname">FullHierarchyStorage</code><a class="headerlink" href="#dynamics.hops_storage.FullHierarchyStorage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>This is a class intended to simplify managing plotting and analyzing a full hierarchy trajectory.</p>
+<p class="rubric">Methods</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 48%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><strong>append</strong></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><strong>get_aux</strong></p></td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.aux">
-<em class="property">property </em><code class="sig-name descname">aux</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.aux" title="Permalink to this definition">¶</a></dt>
+<dt id="dynamics.hops_storage.FullHierarchyStorage.append">
+<code class="sig-name descname">append</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">time</em>, <em class="sig-param">list_aux</em>, <em class="sig-param">list_states</em>, <em class="sig-param">phi</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_storage.FullHierarchyStorage.append" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.list_aux_boundary">
-<em class="property">property </em><code class="sig-name descname">list_aux_boundary</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.list_aux_boundary" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.list_aux_new">
-<em class="property">property </em><code class="sig-name descname">list_aux_new</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.list_aux_new" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.list_aux_pop">
-<em class="property">property </em><code class="sig-name descname">list_aux_pop</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.list_aux_pop" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.list_nhier">
-<em class="property">property </em><code class="sig-name descname">list_nhier</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.list_nhier" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.list_nstate">
-<em class="property">property </em><code class="sig-name descname">list_nstate</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.list_nstate" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.psi_traj">
-<em class="property">property </em><code class="sig-name descname">psi_traj</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.psi_traj" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.AdaptiveTrajectoryStorage.state_list">
-<em class="property">property </em><code class="sig-name descname">state_list</code><a class="headerlink" href="#dynamics.hops_storage.AdaptiveTrajectoryStorage.state_list" title="Permalink to this definition">¶</a></dt>
+<dt id="dynamics.hops_storage.FullHierarchyStorage.get_aux">
+<code class="sig-name descname">get_aux</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">aux</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_storage.FullHierarchyStorage.get_aux" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
 <dl class="class">
-<dt id="dynamics.hops_storage.TrajectoryStorage">
-<em class="property">class </em><code class="sig-name descname">TrajectoryStorage</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage" title="Permalink to this definition">¶</a></dt>
+<dt id="dynamics.hops_storage.HopsStorage">
+<em class="property">class </em><code class="sig-name descname">HopsStorage</code><span class="sig-paren">(</span><em class="sig-param">adaptive</em>, <em class="sig-param">storage_dic</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_storage.HopsStorage" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>This is an object that manages storing information for a
 HOPS trajectory.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Attributes</dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>aux_list</strong></dt><dd></dd>
+<dt><strong>adaptive</strong></dt><dd></dd>
 <dt><strong>n_dim</strong></dt><dd></dd>
-<dt><strong>phi</strong></dt><dd></dd>
-<dt><strong>phi_traj</strong></dt><dd></dd>
-<dt><strong>psi_traj</strong></dt><dd></dd>
-<dt><strong>t</strong></dt><dd></dd>
-<dt><strong>t_axis</strong></dt><dd></dd>
-<dt><strong>z_mem</strong></dt><dd></dd>
 </dl>
 </dd>
 </dl>
+<p class="rubric">Methods</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_storage.HopsStorage.store_step" title="dynamics.hops_storage.HopsStorage.store_step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">store_step</span></code></a>(self, phi_new, aux_new, …)</p></td>
+<td><p>This is the function that inserts data into the HopsStorage class at each</p></td>
+</tr>
+</tbody>
+</table>
 <dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.aux_list">
-<em class="property">property </em><code class="sig-name descname">aux_list</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.aux_list" title="Permalink to this definition">¶</a></dt>
+<dt id="dynamics.hops_storage.HopsStorage.adaptive">
+<em class="property">property </em><code class="sig-name descname">adaptive</code><a class="headerlink" href="#dynamics.hops_storage.HopsStorage.adaptive" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.n_dim">
-<em class="property">property </em><code class="sig-name descname">n_dim</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.n_dim" title="Permalink to this definition">¶</a></dt>
+<dt id="dynamics.hops_storage.HopsStorage.n_dim">
+<em class="property">property </em><code class="sig-name descname">n_dim</code><a class="headerlink" href="#dynamics.hops_storage.HopsStorage.n_dim" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.phi">
-<em class="property">property </em><code class="sig-name descname">phi</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.phi" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.phi_traj">
-<em class="property">property </em><code class="sig-name descname">phi_traj</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.phi_traj" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.psi_traj">
-<em class="property">property </em><code class="sig-name descname">psi_traj</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.psi_traj" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.t">
-<em class="property">property </em><code class="sig-name descname">t</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.t" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.t_axis">
-<em class="property">property </em><code class="sig-name descname">t_axis</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.t_axis" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="dynamics.hops_storage.TrajectoryStorage.z_mem">
-<em class="property">property </em><code class="sig-name descname">z_mem</code><a class="headerlink" href="#dynamics.hops_storage.TrajectoryStorage.z_mem" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="dynamics.hops_storage.HopsStorage.store_step">
+<code class="sig-name descname">store_step</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">phi_new</em>, <em class="sig-param">aux_new</em>, <em class="sig-param">state_new</em>, <em class="sig-param">t_new</em>, <em class="sig-param">zmem_new</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_storage.HopsStorage.store_step" title="Permalink to this definition">¶</a></dt>
+<dd><blockquote>
+<div><p>This is the function that inserts data into the HopsStorage class at each
+time point of the simulation.</p>
+</div></blockquote>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>1. phi_new</strong><span class="classifier">np.array</span></dt><dd><blockquote>
+<div><p>the updated full hierarchy</p>
+</div></blockquote>
+<ol class="arabic simple" start="2">
+<li><dl class="simple">
+<dt>aux_new<span class="classifier">list</span></dt><dd><p>a list of list defining the auxiliaries in the hierarchy basis
+[aux_crit, aux_bound]</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>state_new<span class="classifier">list</span></dt><dd><p>the list of current states in the system basis</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>t_new<span class="classifier">float</span></dt><dd><p>the new time point (t+tau)</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt><strong>5. z_mem_new</strong><span class="classifier">list</span></dt><dd><p>a list of memory values</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt>None</dt><dd></dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
 
 </dd></dl>
 
@@ -1871,7 +1898,7 @@ elements of the sparse matrix are present in the state list!</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>1. coo_mat</strong><span class="classifier">scipy sparse matrix</span></dt><dd><p>a sparse matrix</p>
+<dt><strong>1. coo_mat</strong><span class="classifier">np.array</span></dt><dd><p>a sparse matrix</p>
 </dd>
 <dt><strong>2. state_list</strong><span class="classifier">list</span></dt><dd><p>a list of relative index</p>
 </dd>
@@ -1908,7 +1935,7 @@ elements of the sparse matrix are present in the state list!</p>
 <span id="dynamics-hops-trajectory-module"></span><h2>dynamics.hops_trajectory module<a class="headerlink" href="#module-dynamics.hops_trajectory" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="dynamics.hops_trajectory.HopsTrajectory">
-<em class="property">class </em><code class="sig-name descname">HopsTrajectory</code><span class="sig-paren">(</span><em class="sig-param">system_param</em>, <em class="sig-param">eom_param={}</em>, <em class="sig-param">noise_param={}</em>, <em class="sig-param">hierarchy_param={}</em>, <em class="sig-param">integration_param={'INCHWORM': False</em>, <em class="sig-param">'INCHWORM_MIN': 5</em>, <em class="sig-param">'INTEGRATOR': 'RUNGE_KUTTA'}</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-name descname">HopsTrajectory</code><span class="sig-paren">(</span><em class="sig-param">system_param</em>, <em class="sig-param">eom_param={}</em>, <em class="sig-param">noise_param={}</em>, <em class="sig-param">hierarchy_param={}</em>, <em class="sig-param">storage_param={}</em>, <em class="sig-param">integration_param={'INCHWORM': False</em>, <em class="sig-param">'INCHWORM_MIN': 5</em>, <em class="sig-param">'INTEGRATOR': 'RUNGE_KUTTA'}</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>HopsTrajectory is the class that a user should interface with to run a single 
 trajectory calculation.</p>
@@ -1921,10 +1948,9 @@ trajectory calculation.</p>
 <dt><strong>n_state</strong></dt><dd></dd>
 <dt><strong>phi</strong></dt><dd></dd>
 <dt><strong>psi</strong></dt><dd></dd>
-<dt><strong>psi_traj</strong></dt><dd></dd>
 <dt><strong>state_list</strong></dt><dd></dd>
 <dt><strong>t</strong></dt><dd></dd>
-<dt><strong>t_axis</strong></dt><dd></dd>
+<dt><strong>z_mem</strong></dt><dd></dd>
 </dl>
 </dd>
 </dl>
@@ -1935,19 +1961,19 @@ trajectory calculation.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="traj.html#dynamics.hops_trajectory.HopsTrajectory.inchworm_integrate" title="dynamics.hops_trajectory.HopsTrajectory.inchworm_integrate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inchworm_integrate</span></code></a>(self, state_update, …)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_trajectory.HopsTrajectory.inchworm_integrate" title="dynamics.hops_trajectory.HopsTrajectory.inchworm_integrate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inchworm_integrate</span></code></a>(self, state_update, …)</p></td>
 <td><p>This function performs inchworm integration.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="traj.html#dynamics.hops_trajectory.HopsTrajectory.initialize" title="dynamics.hops_trajectory.HopsTrajectory.initialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initialize</span></code></a>(self, psi_0[, store_aux])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_trajectory.HopsTrajectory.initialize" title="dynamics.hops_trajectory.HopsTrajectory.initialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initialize</span></code></a>(self, psi_0)</p></td>
 <td><p>This function initializes the trajectory module by ensuring that each sub-component is prepared to begin propagating a trajectory.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="traj.html#dynamics.hops_trajectory.HopsTrajectory.make_adaptive" title="dynamics.hops_trajectory.HopsTrajectory.make_adaptive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_adaptive</span></code></a>(self[, delta_h, delta_s])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_trajectory.HopsTrajectory.make_adaptive" title="dynamics.hops_trajectory.HopsTrajectory.make_adaptive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_adaptive</span></code></a>(self[, delta_h, delta_s])</p></td>
 <td><p>This is a convenience function for transforming a not-yet-initialized HOPS trajectory from a standard hops to an adaptive HOPS approach.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="traj.html#dynamics.hops_trajectory.HopsTrajectory.normalize" title="dynamics.hops_trajectory.HopsTrajectory.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a>(self, phi)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.hops_trajectory.HopsTrajectory.normalize" title="dynamics.hops_trajectory.HopsTrajectory.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a>(self, phi)</p></td>
 <td><p>This is the function that re-normalizes the wave function at each step to correct for loss of norm due to finite numerical accuracy</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="traj.html#dynamics.hops_trajectory.HopsTrajectory.propagate" title="dynamics.hops_trajectory.HopsTrajectory.propagate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">propagate</span></code></a>(self, t_advance, tau)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.hops_trajectory.HopsTrajectory.propagate" title="dynamics.hops_trajectory.HopsTrajectory.propagate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">propagate</span></code></a>(self, t_advance, tau)</p></td>
 <td><p>This is the function that perform integration along fixed time-points.</p></td>
 </tr>
 </tbody>
@@ -2007,6 +2033,8 @@ trajectory calculation.</p>
 </dd>
 <dt><strong>3. tau</strong><span class="classifier">float</span></dt><dd><p>the time step</p>
 </dd>
+<dt><strong>4. step_number</strong><span class="classifier">int</span></dt><dd><p>number of inchworm steps in this cycle</p>
+</dd>
 </dl>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -2064,7 +2092,7 @@ trajectory calculation.</p>
 
 <dl class="method">
 <dt id="dynamics.hops_trajectory.HopsTrajectory.initialize">
-<code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">psi_0</em>, <em class="sig-param">store_aux=False</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory.initialize" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">psi_0</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory.initialize" title="Permalink to this definition">¶</a></dt>
 <dd><p>This function initializes the trajectory module by ensuring that
 each sub-component is prepared to begin propagating a trajectory.</p>
 <dl class="field-list simple">
@@ -2169,11 +2197,6 @@ was setup in the initialization.</p>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="dynamics.hops_trajectory.HopsTrajectory.psi_traj">
-<em class="property">property </em><code class="sig-name descname">psi_traj</code><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory.psi_traj" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
 <dt id="dynamics.hops_trajectory.HopsTrajectory.state_list">
 <em class="property">property </em><code class="sig-name descname">state_list</code><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory.state_list" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -2184,8 +2207,8 @@ was setup in the initialization.</p>
 <dd></dd></dl>
 
 <dl class="method">
-<dt id="dynamics.hops_trajectory.HopsTrajectory.t_axis">
-<em class="property">property </em><code class="sig-name descname">t_axis</code><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory.t_axis" title="Permalink to this definition">¶</a></dt>
+<dt id="dynamics.hops_trajectory.HopsTrajectory.z_mem">
+<em class="property">property </em><code class="sig-name descname">z_mem</code><a class="headerlink" href="#dynamics.hops_trajectory.HopsTrajectory.z_mem" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -2226,7 +2249,7 @@ time to a time tau forward.</p>
 
 <dl class="function">
 <dt id="dynamics.integrator_rk.runge_kutta_variables">
-<code class="sig-name descname">runge_kutta_variables</code><span class="sig-paren">(</span><em class="sig-param">storage</em>, <em class="sig-param">noise</em>, <em class="sig-param">noise2</em>, <em class="sig-param">tau</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.integrator_rk.runge_kutta_variables" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">runge_kutta_variables</code><span class="sig-paren">(</span><em class="sig-param">phi</em>, <em class="sig-param">z_mem</em>, <em class="sig-param">t</em>, <em class="sig-param">noise</em>, <em class="sig-param">noise2</em>, <em class="sig-param">tau</em>, <em class="sig-param">storage</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.integrator_rk.runge_kutta_variables" title="Permalink to this definition">¶</a></dt>
 <dd><p>This is a function that accepts a storage and noise objects and returns the
 pre-requisite variables for a runge-kutta integration step in a list
 that can be unraveled to correctly feed into runge_kutta_step.</p>
@@ -2274,13 +2297,10 @@ that can be unraveled to correctly feed into runge_kutta_step.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="noise.html#dynamics.noise_fft.FFTFilterNoise.fft_filter_noise_diagonal" title="dynamics.noise_fft.FFTFilterNoise.fft_filter_noise_diagonal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fft_filter_noise_diagonal</span></code></a>(s_zz[, seed])</p></td>
-<td><p>This function calculates a noise trajectory using the bath correlation function (s_zz).</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code>(self, t_axis)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code>(self, t_axis)</p></td>
 <td><p>Gets the noise</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="noise.html#dynamics.noise_fft.FFTFilterNoise.prepare_noise" title="dynamics.noise_fft.FFTFilterNoise.prepare_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_noise</span></code></a>(self)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.noise_fft.FFTFilterNoise.prepare_noise" title="dynamics.noise_fft.FFTFilterNoise.prepare_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_noise</span></code></a>(self)</p></td>
 <td><p>This function is defined for each specific noise model (children classes of HopsNoise class) and provides the specific rules for calculating a noise trajectory using</p></td>
 </tr>
 </tbody>
@@ -2291,40 +2311,14 @@ that can be unraveled to correctly feed into runge_kutta_step.</p>
 <col style="width: 38%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><strong>update_param</strong></p></td>
+<tr class="row-odd"><td><p><strong>unlock</strong></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><strong>update_param</strong></p></td>
 <td></td>
 </tr>
 </tbody>
 </table>
-<dl class="method">
-<dt id="dynamics.noise_fft.FFTFilterNoise.fft_filter_noise_diagonal">
-<em class="property">static </em><code class="sig-name descname">fft_filter_noise_diagonal</code><span class="sig-paren">(</span><em class="sig-param">s_zz</em>, <em class="sig-param">seed=None</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.noise_fft.FFTFilterNoise.fft_filter_noise_diagonal" title="Permalink to this definition">¶</a></dt>
-<dd><p>This function calculates a noise trajectory using the
-bath correlation function (s_zz). This function is
-based on the description given by:</p>
-<p>“Exact Simulation of Noncircular or Improper Complex-Valued
-Stationary Gaussian Processes using circulant embedding.”
-Adam M. Sykulski and Donald B. Percival
-IEEE Internation Workship on Machine Learning for Signal
-Processing (2016)</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>1. s_zz</strong><span class="classifier">list</span></dt><dd><p>correlation function sampled at specific time points</p>
-</dd>
-<dt><strong>2. seed</strong><span class="classifier">int</span></dt><dd><p>the seed for the random number generator</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><dl class="simple">
-<dt><strong>1. noise</strong><span class="classifier">list</span></dt><dd><p>the random noise trajectory sampled at the same time points as s_zz</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
 <dl class="method">
 <dt id="dynamics.noise_fft.FFTFilterNoise.param">
 <em class="property">property </em><code class="sig-name descname">param</code><a class="headerlink" href="#dynamics.noise_fft.FFTFilterNoise.param" title="Permalink to this definition">¶</a></dt>
@@ -2397,8 +2391,8 @@ trajectory using</p>
 
 <dl class="class">
 <dt id="dynamics.noise_trajectories.NumericNoiseTrajectory">
-<em class="property">class </em><code class="sig-name descname">NumericNoiseTrajectory</code><span class="sig-paren">(</span><em class="sig-param">noise</em>, <em class="sig-param">t_axis</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.noise_trajectories.NumericNoiseTrajectory" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="noise.html#dynamics.noise_trajectories.NoiseTrajectory" title="dynamics.noise_trajectories.NoiseTrajectory"><code class="xref py py-class docutils literal notranslate"><span class="pre">dynamics.noise_trajectories.NoiseTrajectory</span></code></a></p>
+<em class="property">class </em><code class="sig-name descname">NumericNoiseTrajectory</code><span class="sig-paren">(</span><em class="sig-param">noise</em>, <em class="sig-param">t_axis</em>, <em class="sig-param">spline_interpolation=False</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.noise_trajectories.NumericNoiseTrajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#dynamics.noise_trajectories.NoiseTrajectory" title="dynamics.noise_trajectories.NoiseTrajectory"><code class="xref py py-class docutils literal notranslate"><span class="pre">dynamics.noise_trajectories.NoiseTrajectory</span></code></a></p>
 <p>This is the class for noise that is explicitly calculated and does not support
 interpolation.</p>
 <p class="rubric">Methods</p>
@@ -2408,7 +2402,7 @@ interpolation.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="noise.html#dynamics.noise_trajectories.NumericNoiseTrajectory.get_noise" title="dynamics.noise_trajectories.NumericNoiseTrajectory.get_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code></a>(self, taxis_req)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.noise_trajectories.NumericNoiseTrajectory.get_noise" title="dynamics.noise_trajectories.NumericNoiseTrajectory.get_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code></a>(self, taxis_req)</p></td>
 <td><p>This function simply returns the noise values for the selected times.</p></td>
 </tr>
 </tbody>
@@ -2477,10 +2471,10 @@ interpolation.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="noise.html#dynamics.noise_zero.ZeroNoise.get_noise" title="dynamics.noise_zero.ZeroNoise.get_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code></a>(self, t_axis)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#dynamics.noise_zero.ZeroNoise.get_noise" title="dynamics.noise_zero.ZeroNoise.get_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_noise</span></code></a>(self, t_axis)</p></td>
 <td><p>This is a function that simply returns a zero array of the correct length.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="noise.html#dynamics.noise_zero.ZeroNoise.prepare_noise" title="dynamics.noise_zero.ZeroNoise.prepare_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_noise</span></code></a>(self)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#dynamics.noise_zero.ZeroNoise.prepare_noise" title="dynamics.noise_zero.ZeroNoise.prepare_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_noise</span></code></a>(self)</p></td>
 <td><p>This function is defined for each specific noise model (children classes of HopsNoise class) and provides the specific rules for calculating a noise trajectory using</p></td>
 </tr>
 </tbody>
@@ -2491,7 +2485,10 @@ interpolation.</p>
 <col style="width: 38%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><strong>update_param</strong></p></td>
+<tr class="row-odd"><td><p><strong>unlock</strong></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><strong>update_param</strong></p></td>
 <td></td>
 </tr>
 </tbody>
@@ -2586,6 +2583,53 @@ inputs.</p>
           </div>
         </div>
       </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">dynamics package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-dynamics.bath_corr_functions">dynamics.bath_corr_functions module</a></li>
+<li><a class="reference internal" href="#module-dynamics.eom_functions">dynamics.eom_functions module</a></li>
+<li><a class="reference internal" href="#module-dynamics.eom_hops_ksuper">dynamics.eom_hops_ksuper module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hierarchy_functions">dynamics.hierarchy_functions module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_aux">dynamics.hops_aux module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_basis">dynamics.hops_basis module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_eom">dynamics.hops_eom module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_hierarchy">dynamics.hops_hierarchy module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_noise">dynamics.hops_noise module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_storage">dynamics.hops_storage module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_system">dynamics.hops_system module</a></li>
+<li><a class="reference internal" href="#module-dynamics.hops_trajectory">dynamics.hops_trajectory module</a></li>
+<li><a class="reference internal" href="#module-dynamics.integrator_rk">dynamics.integrator_rk module</a></li>
+<li><a class="reference internal" href="#module-dynamics.noise_fft">dynamics.noise_fft module</a></li>
+<li><a class="reference internal" href="#module-dynamics.noise_trajectories">dynamics.noise_trajectories module</a></li>
+<li><a class="reference internal" href="#module-dynamics.noise_zero">dynamics.noise_zero module</a></li>
+<li><a class="reference internal" href="#module-dynamics.prepare_functions">dynamics.prepare_functions module</a></li>
+<li><a class="reference internal" href="#module-dynamics">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/dynamics.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
       <div class="clearer"></div>
     </div>
     <div class="related" role="navigation" aria-label="related navigation">
@@ -2597,7 +2641,7 @@ inputs.</p>
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="index.html">PYHOPS 1.0 documentation</a> &#187;</li> 
+        <li class="nav-item nav-item-0"><a href="index.html">MESOHOPS 1.1 documentation</a> &#187;</li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">

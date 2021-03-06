@@ -849,11 +849,6 @@ class HopsBasis(object):
         A function that returns the error associated with neglecting flux from members of
         A_t to auxiliaries in A_t^C that arise due to flux from higher auxiliaries to
         lower auxiliaries. This corresponds to equation 33 and 41 in arXiv:2008.06496
-        .. math::
-            \sum_{n \in \mathcal{S}_{t}} \\left \\vert F[\\vec{k}-\\vec{e}_n] \\frac{g_n}{\gamma_n} N^{(\\vec{k})}_t \psi_{t,n}^{(\\vec{k})}\\right \\vert^2
-
-        .. math::
-            \sum_{\\vec{k} \in \mathcal{H}_{t}} \\left \\vert F[\\vec{k}-\\vec{e}_n] \\frac{g_n}{\gamma_n} N^{(\\vec{k})}_t \psi_{t,n}^{(\\vec{k})}\\right \\vert^2
 
         PARAMETERS
         ----------
@@ -961,12 +956,6 @@ class HopsBasis(object):
         A function that returns the error associated with neglecting flux from members of
         A_t to auxiliaries in A_t^C that arise due to flux from lower auxiliaries to
         higher auxiliaries. This corresponds to equation 31 and 40 in arXiv:2008.06496
-
-        .. math::
-            \sum_{n \in \mathcal{S}_{t}} \\left \\vert F[\\vec{k}+\\vec{e}_n] \gamma_n (1+\\vec{k}[n]) \psi_{t,n}^{(\\vec{k})}   \\right \\vert^2
-
-        .. math::
-            \sum_{\\vec{k} \in \mathcal{H}_{t}}\\left \\vert F[\\vec{k}+\\vec{e}_n] \gamma_n (1+\\vec{k}[n]) \psi_{t,n}^{(\\vec{k})}   \\right \\vert^2
 
         PARAMETERS
         ----------
