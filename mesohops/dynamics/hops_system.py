@@ -5,8 +5,8 @@ import copy
 from collections import Counter
 
 __title__ = "System Class"
-__author__ = "D. I. G. Bennett, Leo Varvelo"
-__version__ = "1.0"
+__author__ = "D. I. G. Bennett, L. Varvelo"
+__version__ = "1.2"
 
 
 class HopsSystem(object):
@@ -133,7 +133,7 @@ class HopsSystem(object):
 
         # Create L2 indexing parameters
         param_dict["LIST_INDEX_L2_BY_HMODE"] = [
-            0 for i in range(param_dict["N_HMODES"])
+            None for i in range(param_dict["N_HMODES"])
         ]
         flag_l2_list = [False for i in range(param_dict["N_L2"])]
         param_dict["LIST_L2_COO"] = [0 for i in range(param_dict["N_L2"])]
@@ -157,7 +157,7 @@ class HopsSystem(object):
         # Define the Noise1 Operator Values
         # ---------------------------------
         param_dict["LIST_INDEX_L2_BY_NMODE1"] = [
-            0 for i in range(len(param_dict["PARAM_NOISE1"]))
+            None for i in range(len(param_dict["PARAM_NOISE1"]))
         ]
         l2_as_tuples = [self._array_to_tuple(l) for l in param_dict["L_NOISE1"]]
         for (i, l) in enumerate(list_unique_L2):
@@ -170,7 +170,7 @@ class HopsSystem(object):
         # ---------------------------------
         if "L_NOISE2" in param_dict.keys():
             param_dict["LIST_INDEX_L2_BY_NMODE2"] = [
-                0 for i in range(len(param_dict["PARAM_NOISE2"]))
+                None for i in range(len(param_dict["PARAM_NOISE2"]))
             ]
             l2_as_tuples = [self._array_to_tuple(l) for l in param_dict["L_NOISE2"]]
             for (i, l) in enumerate(list_unique_L2):
@@ -201,7 +201,7 @@ class HopsSystem(object):
         self.adaptive = flag_adaptive
 
         if flag_adaptive:
-            self.state_list = np.where(psi_0 > 0)[0]
+            self.state_list = np.where(np.abs(psi_0) > 0)[0]
         else:
             self.state_list = np.arange(self.__ndim)
 
@@ -311,24 +311,25 @@ class HopsSystem(object):
                 for k in self._list_absindex_L2
             ]
         )
+        self._list_L2_csc = [self._list_L2_coo[i].tocsc() for i in range(self._n_l2)]
         self._list_index_L2_by_hmode = [
             list(self._list_absindex_L2).index(
                 self.param["LIST_INDEX_L2_BY_HMODE"][imod]
             )
             for imod in self._list_absindex_mode
         ]
+        # ASSUMING: L = L^*
         self._list_state_indices_by_hmode = np.array(
             [
-                self._get_states_from_L2(
-                    self._list_L2_coo[self._list_index_L2_by_hmode[i_mode]]
-                )
-                for i_mode in range(self.n_hmodes)
+                tuple(set(sp_mat.row))
+                for sp_mat in self._list_L2_coo[self._list_index_L2_by_hmode]
             ]
         )
+        # ASSUMING: L = L^*
         self._list_state_indices_by_index_L2 = np.array(
             [
-                self._get_states_from_L2(self._list_L2_coo[i_lop])
-                for i_lop in range(self.n_l2)
+                tuple(set(sp_mat.row))
+                for sp_mat in self._list_L2_coo
             ]
         )
 
@@ -363,7 +364,9 @@ class HopsSystem(object):
     @property
     def list_L2_coo(self):
         return self._list_L2_coo
-
+    @property
+    def list_L2_csc(self):
+        return self._list_L2_csc
     @property
     def list_index_L2_by_hmode(self):
         return self._list_index_L2_by_hmode

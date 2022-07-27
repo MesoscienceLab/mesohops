@@ -1,8 +1,8 @@
 import numpy as np
 
 __title__ = "Hierarchy Functions"
-__author__ = "D. I. G. Bennett, Leo Varvelo"
-__version__ = "1.0"
+__author__ = "D. I. G. Bennett, L. Varvelo"
+__version__ = "1.2"
 
 
 def filter_aux_triangular(list_aux, list_boolean_by_mode, kmax, kdepth):
@@ -68,6 +68,7 @@ def filter_aux_longedge(list_aux, list_boolean_by_mode, kmax, kdepth):
 
 def check_long_edge(aux_vec, list_boolean, kmax, kdepth):
     """
+    Checks if an individual auxiliary should be filtered out by the longedge filter.
 
     PARAMETERS
     ----------
@@ -97,7 +98,7 @@ def check_long_edge(aux_vec, list_boolean, kmax, kdepth):
 def check_markovian(aux, list_boolean):
     """
     This function checks whether a auxiliary is a an allowed markovian mode or a
-    non-markovian mode
+    non-markovian mode.
 
     PARAMETERS
     ----------
@@ -121,8 +122,8 @@ def check_markovian(aux, list_boolean):
 
 def filter_markovian(list_aux, list_boolean):
     """
-    This function filter's a list of auxiliaries based on whether it is a non markovian
-    auxiliary or an allowed markovian auxiliary
+    This function filters a list of auxiliaries based on whether it is a non-markovian
+    auxiliary or an allowed markovian auxiliary.
 
     Parameters
     ----------

@@ -1,11 +1,36 @@
 import numpy as np
 from scipy import sparse
-from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.util.physical_constants import hbar, kB
-from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from pyhops.util.physical_constants import hbar, kB
+from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 
 
 def const_gw_sysbath(nsite, e_lambda, gamma, temp, gamma_mark):
+    """
+    Generating the thermal objects for system-bath coupling.
+
+    PARAMETERS
+    ----------
+    1. nsite : int
+               number of states in the system.
+    2. e_lambda : float
+                  system's reorganization-energy
+    3. gamma : float
+               reorganization timescale
+    4. temp : float
+              temperature of the environment.
+    5. gamma_mark : float
+                    reorganization timescale of the Markovian mode.
+
+    RETURNS
+    -------
+    1. gw_sysbath : list
+                    The list that describes the system-bath coupling, defined
+                    by a prefactor describing coupling-strength and
+                    exponential scale-factor describing memory-effects
+    2. lop_list : list
+                  The diagonal Lindblad operator--a site-projection operator.
+    """
     # define exponential parameters
     (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
     # define parameter lists
@@ -21,13 +46,35 @@ def const_gw_sysbath(nsite, e_lambda, gamma, temp, gamma_mark):
 
 
 def linear_chain(nsite, sb_params, V, maxhier=3, seed=None):
+    """
+    Build a model system for HOPS dynamics.
+
+    PARAMETERS
+    ----------
+    1. nsite : int
+               number of states in the system.
+    2. sb_params : list
+                   parameters that will be used to construct the
+                   bath-correlation functions, the temperature, and the
+                   Markovian mode's rate of decay.
+    3. V : float
+           electronic coupling
+    4. max_hier : int
+                   depth of the hierarchy.
+    5. seed : int
+              seed value for random number generator
+
+    RETURNS
+    -------
+    1. HOPS :  HopsTrajectory object
+               object describing the dynamical simulation.
+    """
     # Noise Dictionary
     noise_param = {
         "SEED": seed,
         "MODEL": "FFT_FILTER",
         "TLEN": 2100.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
-        "DIAGONAL": True,
     }
     # System Dictionary
     e_lambda = sb_params[0][0]
@@ -103,7 +150,7 @@ def test_adap_hier():
         D1_adap = (
             hops2.dsystem_dt(
                 hops2.phi,
-                hops2.storage.z_mem,
+                hops2.z_mem,  #hops2.storage.z_mem,
                 hops2.noise1.get_noise([t])[:, 0],
                 hops2.noise2.get_noise([t])[:, 0],
             )[0]
@@ -119,7 +166,7 @@ def test_adap_hier():
         D1_comp = (
             hops.dsystem_dt(
                 phi_adap_comp,
-                hops2.storage.z_mem,
+                hops2.z_mem,  # hops2.storage.z_mem,
                 hops2.noise1.get_noise([t])[:, 0],
                 hops2.noise2.get_noise([t])[:, 0],
             )[0]
@@ -186,7 +233,7 @@ def test_adap_state():
         D1_adap = (
             hops2.dsystem_dt(
                 hops2.phi,
-                hops2.storage.z_mem,
+                hops2.z_mem, #hops2.storage.z_mem,
                 hops2.noise1.get_noise([t])[:, 0],
                 hops2.noise2.get_noise([t])[:, 0],
             )[0]
@@ -202,7 +249,7 @@ def test_adap_state():
         D1_comp = (
             hops.dsystem_dt(
                 phi_adap_comp,
-                hops2.storage.z_mem,
+                hops2.z_mem, #hops2.storage.z_mem,
                 hops2.noise1.get_noise([t])[:, 0],
                 hops2.noise2.get_noise([t])[:, 0],
             )[0]
@@ -274,7 +321,7 @@ def test_adap_hier_state():
         D1_adap = (
             hops2.dsystem_dt(
                 hops2.phi,
-                hops2.storage.z_mem,
+                hops2.z_mem, #hops2.storage.z_mem,
                 hops2.noise1.get_noise([t])[:, 0],
                 hops2.noise2.get_noise([t])[:, 0],
             )[0]
@@ -292,7 +339,7 @@ def test_adap_hier_state():
         D1_comp = (
             hops.dsystem_dt(
                 phi_adap_comp,
-                hops2.storage.z_mem,
+                hops2.z_mem, #hops2.storage.z_mem,
                 hops2.noise1.get_noise([t])[:, 0],
                 hops2.noise2.get_noise([t])[:, 0],
             )[0]

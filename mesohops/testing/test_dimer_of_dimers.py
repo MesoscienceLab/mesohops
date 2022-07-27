@@ -2,9 +2,9 @@ import os
 import numpy as np
 import scipy as sp
 from scipy import sparse
-from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.dynamics.eom_hops_ksuper import _permute_aux_by_matrix
-from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from pyhops.dynamics.eom_hops_ksuper import _permute_aux_by_matrix
+from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 
 __title__ = "Test of eom_integrator_rk_nonlin_norm"
 __author__ = "D. I. G. Bennett"
@@ -78,9 +78,29 @@ path_data = path_data[: -len("test_dimer_of_dimers.py")] + "/dimer_of_dimers"
 
 
 def construct_permute_matrix(stable_aux, stable_state, hops):
-    n_reduced = len(stable_aux) * len(stable_state)
-    n_full = hops.n_hier * hops.n_state
+    """
+    Construct a matrix that rotates the adaptive basis
+    of auxiliaries and states onto the original basis.
 
+    PARAMETERS
+    ----------
+    1. stable_aux : list
+                    list of stable auxiliaries in the basis
+    2. stable_state : list
+                      list of stable states in the basis
+    3. hops : HopsTrajectory object
+              object describing the stochastic dynamics.
+
+    RETURNS
+    -------
+    1. P2_permute :  array
+                     matrix that maps the retained auxiliaries and
+                     states onto the original basis.
+    """
+    n_reduced = len(stable_aux) * len(stable_state)
+    n_reduced2 = len(stable_aux)
+    n_full = hops.n_hier * hops.n_state
+    n_full2 = hops.n_hier
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
@@ -94,13 +114,26 @@ def construct_permute_matrix(stable_aux, stable_state, hops):
                 * hops.basis.system.param["NSTATES"]
                 + list(hops.basis.system.state_list).index(state)
             )
-
+    permute_aux_row2 = []
+    permute_aux_col2 = []
+    for aux in stable_aux:
+        permute_aux_row2.append(
+            list(stable_aux).index(aux)
+        )
+        permute_aux_col2.append(
+            hops.basis.hierarchy.auxiliary_list.index(aux)
+        )
     P2_permute = sp.sparse.coo_matrix(
         (np.ones(len(permute_aux_row)), (permute_aux_row, permute_aux_col)),
         shape=(n_reduced, n_full),
         dtype=np.complex128,
     ).tocsc()
-    return P2_permute
+    P2_permute2 = sp.sparse.coo_matrix(
+        (np.ones(len(permute_aux_row2)), (permute_aux_row2, permute_aux_col2)),
+        shape=(n_reduced2, n_full2),
+        dtype=np.complex128,
+    ).tocsc()
+    return P2_permute, P2_permute2
 
 
 def test_kmat_dimer_of_dimer():
@@ -110,7 +143,7 @@ def test_kmat_dimer_of_dimer():
     # Test K2_k
     K2_k = np.load(path_data + "/K2_k.npy")
     assert np.all(K2_k == hops.basis.eom.K2_k.todense())
-
+    
     # Test K2_kp1
     K2_kp1 = np.load(path_data + "/K2_kp1.npy")
     assert np.all(K2_kp1 == hops.basis.eom.K2_kp1.todense())
@@ -119,15 +152,7 @@ def test_kmat_dimer_of_dimer():
     K2_km1 = np.load(path_data + "/K2_km1.npy")
     assert np.all(K2_km1 == hops.basis.eom.K2_km1.todense())
 
-    # Test Z2_k
-    Z2_k = np.load(path_data + "/Z2_k.npy")
-    assert np.all(
-        [
-            np.all(Z2_lap == Z2_desk)
-            for (Z2_lap, Z2_desk) in zip(hops.basis.eom.Z2_k, Z2_k)
-        ]
-    )
-
+    
     # Test Z2_kp1
     Z2_kp1 = np.load(path_data + "/Z2_kp1.npy")
     assert np.all(
@@ -136,6 +161,7 @@ def test_kmat_dimer_of_dimer():
             for (Z2_lap, Z2_desk) in zip(hops.basis.eom.Z2_kp1, Z2_kp1)
         ]
     )
+    
 
 
 def test_integration_variables():
@@ -143,11 +169,18 @@ def test_integration_variables():
     This is a test of the integration variables for the first time point of
     the time evolution for the dimer-of-dimers simulation.
     """
-    # Test integration variable list for t=0
-    var_list_desk = np.load(path_data + "/int_var_list_t0.npy", allow_pickle=True).flat[
-        0
-    ]
-    var_list_lap = hops.integration_var(hops.storage, hops.noise1, hops.noise2, t_step)
+
+    var_list_desk = {}
+    # You must select an initial time and time step that will match the t-axis of the
+    # hopstrajectory object.
+    var_list_lap = hops.integration_var([1, 1, 1, 1], 2873, 0, hops.noise1,
+                                          hops.noise2, 4.0, {})  #this storage input should be something else probably
+    var_list_desk["phi"] = [1,1,1,1]
+    var_list_desk["z_mem"] = 2873
+    var_list_desk["z_rnd"] = hops.noise1.get_noise([0, 2, 4])
+    var_list_desk["z_rnd2"] = hops.noise2.get_noise([0, 2, 4])
+    var_list_desk["tau"] = 4.0
+
     flag_pass = True
     for key in var_list_desk.keys():
         try:
@@ -175,8 +208,8 @@ def test_eta():
     """
     eta_desk = np.load(path_data + "/eta.npy")
     alpha_lap = hops.noise1._corr_func_by_lop_taxis(hops.noise1.param["T_AXIS"])
-    eta_lap = hops.noise1.fft_filter_noise_diagonal(alpha_lap[0, :], seed=0)
-    np.testing.assert_allclose(eta_lap, eta_desk)
+    z_correlated = hops.noise1._construct_correlated_noise(alpha_lap, hops.noise1._prepare_rand())[0,:]
+    np.testing.assert_allclose(z_correlated, eta_desk, rtol=1E-3)
 
 
 def test_hops_dynamics():
@@ -191,7 +224,7 @@ def test_hops_dynamics():
         + "dimer_of_dimers/traj_dimer_of_dimers.npy"
     )
     traj_dod = np.load(path)
-    np.testing.assert_allclose(hops.psi_traj[25], traj_dod[25])
+    np.testing.assert_allclose(hops.storage.data['psi_traj'][25], traj_dod[25], rtol=1E-3)
 
 
 def test_hops_adaptive_dynamics_full():
@@ -199,6 +232,8 @@ def test_hops_adaptive_dynamics_full():
     This is a test of the adaptive dynamics algorithm when threshold is small enough
     that all states and hierarchy are included.
     """
+    
+    
     hops_ah = HOPS(
         sys_param,
         noise_param=noise_param,
@@ -208,9 +243,10 @@ def test_hops_adaptive_dynamics_full():
     hops_ah.make_adaptive(1e-15, 0)
     hops_ah.initialize(psi_0)
     hops_ah.propagate(t_max, t_step)
-
-    np.testing.assert_allclose(hops.psi_traj[33], hops_ah.psi_traj[33])
-
+    
+    np.testing.assert_allclose(hops.storage.data['psi_traj'][33], hops_ah.storage.data['psi_traj'][33])
+    
+    
     hops_as = HOPS(
         sys_param,
         noise_param=noise_param,
@@ -220,9 +256,10 @@ def test_hops_adaptive_dynamics_full():
     hops_as.make_adaptive(0, 1e-100)
     hops_as.initialize(psi_0)
     hops_as.propagate(t_max, t_step)
-
-    np.testing.assert_allclose(hops.psi_traj[33], hops_as.psi_traj[33])
-
+    
+    np.testing.assert_allclose(hops.storage.data['psi_traj'][33], hops_as.storage.data['psi_traj'][33])
+    
+    
     hops_a = HOPS(
         sys_param,
         noise_param=noise_param,
@@ -233,8 +270,8 @@ def test_hops_adaptive_dynamics_full():
     hops_a.initialize(psi_0)
     hops_a.propagate(t_max, t_step)
 
-    np.testing.assert_allclose(hops.psi_traj[33], hops_a.psi_traj[33])
-
+    np.testing.assert_allclose(hops.storage.data['psi_traj'][33], hops_a.storage.data['psi_traj'][33])
+    
 
 def test_hops_adaptive_dynamics_partial():
     """
@@ -255,21 +292,17 @@ def test_hops_adaptive_dynamics_partial():
 
     # Construct permutation for full-->reduced basis
     # ----------------------------------------------
-    P2_permute = construct_permute_matrix(
+    P2_permute, P2_permute2 = construct_permute_matrix(
         hops_ah.auxiliary_list, hops_ah.state_list, hops
     )
 
     # Permute super operators from hops into reduced basis
     # ----------------------------------------------------
-    K0 = _permute_aux_by_matrix(hops.basis.eom.K2_k, P2_permute)
+    K0 = _permute_aux_by_matrix(hops.basis.eom.K2_k, P2_permute2)
     Kp1 = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, P2_permute)
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
-        _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute)
-        for index_l2 in hops_ah.basis.system.list_absindex_L2
-    ]
-    Z0 = [
-        _permute_aux_by_matrix(hops.basis.eom.Z2_k[index_l2], P2_permute)
+        _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
         for index_l2 in hops_ah.basis.system.list_absindex_L2
     ]
 
@@ -280,17 +313,11 @@ def test_hops_adaptive_dynamics_partial():
     assert (K0.todense() == hops_ah.basis.eom.K2_k.todense()).all()
     assert np.all(
         [
-            np.all(Z2_k_hops.todense() == Z2_k_adhops.todense())
-            for (Z2_k_hops, Z2_k_adhops) in zip(Z0, hops_ah.basis.eom.Z2_k)
-        ]
-    )
-    assert np.all(
-        [
             np.all(Z2_kp1_hops.todense() == Z2_kp1_adhops.todense())
             for (Z2_kp1_hops, Z2_kp1_adhops) in zip(Zp1, hops_ah.basis.eom.Z2_kp1)
         ]
     )
-
+    
     # Test adaptive system
     # ====================
     hops_ah = HOPS(
@@ -305,21 +332,17 @@ def test_hops_adaptive_dynamics_partial():
 
     # Construct permutation for full-->reduced basis
     # ----------------------------------------------
-    P2_permute = construct_permute_matrix(
+    P2_permute, P2_permute2 = construct_permute_matrix(
         hops_ah.auxiliary_list, hops_ah.state_list, hops
     )
 
     # Permute super operators from hops into reduced basis
     # ----------------------------------------------------
-    K0 = _permute_aux_by_matrix(hops.basis.eom.K2_k, P2_permute)
+    K0 = _permute_aux_by_matrix(hops.basis.eom.K2_k, P2_permute2)
     Kp1 = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, P2_permute)
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
-        _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute)
-        for index_l2 in hops_ah.basis.system.list_absindex_L2
-    ]
-    Z0 = [
-        _permute_aux_by_matrix(hops.basis.eom.Z2_k[index_l2], P2_permute)
+        _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
         for index_l2 in hops_ah.basis.system.list_absindex_L2
     ]
 
@@ -330,17 +353,11 @@ def test_hops_adaptive_dynamics_partial():
     assert (K0.todense() == hops_ah.basis.eom.K2_k.todense()).all()
     assert np.all(
         [
-            np.all(Z2_k_hops.todense() == Z2_k_adhops.todense())
-            for (Z2_k_hops, Z2_k_adhops) in zip(Z0, hops_ah.basis.eom.Z2_k)
-        ]
-    )
-    assert np.all(
-        [
             np.all(Z2_kp1_hops.todense() == Z2_kp1_adhops.todense())
             for (Z2_kp1_hops, Z2_kp1_adhops) in zip(Zp1, hops_ah.basis.eom.Z2_kp1)
         ]
     )
-
+    
     # Test adaptive system and adaptive hierarchy
     # ===========================================
     hops_ah = HOPS(
@@ -355,21 +372,17 @@ def test_hops_adaptive_dynamics_partial():
 
     # Construct permutation for full-->reduced basis
     # ----------------------------------------------
-    P2_permute = construct_permute_matrix(
+    P2_permute, P2_permute2 = construct_permute_matrix(
         hops_ah.auxiliary_list, hops_ah.state_list, hops
     )
 
     # Permute super operators from hops into reduced basis
     # ----------------------------------------------------
-    K0 = _permute_aux_by_matrix(hops.basis.eom.K2_k, P2_permute)
+    K0 = _permute_aux_by_matrix(hops.basis.eom.K2_k, P2_permute2)
     Kp1 = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, P2_permute)
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
-        _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute)
-        for index_l2 in hops_ah.basis.system.list_absindex_L2
-    ]
-    Z0 = [
-        _permute_aux_by_matrix(hops.basis.eom.Z2_k[index_l2], P2_permute)
+        _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
         for index_l2 in hops_ah.basis.system.list_absindex_L2
     ]
 
@@ -380,13 +393,8 @@ def test_hops_adaptive_dynamics_partial():
     assert (K0.todense() == hops_ah.basis.eom.K2_k.todense()).all()
     assert np.all(
         [
-            np.all(Z2_k_hops.todense() == Z2_k_adhops.todense())
-            for (Z2_k_hops, Z2_k_adhops) in zip(Z0, hops_ah.basis.eom.Z2_k)
-        ]
-    )
-    assert np.all(
-        [
             np.all(Z2_kp1_hops.todense() == Z2_kp1_adhops.todense())
             for (Z2_kp1_hops, Z2_kp1_adhops) in zip(Zp1, hops_ah.basis.eom.Z2_kp1)
         ]
     )
+

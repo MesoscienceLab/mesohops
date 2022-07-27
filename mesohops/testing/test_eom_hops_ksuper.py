@@ -1,9 +1,9 @@
 import numpy as np
 import scipy as sp
 from scipy import sparse
-from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.dynamics.bath_corr_functions import bcf_exp
-from mesohops.dynamics.eom_hops_ksuper import (
+from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from pyhops.dynamics.bath_corr_functions import bcf_exp
+from pyhops.dynamics.eom_hops_ksuper import (
     _permute_aux_by_matrix,
     _add_self_interactions,
     _add_crossterms,
@@ -11,9 +11,9 @@ from mesohops.dynamics.eom_hops_ksuper import (
     update_ksuper,
 )
 
-__title__ = "Test of eom_integrator_rk_nonlin_norm"
-__author__ = "D. I. G. Bennett"
-__version__ = "0.1"
+__title__ = "Test of eom_hops_ksuperr"
+__author__ = "D. I. G. Bennett, B. Citty"
+__version__ = "1.2"
 __date__ = ""
 
 # NOTE: NEED TO TEST WHAT HAPPENS WHEN THE NUMBER OF LOPERATORS
@@ -45,7 +45,13 @@ hier_param = {"MAXHIER": 4}
 
 eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
-integrator_param = {"INTEGRATOR": "RUNGE_KUTTA", "INCHWORM": True, "INCHWORM_MIN": 5}
+integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
 
 psi_0 = [1.0 + 0.0 * 1j, 0.0 + 0.0 * 1j]
 
@@ -57,549 +63,32 @@ hops = HOPS(
     integration_param=integrator_param,
 )
 hops.initialize(psi_0)
-
 km1_col = tuple(
-    [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        4,
-        4,
-        4,
-        4,
-        4,
-        4,
-        4,
-        4,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        6,
-        6,
-        6,
-        6,
-        6,
-        6,
-        6,
-        6,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        8,
-        8,
-        8,
-        8,
-        8,
-        8,
-        8,
-        8,
-        9,
-        9,
-        9,
-        9,
-        9,
-        9,
-        9,
-        9,
-        10,
-        10,
-        10,
-        10,
-        10,
-        10,
-        10,
-        10,
-        11,
-        11,
-        11,
-        11,
-        11,
-        11,
-        11,
-        11,
-        12,
-        12,
-        12,
-        12,
-        12,
-        12,
-        12,
-        12,
-        13,
-        13,
-        13,
-        13,
-        13,
-        13,
-        13,
-        13,
-        14,
-        14,
-        14,
-        14,
-        14,
-        14,
-        14,
-        14,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        16,
-        16,
-        16,
-        16,
-        16,
-        16,
-        16,
-        16,
-        17,
-        17,
-        17,
-        17,
-        17,
-        17,
-        17,
-        17,
-        18,
-        18,
-        18,
-        18,
-        18,
-        18,
-        18,
-        18,
-        19,
-        19,
-        19,
-        19,
-        19,
-        19,
-        19,
-        19,
-        20,
-        20,
-        20,
-        20,
-        20,
-        20,
-        20,
-        20,
-        21,
-        21,
-        21,
-        21,
-        21,
-        21,
-        21,
-        21,
-        22,
-        22,
-        22,
-        22,
-        22,
-        22,
-        22,
-        22,
-        23,
-        23,
-        23,
-        23,
-        23,
-        23,
-        23,
-        23,
-        24,
-        24,
-        24,
-        24,
-        24,
-        24,
-        24,
-        24,
-        25,
-        25,
-        25,
-        25,
-        25,
-        25,
-        25,
-        25,
-        26,
-        26,
-        26,
-        26,
-        26,
-        26,
-        26,
-        26,
-        27,
-        27,
-        27,
-        27,
-        27,
-        27,
-        27,
-        27,
-        28,
-        28,
-        28,
-        28,
-        28,
-        28,
-        28,
-        28,
-        29,
-        29,
-        29,
-        29,
-        29,
-        29,
-        29,
-        29,
-        30,
-        30,
-        30,
-        30,
-        30,
-        30,
-        30,
-        30,
-        31,
-        31,
-        31,
-        31,
-        31,
-        31,
-        31,
-        31,
-        32,
-        32,
-        32,
-        32,
-        32,
-        32,
-        32,
-        32,
-        33,
-        33,
-        33,
-        33,
-        33,
-        33,
-        33,
-        33,
-        34,
-        34,
-        34,
-        34,
-        34,
-        34,
-        34,
-        34,
-        35,
-        35,
-        35,
-        35,
-        35,
-        35,
-        35,
-        35,
-        36,
-        36,
-        36,
-        36,
-        36,
-        36,
-        36,
-        36,
-        37,
-        37,
-        37,
-        37,
-        37,
-        37,
-        37,
-        37,
-        38,
-        38,
-        38,
-        38,
-        38,
-        38,
-        38,
-        38,
-        39,
-        39,
-        39,
-        39,
-        39,
-        39,
-        39,
-        39,
-        40,
-        40,
-        40,
-        40,
-        40,
-        40,
-        40,
-        40,
-        41,
-        41,
-        41,
-        41,
-        41,
-        41,
-        41,
-        41,
-        42,
-        42,
-        42,
-        42,
-        42,
-        42,
-        42,
-        42,
-        43,
-        43,
-        43,
-        43,
-        43,
-        43,
-        43,
-        43,
-        44,
-        44,
-        44,
-        44,
-        44,
-        44,
-        44,
-        44,
-        45,
-        45,
-        45,
-        45,
-        45,
-        45,
-        45,
-        45,
-        46,
-        46,
-        46,
-        46,
-        46,
-        46,
-        46,
-        46,
-        47,
-        47,
-        47,
-        47,
-        47,
-        47,
-        47,
-        47,
-        48,
-        48,
-        48,
-        48,
-        48,
-        48,
-        48,
-        48,
-        49,
-        49,
-        49,
-        49,
-        49,
-        49,
-        49,
-        49,
-        50,
-        50,
-        50,
-        50,
-        50,
-        50,
-        50,
-        50,
-        51,
-        51,
-        51,
-        51,
-        51,
-        51,
-        51,
-        51,
-        52,
-        52,
-        52,
-        52,
-        52,
-        52,
-        52,
-        52,
-        53,
-        53,
-        53,
-        53,
-        53,
-        53,
-        53,
-        53,
-        54,
-        54,
-        54,
-        54,
-        54,
-        54,
-        54,
-        54,
-        55,
-        55,
-        55,
-        55,
-        55,
-        55,
-        55,
-        55,
-        56,
-        56,
-        56,
-        56,
-        56,
-        56,
-        56,
-        56,
-        57,
-        57,
-        57,
-        57,
-        57,
-        57,
-        57,
-        57,
-        58,
-        58,
-        58,
-        58,
-        58,
-        58,
-        58,
-        58,
-        59,
-        59,
-        59,
-        59,
-        59,
-        59,
-        59,
-        59,
-        60,
-        60,
-        60,
-        60,
-        60,
-        60,
-        60,
-        60,
-        61,
-        61,
-        61,
-        61,
-        61,
-        61,
-        61,
-        61,
-        62,
-        62,
-        62,
-        62,
-        62,
-        62,
-        62,
-        62,
-        63,
-        63,
-        63,
-        63,
-        63,
-        63,
-        63,
-        63,
-        64,
-        64,
-        64,
-        64,
-        64,
-        64,
-        64,
-        64,
-        65,
-        65,
-        65,
-        65,
-        65,
-        65,
-        65,
-        65,
-        66,
-        66,
-        66,
-        66,
-        66,
-        66,
-        66,
-        66,
-        67,
-        67,
-        67,
-        67,
-        67,
-        67,
-        67,
-        67,
-        68,
-        68,
-        68,
-        68,
-        68,
-        68,
-        68,
-        68,
-        69,
-        69,
-        69,
-        69,
-        69,
-        69,
-        69,
-        69,
+    [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5,
+     6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9,
+     9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12,
+     12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14,
+     14, 15, 15, 15, 15, 15, 15, 15, 15, 16, 16, 16, 16, 16, 16, 16, 16, 17, 17, 17, 17,
+     17, 17, 17, 17, 18, 18, 18, 18, 18, 18, 18, 18, 19, 19, 19, 19, 19, 19, 19, 19, 20,
+     20, 20, 20, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21, 21, 22, 22, 22, 22, 22, 22,
+     22, 22, 23, 23, 23, 23, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 25, 25, 25,
+     25, 25, 25, 25, 25, 26, 26, 26, 26, 26, 26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27,
+     28, 28, 28, 28, 28, 28, 28, 28, 29, 29, 29, 29, 29, 29, 29, 29, 30, 30, 30, 30, 30,
+     30, 30, 30, 31, 31, 31, 31, 31, 31, 31, 31, 32, 32, 32, 32, 32, 32, 32, 32, 33, 33,
+     33, 33, 33, 33, 33, 33, 34, 34, 34, 34, 34, 34, 34, 34, 35, 35, 35, 35, 35, 35, 35,
+     35, 36, 36, 36, 36, 36, 36, 36, 36, 37, 37, 37, 37, 37, 37, 37, 37, 38, 38, 38, 38,
+     38, 38, 38, 38, 39, 39, 39, 39, 39, 39, 39, 39, 40, 40, 40, 40, 40, 40, 40, 40, 41,
+     41, 41, 41, 41, 41, 41, 41, 42, 42, 42, 42, 42, 42, 42, 42, 43, 43, 43, 43, 43, 43,
+     43, 43, 44, 44, 44, 44, 44, 44, 44, 44, 45, 45, 45, 45, 45, 45, 45, 45, 46, 46, 46,
+     46, 46, 46, 46, 46, 47, 47, 47, 47, 47, 47, 47, 47, 48, 48, 48, 48, 48, 48, 48, 48,
+     49, 49, 49, 49, 49, 49, 49, 49, 50, 50, 50, 50, 50, 50, 50, 50, 51, 51, 51, 51, 51,
+     51, 51, 51, 52, 52, 52, 52, 52, 52, 52, 52, 53, 53, 53, 53, 53, 53, 53, 53, 54, 54,
+     54, 54, 54, 54, 54, 54, 55, 55, 55, 55, 55, 55, 55, 55, 56, 56, 56, 56, 56, 56, 56,
+     56, 57, 57, 57, 57, 57, 57, 57, 57, 58, 58, 58, 58, 58, 58, 58, 58, 59, 59, 59, 59,
+     59, 59, 59, 59, 60, 60, 60, 60, 60, 60, 60, 60, 61, 61, 61, 61, 61, 61, 61, 61, 62,
+     62, 62, 62, 62, 62, 62, 62, 63, 63, 63, 63, 63, 63, 63, 63, 64, 64, 64, 64, 64, 64,
+     64, 64, 65, 65, 65, 65, 65, 65, 65, 65, 66, 66, 66, 66, 66, 66, 66, 66, 67, 67, 67,
+     67, 67, 67, 67, 67, 68, 68, 68, 68, 68, 68, 68, 68, 69, 69, 69, 69, 69, 69, 69, 69,
     ]
 )
 
@@ -645,24 +134,19 @@ def test_permute_ksuper_by_matrix():
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
-        permute_aux_row.extend(
-            auxiliary_list_2.index(aux) * hops.basis.system.param["NSTATES"]
-            + np.arange(hops.basis.system.param["NSTATES"])
+        permute_aux_row.append(
+            auxiliary_list_2.index(aux)
         )
-        permute_aux_col.extend(
+        permute_aux_col.append(
             hops.basis.hierarchy.auxiliary_list.index(aux)
-            * hops.basis.system.param["NSTATES"]
-            + np.arange(hops.basis.system.param["NSTATES"])
         )
-
     # Using permutation matrix
     Pmat = sp.sparse.coo_matrix(
         (np.ones(len(permute_aux_row)), (permute_aux_row, permute_aux_col)),
-        shape=(8, 140),
+        shape=(4, 70),
         dtype=np.complex128,
     ).tocsc()
     K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat)
-
     # Hand Reconstruction of the permutation action
     row = []
     col = []
@@ -673,10 +157,11 @@ def test_permute_ksuper_by_matrix():
             col.append(jnew)
             data.append(hops.basis.eom.K2_k[permute_aux_col[i], permute_aux_col[j]])
     K0_new2 = sp.sparse.coo_matrix(
-        (data, (row, col)), shape=(8, 8), dtype=np.complex128
+        (data, (row, col)), shape=(4, 4), dtype=np.complex128
     ).tocsc()
 
     assert (K0_new.todense() == K0_new2.todense()).all()
+
 
 
 def test_add_self_interaction_remove_aux():
@@ -688,8 +173,7 @@ def test_add_self_interaction_remove_aux():
     n_site = hops.basis.system.param["NSTATES"]
     n_lop = hops.basis.system.param["N_L2"]
     n_mode = hops.basis.system.param["N_HMODES"]
-    n_tot = n_site * hops.basis.hierarchy.size
-
+    n_tot = hops.basis.hierarchy.size
     l_sparse = [
         sp.sparse.coo_matrix(hops.basis.system.param["LIST_L2_COO"][i_lop])
         for i_lop in range(n_lop)
@@ -711,27 +195,19 @@ def test_add_self_interaction_remove_aux():
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
-        permute_aux_row.extend(
-            auxiliary_list_2.index(aux) * hops.basis.system.param["NSTATES"]
-            + np.arange(hops.basis.system.param["NSTATES"])
+        permute_aux_row.append(
+            auxiliary_list_2.index(aux)
         )
-        permute_aux_col.extend(
+        permute_aux_col.append(
             hops.basis.hierarchy.auxiliary_list.index(aux)
-            * hops.basis.system.param["NSTATES"]
-            + np.arange(hops.basis.system.param["NSTATES"])
         )
-
     # Using permutation matrix
     Pmat = sp.sparse.coo_matrix(
         (np.ones(len(permute_aux_row)), (permute_aux_row, permute_aux_col)),
-        shape=(136, 140),
+        shape=(68, 70),
         dtype=np.complex128,
     ).tocsc()
     K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat)
-
-    Z0_new = [[] for i in range(n_lop)]
-    for i_lop in range(n_lop):
-        Z0_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_k[i_lop], Pmat)
 
     # Add indices
     # --------------
@@ -739,28 +215,18 @@ def test_add_self_interaction_remove_aux():
     Pmat = Pmat.transpose()
     K0_new = _permute_aux_by_matrix(K0_new, Pmat)
 
-    Z0_new2 = [[] for i in range(n_lop)]
-    for i_lop in range(n_lop):
-        Z0_new2[i_lop] = _permute_aux_by_matrix(Z0_new[i_lop], Pmat)
 
         # Add back interactions
     # ---------------------
-    K0_data, K0_row, K0_col, Z0_data, Z0_row, Z0_col = _add_self_interactions(
+    K0_data, K0_row, K0_col = _add_self_interactions(
         [
             hops.basis.hierarchy.auxiliary_list[2],
             hops.basis.hierarchy.auxiliary_list[3],
         ],
-        auxiliary_list_2,
-        [],
         hops.basis.system,
-        hops.basis.hierarchy,
-        l_sparse,
         K0_data=[],
         K0_row=[],
         K0_col=[],
-        Z0_data=[[] for i in range(n_lop)],
-        Z0_row=[[] for i in range(n_lop)],
-        Z0_col=[[] for i in range(n_lop)],
     )
 
     K0 = (
@@ -769,17 +235,8 @@ def test_add_self_interaction_remove_aux():
             (K0_data, (K0_row, K0_col)), shape=(n_tot, n_tot), dtype=np.complex128
         ).tocsc()
     )
-    Z0 = [
-        Z0_new2[i]
-        + sparse.coo_matrix(
-            (Z0_data[i], (Z0_row[i], Z0_col[i])),
-            shape=(n_tot, n_tot),
-            dtype=np.complex128,
-        ).tocsc()
-        for i in range(n_lop)
-    ]
+
     assert (K0.todense() == hops.basis.eom.K2_k.todense()).all()
-    assert (Z0[0].todense() == hops.basis.eom.Z2_k[0].todense()).all()
 
 
 # noinspection PyTupleAssignmentBalance
@@ -793,6 +250,7 @@ def test_add_cross_terms():
     n_lop = hops.basis.system.param["N_L2"]
     n_mode = hops.basis.system.param["N_HMODES"]
     n_tot = n_site * hops.basis.hierarchy.size
+    n_tot2 = hops.basis.hierarchy.size
 
     l_sparse = [
         sp.sparse.coo_matrix(hops.basis.system.param["LIST_L2_COO"][i_lop])
@@ -824,11 +282,24 @@ def test_add_cross_terms():
             * hops.basis.system.param["NSTATES"]
             + np.arange(hops.basis.system.param["NSTATES"])
         )
-
+    permute_aux_row2 = []
+    permute_aux_col2 = []
+    for aux in stable_aux:
+        permute_aux_row2.append(
+            auxiliary_list_2.index(aux)
+        )
+        permute_aux_col2.append(
+            hops.basis.hierarchy.auxiliary_list.index(aux)
+        )
     # Using permutation matrix
     Pmat = sp.sparse.coo_matrix(
         (np.ones(len(permute_aux_row)), (permute_aux_row, permute_aux_col)),
         shape=(136, 140),
+        dtype=np.complex128,
+    ).tocsc()
+    Pmat2 = sp.sparse.coo_matrix(
+        (np.ones(len(permute_aux_row2)), (permute_aux_row2, permute_aux_col2)),
+        shape=(68,70),
         dtype=np.complex128,
     ).tocsc()
     Kp1_new = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, Pmat)
@@ -836,18 +307,19 @@ def test_add_cross_terms():
 
     Zp1_new = [[] for i in range(n_lop)]
     for i_lop in range(n_lop):
-        Zp1_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[i_lop], Pmat)
+        Zp1_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[i_lop], Pmat2)
 
     # Add indices
     # --------------
     # Using permutation matrix
     Pmat = Pmat.transpose()
+    Pmat2 = Pmat2.transpose()
     Kp1_new = _permute_aux_by_matrix(Kp1_new, Pmat)
     Km1_new = _permute_aux_by_matrix(Km1_new, Pmat)
 
     Zp1_new2 = [[] for i in range(n_lop)]
     for i_lop in range(n_lop):
-        Zp1_new2[i_lop] = _permute_aux_by_matrix(Zp1_new[i_lop], Pmat)
+        Zp1_new2[i_lop] = _permute_aux_by_matrix(Zp1_new[i_lop], Pmat2)
 
         # Add back interactions
     # ---------------------
@@ -872,7 +344,6 @@ def test_add_cross_terms():
             *hops.basis.hierarchy.auxiliary_list[4:],
         ],
         hops.basis.system,
-        hops.basis.hierarchy,
         l_sparse,
         Kp1_data=[],
         Kp1_row=[],
@@ -906,7 +377,6 @@ def test_add_cross_terms():
             hops.basis.hierarchy.auxiliary_list[3],
         ],
         hops.basis.system,
-        hops.basis.hierarchy,
         l_sparse,
         Kp1_data,
         Kp1_row,
@@ -935,7 +405,7 @@ def test_add_cross_terms():
         Zp1_new2[i]
         + sparse.coo_matrix(
             (Zp1_data[i], (Zp1_row[i], Zp1_col[i])),
-            shape=(n_tot, n_tot),
+            shape=(n_tot2, n_tot2),
             dtype=np.complex128,
         ).tocsc()
         for i in range(n_lop)
@@ -955,6 +425,7 @@ def test_matrix_updates_with_missing_aux_and_states():
     n_site = hops.basis.system.param["NSTATES"]
     n_lop = hops.basis.system.param["N_L2"]
     n_tot = n_site * hops.basis.hierarchy.size
+    n_tot2 = hops.basis.hierarchy.size
 
     l_sparse = [
         sp.sparse.coo_matrix(hops.basis.system.param["LIST_L2_COO"][i_lop])
@@ -993,7 +464,15 @@ def test_matrix_updates_with_missing_aux_and_states():
                 * hops.basis.system.param["NSTATES"]
                 + list(hops.basis.system.state_list).index(state)
             )
-
+    permute_aux_row2 = []
+    permute_aux_col2 = []
+    for aux in stable_aux:
+        permute_aux_row2.append(
+            auxiliary_list_2.index(aux)
+        )
+        permute_aux_col2.append(
+            hops.basis.hierarchy.auxiliary_list.index(aux)
+        )
     # Remove indices using permutation matrix
     # ---------------------------------------
     Pmat = sp.sparse.coo_matrix(
@@ -1001,11 +480,15 @@ def test_matrix_updates_with_missing_aux_and_states():
         shape=(68, 140),
         dtype=np.complex128,
     ).tocsc()
-    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat)
+    Pmat2 = sp.sparse.coo_matrix(
+        (np.ones(len(permute_aux_row)), (permute_aux_row2, permute_aux_col2)),
+        shape=(68, 70),
+        dtype=np.complex128,
+    ).tocsc()
+    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat2)
     Kp1_new = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, Pmat)
     Km1_new = _permute_aux_by_matrix(hops.basis.eom.K2_km1, Pmat)
-    Zp1_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_kp1[1], Pmat)]
-    Z0_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_k[1], Pmat)]
+    Zp1_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_kp1[1], Pmat2)]
 
     # Now attempt to add states and auxiliaries back
     # ==============================================
@@ -1013,17 +496,14 @@ def test_matrix_updates_with_missing_aux_and_states():
     # --------------
     # Using permutation matrix
     Pmat = Pmat.transpose()
+    Pmat2 = Pmat2.transpose()
     Kp1_new = _permute_aux_by_matrix(Kp1_new, Pmat)
     Km1_new = _permute_aux_by_matrix(Km1_new, Pmat)
-    K0_new = _permute_aux_by_matrix(K0_new, Pmat)
+    K0_new = _permute_aux_by_matrix(K0_new, Pmat2)
 
     Zp1_new2 = [
-        sparse.coo_matrix((140, 140), dtype=np.complex128),
-        _permute_aux_by_matrix(Zp1_new[0], Pmat),
-    ]
-    Z0_new2 = [
-        sparse.coo_matrix((140, 140), dtype=np.complex128),
-        _permute_aux_by_matrix(Z0_new[0], Pmat),
+        sparse.coo_matrix((70, 70), dtype=np.complex128),
+        _permute_aux_by_matrix(Zp1_new[0], Pmat2),
     ]
 
     # Add back cross interactions
@@ -1048,7 +528,6 @@ def test_matrix_updates_with_missing_aux_and_states():
             hops.basis.hierarchy.auxiliary_list[3],
         ],
         hops.basis.system,
-        hops.basis.hierarchy,
         l_sparse,
         Kp1_data=[],
         Kp1_row=[],
@@ -1082,7 +561,6 @@ def test_matrix_updates_with_missing_aux_and_states():
             *hops.basis.hierarchy.auxiliary_list[4:],
         ],
         hops.basis.system,
-        hops.basis.hierarchy,
         l_sparse,
         Kp1_data,
         Kp1_row,
@@ -1116,7 +594,6 @@ def test_matrix_updates_with_missing_aux_and_states():
             hops.basis.hierarchy.auxiliary_list[3],
         ],
         hops.basis.system,
-        hops.basis.hierarchy,
         l_sparse,
         Kp1_data,
         Kp1_row,
@@ -1147,7 +624,6 @@ def test_matrix_updates_with_missing_aux_and_states():
         ],
         list_add_state=[0],
         system=hops.basis.system,
-        hierarchy=hops.basis.hierarchy,
         l_sparse=l_sparse,
         Kp1_data=Kp1_data,
         Kp1_row=Kp1_row,
@@ -1162,22 +638,15 @@ def test_matrix_updates_with_missing_aux_and_states():
 
     # Add back self interactions
     # ---------------------------
-    K0_data, K0_row, K0_col, Z0_data, Z0_row, Z0_col = _add_self_interactions(
+    K0_data, K0_row, K0_col = _add_self_interactions(
         [
             hops.basis.hierarchy.auxiliary_list[2],
             hops.basis.hierarchy.auxiliary_list[3],
         ],
-        auxiliary_list_2,
-        [0],
         hops.basis.system,
-        hops.basis.hierarchy,
-        l_sparse,
         K0_data=[],
         K0_row=[],
         K0_col=[],
-        Z0_data=[[] for i in range(n_lop)],
-        Z0_row=[[] for i in range(n_lop)],
-        Z0_col=[[] for i in range(n_lop)],
     )
 
     Kp1 = (
@@ -1196,7 +665,7 @@ def test_matrix_updates_with_missing_aux_and_states():
         Zp1_new2[i]
         + sparse.coo_matrix(
             (Zp1_data[i], (Zp1_row[i], Zp1_col[i])),
-            shape=(n_tot, n_tot),
+            shape=(n_tot2, n_tot2),
             dtype=np.complex128,
         ).tocsc()
         for i in range(n_lop)
@@ -1204,24 +673,14 @@ def test_matrix_updates_with_missing_aux_and_states():
     K0 = (
         K0_new
         + sparse.coo_matrix(
-            (K0_data, (K0_row, K0_col)), shape=(n_tot, n_tot), dtype=np.complex128
+            (K0_data, (K0_row, K0_col)), shape=(n_tot2, n_tot2), dtype=np.complex128
         ).tocsc()
     )
-    Z0 = [
-        Z0_new2[i]
-        + sparse.coo_matrix(
-            (Z0_data[i], (Z0_row[i], Z0_col[i])),
-            shape=(n_tot, n_tot),
-            dtype=np.complex128,
-        ).tocsc()
-        for i in range(n_lop)
-    ]
 
     assert (Kp1.todense() == hops.basis.eom.K2_kp1.todense()).all()
     assert (Km1.todense() == hops.basis.eom.K2_km1.todense()).all()
     assert (Zp1[0].todense() == hops.basis.eom.Z2_kp1[0].todense()).all()
     assert (K0.todense() == hops.basis.eom.K2_k.todense()).all()
-    assert (Z0[0].todense() == hops.basis.eom.Z2_k[0].todense()).all()
 
 
 def test_update_super_remove_aux():
@@ -1229,12 +688,9 @@ def test_update_super_remove_aux():
     test update_ksuper() when only aux are removed
     """
     # Prepare Constants
-    # =================
-    n_site = hops.basis.system.param["NSTATES"]
+    # -----------------
     n_lop = hops.basis.system.param["N_L2"]
-    n_mode = hops.basis.system.param["N_HMODES"]
-    n_tot = n_site * hops.basis.hierarchy.size
-
+ 
     # Remove Auxiliaries
     # ------------------
     auxiliary_list_2 = [
@@ -1258,26 +714,40 @@ def test_update_super_remove_aux():
             * hops.basis.system.param["NSTATES"]
             + np.arange(hops.basis.system.param["NSTATES"])
         )
-
+    permute_aux_row2 = []
+    permute_aux_col2 = []
+    for aux in stable_aux:
+        permute_aux_row2.append(
+            auxiliary_list_2.index(aux)
+        )
+        permute_aux_col2.append(
+            hops.basis.hierarchy.auxiliary_list.index(aux)
+        )
     Pmat = sp.sparse.coo_matrix(
         (np.ones(len(permute_aux_row)), (permute_aux_row, permute_aux_col)),
         shape=(136, 140),
         dtype=np.complex128,
     ).tocsc()
-    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat)
+    Pmat2 = sp.sparse.coo_matrix(
+        (np.ones(len(permute_aux_row2)), (permute_aux_row2, permute_aux_col2)),
+        shape=(68, 70),
+        dtype=np.complex128,
+    ).tocsc()
+    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat2)
     Kp1_new = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, Pmat)
     Km1_new = _permute_aux_by_matrix(hops.basis.eom.K2_km1, Pmat)
     Zp1_new = [[] for i in range(n_lop)]
     for i_lop in range(n_lop):
-        Zp1_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[i_lop], Pmat)
+        Zp1_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[i_lop], Pmat2)
 
-    Z0_new = [[] for i in range(n_lop)]
-    for i_lop in range(n_lop):
-        Z0_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_k[i_lop], Pmat)
-
-    K0, Z0, Kp1, Zp1, Km1 = update_ksuper(
+        
+        
+    list_stable_aux_old_index = list(np.arange(68))
+    list_stable_aux_new_index = list(set(np.arange(70)) - set([2,3]))
+    
+    
+    K0, Kp1, Zp1, Km1 = update_ksuper(
         K0_new,
-        Z0_new,
         Kp1_new,
         Zp1_new,
         Km1_new,
@@ -1291,9 +761,10 @@ def test_update_super_remove_aux():
         hops.basis.system,
         hops.basis.hierarchy,
         hops.basis.hierarchy.size * hops.basis.system.param["NSTATES"] - 4,
-        [permute_aux_col, permute_aux_row],
+        [permute_aux_col, permute_aux_row, list_stable_aux_old_index, list_stable_aux_new_index, 68],
     )
 
+    assert (K0.todense() == hops.basis.eom.K2_k.todense()).all()
     assert (Kp1.todense() == hops.basis.eom.K2_kp1.todense()).all()
     assert (Km1.todense() == hops.basis.eom.K2_km1.todense()).all()
     assert (Zp1[0].todense() == hops.basis.eom.Z2_kp1[0].todense()).all()
@@ -1337,22 +808,38 @@ def test_update_super_remove_aux_and_state():
                 * hops.basis.system.param["NSTATES"]
                 + list(hops.basis.system.state_list).index(state)
             )
-
+    permute_aux_row2 = []
+    permute_aux_col2 = []
+    for aux in stable_aux:
+        permute_aux_row2.append(
+            auxiliary_list_2.index(aux)
+        )
+        permute_aux_col2.append(
+            hops.basis.hierarchy.auxiliary_list.index(aux)
+        )
     # Using permutation matrix
     Pmat = sp.sparse.coo_matrix(
         (np.ones(len(permute_aux_row)), (permute_aux_row, permute_aux_col)),
         shape=(68, 140),
         dtype=np.complex128,
     ).tocsc()
-    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat)
+    
+    Pmat2 = sp.sparse.coo_matrix(
+        (np.ones(len(permute_aux_row2)), (permute_aux_row2, permute_aux_col2)),
+        shape=(68, 70),
+        dtype=np.complex128,
+    ).tocsc()
+    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat2)
     Kp1_new = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, Pmat)
     Km1_new = _permute_aux_by_matrix(hops.basis.eom.K2_km1, Pmat)
-    Zp1_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_kp1[1], Pmat)]
-    Z0_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_k[1], Pmat)]
+    Zp1_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_kp1[1], Pmat2)]
 
-    K0, Z0, Kp1, Zp1, Km1 = update_ksuper(
+    list_stable_aux_old_index = list(np.arange(68))
+    list_stable_aux_new_index = list(set(np.arange(70)) - set([2,3]))
+
+
+    K0, Kp1, Zp1, Km1 = update_ksuper(
         K0_new,
-        Z0_new,
         Kp1_new,
         Zp1_new,
         Km1_new,
@@ -1366,11 +853,10 @@ def test_update_super_remove_aux_and_state():
         hops.basis.system,
         hops.basis.hierarchy,
         hops.basis.hierarchy.size - 2,
-        [permute_aux_col, permute_aux_row],
+        [permute_aux_col, permute_aux_row, list_stable_aux_old_index, list_stable_aux_new_index, 68],
     )
 
     assert (Kp1.todense() == hops.basis.eom.K2_kp1.todense()).all()
     assert (Km1.todense() == hops.basis.eom.K2_km1.todense()).all()
     assert (K0.todense() == hops.basis.eom.K2_k.todense()).all()
     assert (Zp1[0].todense() == hops.basis.eom.Z2_kp1[0].todense()).all()
-    assert (Z0[0].todense() == hops.basis.eom.Z2_k[0].todense()).all()

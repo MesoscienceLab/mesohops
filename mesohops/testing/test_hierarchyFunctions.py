@@ -1,14 +1,27 @@
 import numpy as np
-import mesohops.dynamics.hierarchy_functions as HF
-from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
+import pyhops.dynamics.hierarchy_functions as HF
+from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 
 __title__ = "Test of hierarchyFunctions"
 __author__ = "D. I. G. Bennett"
-__version__ = "0.1"
+__version__ = "1.2"
 __date__ = "Feb. 9, 2019"
 
 
 def map_to_auxvec(list_aux):
+    """
+    This function takes a list of auxiliaries and outputs the associated
+    auxiliary-objects.
+
+    PARAMETERS
+    ----------
+    1. list_aux :  list
+                   list of values corresponding to the auxiliaries in a basis.
+    RETURNS
+    -------
+    1. list_aux_vec :  list
+                       list of auxiliary-objects corresponding to these auxiliaries.
+    """
     list_aux_vec = []
     for aux_values in list_aux:
         aux_key = np.where(aux_values)[0]

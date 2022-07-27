@@ -1,11 +1,12 @@
 import copy
 import numpy as np
-from mesohops.util.dynamic_dict import Dict_wDefaults
-from mesohops.util.exceptions import LockedException
+from pyhops.util.dynamic_dict import Dict_wDefaults
+from pyhops.util.exceptions import LockedException, UnsupportedRequest
+from pyhops.util.physical_constants import precision  # constant
 
-__title__ = "mesohops Noise"
-__author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__title__ = "Pyhops Noise"
+__author__ = "D. I. G. Bennett, J. K. Lynd"
+__version__ = "1.2"
 
 # NOISE MODELS:
 # =============
@@ -16,13 +17,15 @@ NOISE_DICT_DEFAULT = {
     "MODEL": "FFT_FILTER",
     "TLEN": 1000.0,  # Units: fs
     "TAU": 1.0,  # Units: fs,
+    "INTERPOLATE": False
 }
 
 NOISE_TYPE_DEFAULT = {
-    "SEED": [type(int()), type(None)],
-    "MODEL": [type(str())],
-    "TLEN": [type(float())],
-    "TAU": [type(float())],
+    "SEED": [int, type(None), str, np.ndarray],
+    "MODEL": [str],
+    "TLEN": [float],
+    "TAU": [float],
+    "INTERPOLATE": [bool]
 }
 
 
@@ -34,13 +37,25 @@ class HopsNoise(Dict_wDefaults):
     model-specific child classes.
 
 
-    INPUTS:
-    -------
-    1. noise_param: A dictionary that defines the noise trajectory for
-                    the calculation.
+    NOTE: This class is only well defined within the context of a specific
+    calculation where the system-bath parameters have been set.
+    YOU SHOULDN'T INSTANTIATE ONE OF THESE CLASSES YOURSELF.
+    IF YOU FEEL THE NEED TO, YOU ARE PROBABLY DOING SOMETHING STRANGE.
+    """
+
+    def __init__(self, noise_param, noise_corr):
+        """
+        Initializes the HopsNoise object with the parameters that it will use to
+        construct the noise.
+
+        INPUTS:
+        -------
+        1. noise_param : dict
+                        A dictionary that defines the noise trajectory for
+                        the calculation.
                     ===================  USER INPUTS ====================
                     * SEED:   an integer valued seed (or None). The noise
-                              trajectoriesfor all modes is defined by one seed.
+                              trajectories for all modes are defined by one seed.
                     * MODEL:  The name of the noise model to be used. Allowed
                               names include: 'FFT_FILTER', 'ZERO'
                     * TLEN:   The length of the time axis. Units: fs
@@ -50,7 +65,10 @@ class HopsNoise(Dict_wDefaults):
                               values will be determined by interpolation.
                               Allowed values: False [True not implemented!]
 
-                    ===================  CODE PARAMETERS ====================
+        2. noise_corr : dict
+                        A dictionary that defines the noise correlation function for
+                        the calculation.
+                    ===================  USER INPUTS ====================
                     * CORR_FUNCTION:  A pointer to the function that defines alpha(t)
                                       for the noise term given CORR_PARAM[i] inputs
                     * N_L2:          The number of L operators (and hence number of
@@ -59,26 +77,10 @@ class HopsNoise(Dict_wDefaults):
                     * CORR_PARAM:     The parameters that define the components of
                                       alpha(t)
 
-
-
-    Functions:
-    ----------
-    1. prepare_noise(): This function runs all the calculations needed
-                        to initialize the noise trajectory and make it
-                        accessible.
-    2. get_noise(t_axis): A function that returns the noise terms
-                              for each t in t_axis.
-
-
-
-    NOTE: This class is only well defined within the context of a specific
-    calculation where the system-bath parameters have been set.
-    YOU SHOULDN'T INSTANTIATE ONE OF THESE CLASSES YOURSELF.
-    IF YOU FEEL THE NEED TO, YOU ARE PROBABLY DOING SOMETHING STRANGE.
-    """
-
-    def __init__(self, noise_param, noise_corr):
-
+        RETURNS
+        -------
+        None
+        """
         # In order to ensure that each NoiseModel instance is used to
         # calculate precisely one trajectory, there is a __locked__
         # property that tracks when the NoiseModel actually calculates
@@ -88,15 +90,21 @@ class HopsNoise(Dict_wDefaults):
         #
         # Only play with this parameter if you know what you are doing.
         self.__locked__ = False
-
+        if type(self) == HopsNoise:
+            self._default_param, self._param_types = self._prepare_default(
+            NOISE_DICT_DEFAULT, NOISE_TYPE_DEFAULT
+            )
         # Initialize the noise and system dictionaries
         self.param = noise_param
         self.update_param(noise_corr)
+        nstep_min = int(np.ceil(self.param["TLEN"] / self.param["TAU"])) + 1
+        t_axis = np.arange(nstep_min) * self.param["TAU"]
+        self.param["T_AXIS"] = t_axis
 
     def _corr_func_by_lop_taxis(self, t_axis):
         """
-        This function calculates the correlation function for each L 
-        operator by combining all of the system-bath components that 
+        This function calculates the correlation function for each L
+        operator by combining all of the system-bath components that
         have the same L-operator.
 
         PARAMETERS
@@ -122,7 +130,7 @@ class HopsNoise(Dict_wDefaults):
 
     def get_noise(self, t_axis):
         """
-        Gets the noise
+        Gets the noise.
 
         PARAMETERS
         ----------
@@ -137,7 +145,21 @@ class HopsNoise(Dict_wDefaults):
         if not self.__locked__:
             self.prepare_noise()
 
-        return self._noise.get_noise(t_axis)
+        if not self.param["INTERPOLATE"]:
+            it_list = []
+            for t in t_axis:
+                test = np.abs(self.param["T_AXIS"] - t) < precision
+                if np.sum(test) == 1:
+                    it_list.append(np.where(test)[0][0])
+                else:
+                    raise UnsupportedRequest(
+                        "Off axis t-samples when INTERPOLATE = False",
+                        "NoiseModel.get_noise()",
+                    )
+
+            return self._noise[:, np.array(it_list)]
+        else:
+            return self._noise(t_axis)
 
     @staticmethod
     def _prepare_default(method_defaults, method_types):
@@ -164,6 +186,12 @@ class HopsNoise(Dict_wDefaults):
         param_types = copy.deepcopy(NOISE_TYPE_DEFAULT)
         param_types.update(method_types)
         return default_params, param_types
+
+    def _unlock(self):
+        self.__locked__ = False
+
+    def _lock(self):
+        self.__locked__ = True
 
     @property
     def param(self):

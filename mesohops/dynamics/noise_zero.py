@@ -1,10 +1,10 @@
 import numpy as np
-from mesohops.dynamics.hops_noise import HopsNoise
-from mesohops.util.exceptions import LockedException
+from pyhops.dynamics.hops_noise import HopsNoise
+from pyhops.util.exceptions import LockedException
 
-__title__ = "mesohops Noise"
+__title__ = "Pyhops Noise"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__version__ = "1.2"
 
 ZERO_DICT_DEFAULT = {}
 ZERO_DICT_TYPE = {}
@@ -14,34 +14,6 @@ class ZeroNoise(HopsNoise):
     """
     This is a class that describes the noise function for a calculation.
 
-    INPUTS:
-    -------
-    1. noise_param : A dictionary that defines the noise trajectory for
-                     the calculation.
-                     * SEED:   an integer valued seed (or None). The noise
-                               trajectoriesfor all modes is defined by one seed.
-                     * MODEL:  The name of the noise model to be used. Allowed
-                               names include: 'FFT_FILTER'
-                     * TLEN:   The length of the time axis. Units: fs
-                     * TAU:    The smallest timestep used for direct noise
-                               calculations.
-                     * INTERP: Boolean. If True, then off-grid calls for noise
-                               values will be determined by interpolation.
-                               Allowed values: False [True not implemented!]
-    2. system_param : This is the parameter dictionary that defines the system-
-                      bath interactions. The following key words are required
-                      for proper functioning:
-                      * N_L2, LIND_BY_MODE, GW_SYSBATH, CORRELATION_FUNCTION
-                      * For the definition of these key words, please see
-                        hops_system.py
-
-    Functions:
-    ----------
-    1. prepare_noise() : This function runs all the calculations needed
-                         to initialize the noise trajectory and make it
-                         accessible.
-    2. get_noise(t_axis) :  A function that returns the noise terms
-                            for each t in t_axis.
 
     NOTE: This class is only well defined within the context of a specific
     calculation where the system-bath parameters have been set.
@@ -50,6 +22,35 @@ class ZeroNoise(HopsNoise):
     """
 
     def __init__(self, noise_param, noise_corr):
+        """
+        INPUTS:
+        -------
+       1. noise_param : dict
+                        A dictionary that defines the noise trajectory for
+                        the calculation.
+                    ===================  USER INPUTS ====================
+                    * SEED:   an integer valued seed (or None). The noise
+                              trajectories for all modes are defined by one seed.
+                    * MODEL:  The name of the noise model to be used. Allowed
+                              names include: 'FFT_FILTER', 'ZERO'
+                    * TLEN:   The length of the time axis. Units: fs
+                    * TAU:    The smallest timestep used for direct noise
+                              calculations.
+                    * INTERP: Boolean. If True, then off-grid calls for noise
+                              values will be determined by interpolation.
+                              Allowed values: False [True not implemented!]
+        2. noise_corr : dict
+                        A dictionary that defines the noise correlation function for
+                        the calculation.
+                    ===================  USER INPUTS ====================
+                    * CORR_FUNCTION:  A pointer to the function that defines alpha(t)
+                                      for the noise term given CORR_PARAM[i] inputs
+                    * N_L2:          The number of L operators (and hence number of
+                                      final z(t) trajectories)
+                    * L_IND_BY_NMODE: The L-indices associated with each CORR_PARAM
+                    * CORR_PARAM:     The parameters that define the components of
+                                      alpha(t)
+        """
         self._default_param, self._param_types = self._prepare_default(
             ZERO_DICT_DEFAULT, ZERO_DICT_TYPE
         )

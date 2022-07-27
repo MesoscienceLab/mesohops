@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from mesohops.dynamics.hops_aux import AuxiliaryVector
-from mesohops.util.exceptions import AuxError
+from pyhops.dynamics.hops_aux import AuxiliaryVector
+from pyhops.util.exceptions import AuxError
 
 
 def test_auxvec_ordering():

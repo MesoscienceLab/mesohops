@@ -1,9 +1,9 @@
-from mesohops.dynamics.noise_fft import FFTFilterNoise
-from mesohops.dynamics.noise_zero import ZeroNoise
+from pyhops.dynamics.noise_fft import FFTFilterNoise
+from pyhops.dynamics.noise_zero import ZeroNoise
 
 __title__ = "preparation functions"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__version__ = "1.2"
 
 
 def prepare_noise(noise_param, system_param, flag=1):

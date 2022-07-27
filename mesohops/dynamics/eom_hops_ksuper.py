@@ -3,9 +3,9 @@ import scipy as sp
 from scipy import sparse
 
 
-__title__ = "Nonlinear Normalized Derivative Terms"
-__author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__title__ = "HOPS Super Operator"
+__author__ = "D. I. G. Bennett, B. Citty"
+__version__ = "1.2"
 
 
 def _permute_aux_by_matrix(K, Pkeep):
@@ -33,75 +33,42 @@ def _permute_aux_by_matrix(K, Pkeep):
 
 def _add_self_interactions(
     list_add_aux,
-    list_stable_aux,
-    list_add_state,
     system,
-    hierarchy,
-    l_sparse,
     K0_data,
     K0_row,
     K0_col,
-    Z0_data,
-    Z0_row,
-    Z0_col,
 ):
     """
     This is a function that builds the connections from x --> (y) into
-    the super operators.
+    the superoperators.
 
     PARAMETERS
     ----------
     1. list_add_aux : list
                       the list of new auxiliaries
-    2. list_stable_aux : list
-                         the list of stable auxiliaries
-    3. list_add_state : list
-                        the list new states
-    4. system : HopsSystem class
+    2. system : HopsSystem class
                 an instance of HopsSystem
-    5. hierarchy : HopsHierarchy class
-                   an instance of HopsHierarchy
-    6. l_sparse : list
-                  the list of sparse L operators
-    7. K0_data : list
-                 list of non-zero entries in time invariant self interaction super
+    3. K0_data : list
+                 list of non-zero entries in time-invariant self-interaction super
                  operator
-    8. K0_row : list
-                list of row indices for non-zero entries in time invariant self
-                interaction super operator
-    9. K0_col : list
-                list of column indices for non-zero entries in time invariant self
-                interaction super operator
-    10. Z0_data : list
-                  list of non-zero entries in time varying self interaction super
-                  operator
-    11. Z0_row : list
-                 ist of row indices for non-zero entries in time varying self
-                 interaction super operator
-    12. Z0_col : list
-                 list of column indices for non-zero entries in time varying self
-                 interaction super operator
+    4. K0_row : list
+                list of row indices for non-zero entries in time-invariant self
+                interaction superoperator
+    5. K0_col : list
+                list of column indices for non-zero entries in time-invariant self
+                interaction superoperator
 
     RETURNS
     -------
     1. K0_data : list
-                 list of updated non-zero entries in time invariant self interaction super
+                 list of updated non-zero entries in time-invariant self-interaction super
                  operator
     2. K0_row : list
-                list of updated row indices for non-zero entries in time invariant self
-                interaction super operator
+                list of updated row indices for non-zero entries in time-invariant self
+                interaction superoperator
     3. K0_col : list
-                list of updated column indices for non-zero entries in time invariant self
-                interaction super operator
-    4. Z0_data : list
-                 list of updated non-zero entries in time varying self interaction super
-                 operator
-    5. Z0_row : list
-                list of updated row indices for non-zero entries in time varying self
-                interaction super operator
-    6. Z0_col : list
-                list of updated column indices for non-zero entries in time varying self
-                interaction super operator
+                list of updated column indices for non-zero entries in time-invariant self
+                interaction superoperator
     """
     # Prepare Constants
     # =================
@@ -110,95 +77,26 @@ def _add_self_interactions(
 
     # Add terms for each new member of the hierarchy
     # ==============================================
-    h_sparse = sp.sparse.coo_matrix(-1j * system.hamiltonian)
-    h_sparse.eliminate_zeros()
 
     for aux_ref in list_add_aux:
 
-        i_aux = aux_ref.index
-
-        # Self-interaction in the hierarchy
-        # -iH*phi(k)
-        K0_data.extend(h_sparse.data)
-        K0_row.extend(i_aux * n_site + h_sparse.row)
-        K0_col.extend(i_aux * n_site + h_sparse.col)
-
+        i_aux = aux_ref._index
         # sum_n sum_jn k_jn omega_jm phi_k
         # Note: Because the following line is taking aux_ref (with absolute index)
         #       and the 'W' parameter from system, this needs to come from the
         #       system.param['W'] rather than system.w.
-        # K0_data.extend(-np.dot(aux_ref.todense(), system.param["W"]) * np.ones(n_site))
-        K0_data.extend(-aux_ref.dot(system.param["W"]) * np.ones(n_site))
-        K0_row.extend(i_aux * n_site + np.arange(n_site))
-        K0_col.extend(i_aux * n_site + np.arange(n_site))
-
-        # sum_n z_n*np.dot(L_n,phi(k))
-        for i_lop in range(n_lop):
-            Z0_data[i_lop].extend(l_sparse[i_lop].data)
-            Z0_row[i_lop].extend(i_aux * n_site + l_sparse[i_lop].row)
-            Z0_col[i_lop].extend(i_aux * n_site + l_sparse[i_lop].col)
+        K0_data.append(-aux_ref.dot(system.param["W"]))
+        K0_row.append(i_aux)
+        K0_col.append(i_aux)
 
 
-    # Add terms for each new state
-    # ============================
-    # If a new state has been added to the state basis, then
-    # we need to update the previous self-interaction terms
-    # for the 'stable' members of the hierarchy.
-    irel_new_state = [list(system.state_list).index(i) for i in list_add_state]
-    irel_stable_state = [
-        i
-        for i in np.arange(len(system.state_list))
-        if not system.state_list[i] in list_add_state
-    ]
-
-    if len(irel_new_state) > 0:
-        v_mask_tmp = [
-            1 if i in irel_stable_state else 0
-            for i in np.arange(len(system.state_list))
-        ]
-        h_stable_mask = np.outer(v_mask_tmp, v_mask_tmp) * np.array(system.hamiltonian)
-        h_new_sparse = sp.sparse.coo_matrix(-1j * (system.hamiltonian - h_stable_mask))
-        ilop_add = [
-            ilop
-            for ilop in range(len(system.list_absindex_L2))
-            if system.state_list[system.list_state_indices_by_index_L2[ilop][0]]
-            in list_add_state
-        ]
-        # NOTE: system.list_state_indices_by_index_L2[ilop][0] is only correct if each L-operator
-        #       connects to a single state
-
-        for aux_ref in list_stable_aux:
-            i_aux = aux_ref.index
-
-            # -iH*phi(k)
-            K0_data.extend(h_new_sparse.data)
-            K0_row.extend(i_aux * n_site + h_new_sparse.row)
-            K0_col.extend(i_aux * n_site + h_new_sparse.col)
-
-            # sum_n sum_jn k_jn omega_jm phi_k
-            # Note: Because the following line is taking aux_ref (with absolute index)
-            #       and the 'W' parameter from system, this needs to come from the
-            #       system.param['W'] rather than system.w.
-            K0_data.extend(
-                -aux_ref.dot(system.param["W"]) * np.ones(len(irel_new_state))
-            )
-            K0_row.extend(i_aux * n_site + np.array(irel_new_state))
-            K0_col.extend(i_aux * n_site + np.array(irel_new_state))
-
-            # sum_n z_n*np.dot(L_n,phi(k)) (only new lop operators)
-            for i_lop in ilop_add:
-                Z0_data[i_lop].extend(l_sparse[i_lop].data)
-                Z0_row[i_lop].extend(i_aux * n_site + l_sparse[i_lop].row)
-                Z0_col[i_lop].extend(i_aux * n_site + l_sparse[i_lop].col)
-
-    return K0_data, K0_row, K0_col, Z0_data, Z0_row, Z0_col
+    return K0_data, K0_row, K0_col
 
 
 def _add_crossterms(
     aux_from_list,
     aux_to_list,
     system,
-    hierarchy,
     l_sparse,
     Kp1_data,
     Kp1_row,
@@ -219,76 +117,74 @@ def _add_crossterms(
 
     3. system : HopsSystem class
                 an instance of HopsSystem
-    4. hierarchy : HopsHierarchy class
-                   an instance of HopsHierachy
-    5. l_sparse : list
+    4. l_sparse : list
                   the list of sparse L operators
-    6. Kp1_data : list
-                  list of non-zero entries in time invariant K+1 interaction super
+    5. Kp1_data : list
+                  list of non-zero entries in time-invariant K+1 interaction super
                   operator
-    7. Kp1_row : list
-                 list of row indices for non-zero entries in time invariant K+1
-                 interaction super operator
-    8. Kp1_col : list
-                 list of column indices for non-zero entries in time invariant K+1
-                 interaction super operator
-    9. Zp1_data : list
-                  list of non-zero entries in time varying K+1 interaction super
+    6. Kp1_row : list
+                 list of row indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
+    7. Kp1_col : list
+                 list of column indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
+    8. Zp1_data : list
+                  list of non-zero entries in time-varying K+1 interaction super
                   operator
-    10. Zp1_row : list
-                  list of row indices for non-zero entries in time varying K+1
-                  interaction super operator
-    11. Zp1_col : list
-                  list of column indices for non-zero entries in time varying K+1
-                  interaction super operator
-    12. Km1_data : list
-                   list of non-zero entries in time invariant K-1 interaction super
+    9. Zp1_row : list
+                  list of row indices for non-zero entries in time-varying K+1
+                  interaction superoperator
+    10. Zp1_col : list
+                  list of column indices for non-zero entries in time-varying K+1
+                  interaction superoperator
+    11. Km1_data : list
+                   list of non-zero entries in time-invariant K-1 interaction super
                    operator
-    13. Km1_row : list
-                  list of row indices for non-zero entries in time invariant K-1
-                  interaction super operator
-    14. Km1_col : list
-                  list of column indices for non-zero entries in time invariant K-1
-                  interaction super operator
+    12. Km1_row : list
+                  list of row indices for non-zero entries in time-invariant K-1
+                  interaction superoperator
+    13. Km1_col : list
+                  list of column indices for non-zero entries in time-invariant K-1
+                  interaction superoperator
 
     RETURNS
     -------
     1. Kp1_data : list
-                  list of updated non-zero entries in time invariant K+1 interaction super
+                  list of updated non-zero entries in time-invariant K+1 interaction super
                   operator
     2. Kp1_row : list
-                 list of updated row indices for non-zero entries in time invariant K+1
-                 interaction super operator
+                 list of updated row indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
     3. Kp1_col : list
-                 list of updated column indices for non-zero entries in time invariant K+1
-                 interaction super operator
+                 list of updated column indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
     4. Zp1_data : list
-                  list of updated non-zero entries in time varying K+1 interaction super
+                  list of updated non-zero entries in time-varying K+1 interaction super
                   operator
     5. Zp1_row : list
-                 list of updated row indices for non-zero entries in time varying K+1
-                 interaction super operator
+                 list of updated row indices for non-zero entries in time-varying K+1
+                 interaction superoperator
     6. Zp1_col : list
-                 list of updated column indices for non-zero entries in time varying K+1
-                 interaction super operator
+                 list of updated column indices for non-zero entries in time-varying K+1
+                 interaction superoperator
     7. Km1_data : list
-                  list of updated non-zero entries in time invariant K-1 interaction super
+                  list of updated non-zero entries in time-invariant K-1 interaction super
                   operator
     8. Km1_row : list
-                 list of updated row indices for non-zero entries in time invariant K-1
-                 interaction super operator
+                 list of updated row indices for non-zero entries in time-invariant K-1
+                 interaction superoperator
     9. Km1_col : list
-                 list of updated column indices for non-zero entries in time invariant K-1
-                 interaction super operator
+                 list of updated column indices for non-zero entries in time-invariant K-1
+                 interaction superoperator
     """
     # Prepare Constants
     # =================
     n_site = system.size
-    list_index_from_list = [aux.index for aux in aux_from_list]
+    list_index_from_list = [aux._index for aux in aux_from_list]
 
     for aux_ref in aux_to_list:
 
-        i_aux = aux_ref.index
+        i_aux = aux_ref._index
 
         # HIGHER TO LOWER AUX
         # sum_n sum_jn -(L*[n]-<L*[n]>_t) * phi_(k+e_jn)
@@ -301,8 +197,8 @@ def _add_crossterms(
                 l_mod = list(system.list_absindex_mode).index(l_mod_abs)
                 i_lop = system.list_index_L2_by_hmode[l_mod]
 
-                if aux_p1.index in list_index_from_list:
-                    j_aux = aux_p1.index
+                if aux_p1._index in list_index_from_list:
+                    j_aux = aux_p1._index
 
                     Kp1_data.extend(
                         -(system.g[l_mod] / system.w[l_mod]) * l_sparse[i_lop].data
@@ -310,11 +206,9 @@ def _add_crossterms(
                     Kp1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
                     Kp1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
 
-                    Zp1_data[i_lop].extend(
-                        (system.g[l_mod] / system.w[l_mod]) * np.ones(n_site)
-                    )
-                    Zp1_row[i_lop].extend(i_aux * n_site + np.arange(n_site))
-                    Zp1_col[i_lop].extend(j_aux * n_site + np.arange(n_site))
+                    Zp1_data[i_lop].append(system.g[l_mod] / system.w[l_mod])
+                    Zp1_row[i_lop].append(i_aux)
+                    Zp1_col[i_lop].append(j_aux)
 
         # LOWER TO HIGHER AUX
         # sum_n sum_jn k_jn alpha_nj phi_(k-e_jn)
@@ -324,8 +218,8 @@ def _add_crossterms(
                 l_mod = list(system.list_absindex_mode).index(l_mod_abs)
                 i_lop = system.list_index_L2_by_hmode[l_mod]
 
-                if aux_m1.index in list_index_from_list:
-                    j_aux = aux_m1.index
+                if aux_m1._index in list_index_from_list:
+                    j_aux = aux_m1._index
 
                     Km1_data.extend(
                         (aux_m1[system.list_absindex_mode[l_mod]] + 1)
@@ -351,7 +245,6 @@ def _add_crossterms_stable(
     aux_stable,
     list_add_state,
     system,
-    hierarchy,
     l_sparse,
     Kp1_data,
     Kp1_row,
@@ -375,73 +268,71 @@ def _add_crossterms_stable(
                         list of new states
     3. system : HopsSystem class
                 an instance of HopsSystem
-    4. hierarchy : HopsHierarchy class
-                   an instance of HopsHierachy
-    5. l_sparse : list
+    4. l_sparse : list
                   the list of sparse L operators
-    6. Kp1_data : list
-                  list of non-zero entries in time invariant K+1 interaction super
+    5. Kp1_data : list
+                  list of non-zero entries in time-invariant K+1 interaction super
                   operator
-    7. Kp1_row : list
-                 list of row indices for non-zero entries in time invariant K+1
-                 interaction super operator
-    8. Kp1_col : list
-                 list of column indices for non-zero entries in time invariant K+1
-                 interaction super operator
-    9. Zp1_data : list
-                  list of non-zero entries in time varying K+1 interaction super
+    6. Kp1_row : list
+                 list of row indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
+    7. Kp1_col : list
+                 list of column indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
+    8. Zp1_data : list
+                  list of non-zero entries in time-varying K+1 interaction super
                   operator
-    10. Zp1_row : list
-                  list of row indices for non-zero entries in time varying K+1
-                  interaction super operator
-    11. Zp1_col : list
-                  list of column indices for non-zero entries in time varying K+1
-                 interaction super operator
-    12. Km1_data : list
-                   list of non-zero entries in time invariant K-1 interaction super
+    9. Zp1_row : list
+                  list of row indices for non-zero entries in time-varying K+1
+                  interaction superoperator
+    10. Zp1_col : list
+                  list of column indices for non-zero entries in time-varying K+1
+                 interaction superoperator
+    11. Km1_data : list
+                   list of non-zero entries in time-invariant K-1 interaction super
                    operator
-    13. Km1_row : list
-                  list of row indices for non-zero entries in time invariant K-1
-                  interaction super operator
-    14. Km1_col : list
-                  list of column indices for non-zero entries in time invariant K-1
-                  interaction super operator
+    12. Km1_row : list
+                  list of row indices for non-zero entries in time-invariant K-1
+                  interaction superoperator
+    13. Km1_col : list
+                  list of column indices for non-zero entries in time-invariant K-1
+                  interaction superoperator
 
     RETURNS
     -------
     1. Kp1_data : list
-                  list of updated non-zero entries in time invariant K+1 interaction super
+                  list of updated non-zero entries in time-invariant K+1 interaction super
                   operator
     2. Kp1_row : list
-                 list of updated row indices for non-zero entries in time invariant K+1
-                 interaction super operator
+                 list of updated row indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
     3. Kp1_col : list
-                 list of updated column indices for non-zero entries in time invariant K+1
-                 interaction super operator
+                 list of updated column indices for non-zero entries in time-invariant K+1
+                 interaction superoperator
     4. Zp1_data : list
-                  list of updated non-zero entries in time varying K+1 interaction super
+                  list of updated non-zero entries in time-varying K+1 interaction super
                   operator
     5. Zp1_row : list
-                 list of updated row indices for non-zero entries in time varying K+1
-                 interaction super operator
+                 list of updated row indices for non-zero entries in time-varying K+1
+                 interaction superoperator
     6. Zp1_col : list
-                 list of updated column indices for non-zero entries in time varying K+1
-                 interaction super operator
+                 list of updated column indices for non-zero entries in time-varying K+1
+                 interaction superoperator
     7. Km1_data : list
-                  list of updated non-zero entries in time invariant K-1 interaction super
+                  list of updated non-zero entries in time-invariant K-1 interaction super
                   operator
     8. Km1_row : list
-                 list of updated row indices for non-zero entries in time invariant K-1
-                 interaction super operator
+                 list of updated row indices for non-zero entries in time-invariant K-1
+                 interaction superoperator
     9. Km1_col : list
-                 list of updated column indices for non-zero entries in time invariant K-1
-                 interaction super operator
+                 list of updated column indices for non-zero entries in time-invariant K-1
+                 interaction superoperator
     """
 
     # Prepare Constants
     # =================
     n_site = system.size
-    list_index_aux_stable = [aux.index for aux in aux_stable]
+    list_index_aux_stable = [aux._index for aux in aux_stable]
 
     # Add terms for each new state
     # ============================
@@ -449,15 +340,6 @@ def _add_crossterms_stable(
     # we need to update the previous cross-terms for the 'stable'
     # members of the hierarchy.
     list_irel_new_state = [list(system.state_list).index(i) for i in list_add_state]
-    # irel_stable_state = [
-    #     i
-    #     for i in np.arange(len(system.state_list))
-    #     if not system.state_list[i] in list_add_state
-    # ]
-    # v_mask_tmp = [
-    #     0 if i in irel_stable_state else 1 for i in np.arange(len(system.state_list))
-    # ]
-    # vmask_mat = np.outer(v_mask_tmp, v_mask_tmp)
 
     if len(list_irel_new_state) > 0:
         # NOTE: THE LINE BELOW ASSUMES THAT IF AN L-OPERATOR IS CONNECTED TO A NEW
@@ -473,7 +355,7 @@ def _add_crossterms_stable(
 
         for aux_ref in aux_stable:
 
-            i_aux = aux_ref.index
+            i_aux = aux_ref._index
 
             for (l_mod_abs, aux_p1) in aux_ref.dict_aux_p1.items():
                 if l_mod_abs in system.list_absindex_mode:
@@ -486,8 +368,8 @@ def _add_crossterms_stable(
                     # sum_n sum_jn -(L*[n]-<L*[n]>_t) * phi_(k+e_jn)
                     # integrand -= np.dot(np.conj(self.L[n]),phi[one_p])
                     # integrand += np.conj(Ls[n])*phi[one_p] #empty_phi
-                    if aux_p1.index in list_index_aux_stable:
-                        j_aux = aux_p1.index
+                    if aux_p1._index in list_index_aux_stable:
+                        j_aux = aux_p1._index
 
                         if i_lop in list_ilop_add:
                             # if this L-operator has not been present before
@@ -498,21 +380,17 @@ def _add_crossterms_stable(
                             Kp1_row.extend(i_aux * n_site + l_sparse[i_lop].row)
                             Kp1_col.extend(j_aux * n_site + l_sparse[i_lop].col)
 
-                            Zp1_data[i_lop].extend(
-                                (system.g[l_mod] / system.w[l_mod]) * np.ones(n_site)
+
+                            Zp1_data[i_lop].append(
+                                (system.g[l_mod] / system.w[l_mod])
                             )
-                            Zp1_row[i_lop].extend(i_aux * n_site + np.arange(n_site))
-                            Zp1_col[i_lop].extend(j_aux * n_site + np.arange(n_site))
+                            Zp1_row[i_lop].append(i_aux)
+                            Zp1_col[i_lop].append(j_aux)
                         else:
+                            pass
                             # if the L-operator has been present before this
                             # then we need to add only the terms associated
                             # with the new states.
-                            Zp1_data[i_lop].extend(
-                                (system.g[l_mod] / system.w[l_mod])
-                                * np.ones(len(list_irel_new_state))
-                            )
-                            Zp1_row[i_lop].extend(i_aux * n_site + np.array(list_irel_new_state))
-                            Zp1_col[i_lop].extend(j_aux * n_site + np.array(list_irel_new_state))
 
                             # this only applies if L operators can interact with more than
                             # one state
@@ -534,8 +412,8 @@ def _add_crossterms_stable(
                     l_mod = list(system.list_absindex_mode).index(l_mod_abs)
                     i_lop = system.list_index_L2_by_hmode[l_mod]
 
-                    if aux_m1.index in list_index_aux_stable:
-                        j_aux = aux_m1.index
+                    if aux_m1._index in list_index_aux_stable:
+                        j_aux = aux_m1._index
 
                         if i_lop in list_ilop_add:
                             # if this L-operator has not been present before
@@ -579,7 +457,6 @@ def _add_crossterms_stable(
 
 def update_ksuper(
     K0,
-    Z0,
     Kp1,
     Zp1,
     Km1,
@@ -600,45 +477,41 @@ def update_ksuper(
     PARAMETERS
     ----------
     1. K0 : sparse matrix
-            time invariant self interaction super operator
-    2. Z0 : sparse matrix
-            time varying self interaction super operator
-    3. Kp1 : sparse matrix
-             time invariant K+1 interaction super operator
-    4. Zp1 : sparse matrix
-             time varying K+1 interaction super operator
-    5. Km1 : sparse matrix
-             time invariant K-1 interaction super operator
-    6. stable_aux : list
+            time-invariant self-interaction superoperator
+    2. Kp1 : sparse matrix
+             time-invariant K+1 interaction superoperator
+    3. Zp1 : sparse matrix
+             time-varying K+1 interaction superoperator
+    4. Km1 : sparse matrix
+             time-invariant K-1 interaction superoperator
+    5. stable_aux : list
                     list of stable auxiliaries
-    7. add_aux : list
+    6. add_aux : list
                  list of new auxiliaries
-    8. stable_state : list
+    7. stable_state : list
                       list of stable states
-    9. list_old_ilop : list
+    8. list_old_ilop : list
                        list of the absolute indices of L operators in the last basis
-    10. system : HopsSystem class
+    9. system : HopsSystem class
                  an instance of HopsSystem
-    11. hierarchy : HopsHierarchy class
+    10. hierarchy : HopsHierarchy class
                     an instance of HopsHierarchy
-    12. n_old : int
+    11. n_old : int
                 size of the full hierarchy in the previous basis
-    13. perm_index : list
+    12. perm_index : list
                      a list of column list and row list that define the permutation
                      matrix
 
     RETURNS
     -------
     1. K0 : sparse matrix
-            updated time invariant self interaction super operator
-    2. Z0 : sparse matrix
-            updated time varying self interaction super operator
-    3. Kp1 : sparse matrix
-             updated time invariant K+1 interaction super operator
-    4. Zp1 : sparse matrix
-             updated time varying K+1 interaction super operator
-    5. Km1 : sparse matrix
-             updated time invariant K-1 interaction super operator
+            updated time-invariant self-interaction superoperator
+    2. Kp1 : sparse matrix
+             updated time-invariant K+1 interaction superoperator
+    3. Zp1 : sparse matrix
+             updated time-varying K+1 interaction superoperator
+    4. Km1 : sparse matrix
+             updated time-invariant K-1 interaction superoperator
     """
     # Prepare Constants
     # =================
@@ -656,45 +529,39 @@ def update_ksuper(
         shape=(n_tot, n_old),
         dtype=np.complex128,
     ).tocsc()
-
+    Pmat2 = sp.sparse.coo_matrix(
+        (np.ones(len(perm_index[3])), (perm_index[3],perm_index[2])),
+        shape=(hierarchy.size,perm_index[4]),
+        dtype=np.complex128,
+    ).tocsc()
     # K-matrices
-    K0 = _permute_aux_by_matrix(K0, Pmat)
+    K0 = _permute_aux_by_matrix(K0, Pmat2)
     Kp1 = _permute_aux_by_matrix(Kp1, Pmat)
     Km1 = _permute_aux_by_matrix(Km1, Pmat)
-
     # Z Matrices
-    Z0_new = [[] for i_lop in range(n_lop)]
     Zp1_new = [[] for i_lop in range(n_lop)]
     for i_lop in range(n_lop):
         if system.list_absindex_L2[i_lop] in list_old_ilop:
-            Z0_new[i_lop] = _permute_aux_by_matrix(
-                Z0[list(list_old_ilop).index(system.list_absindex_L2[i_lop])], Pmat
-            )
             Zp1_new[i_lop] = _permute_aux_by_matrix(
-                Zp1[list(list_old_ilop).index(system.list_absindex_L2[i_lop])], Pmat
+                Zp1[list(list_old_ilop).index(system.list_absindex_L2[i_lop])], Pmat2
             )
         else:
-            Z0_new[i_lop] = sparse.coo_matrix((n_tot, n_tot), dtype=np.complex128)
-            Zp1_new[i_lop] = sparse.coo_matrix((n_tot, n_tot), dtype=np.complex128)
+            Zp1_new[i_lop] = sparse.coo_matrix((hierarchy.size, hierarchy.size), dtype=np.complex128)
 
-    Z0 = Z0_new
     Zp1 = Zp1_new
 
     # Add new_aux --> new_aux
     # =======================
-    K0_data, K0_row, K0_col, Z0_data, Z0_row, Z0_col = _add_self_interactions(
+    (
+        K0_data,
+        K0_row,
+        K0_col,
+    ) = _add_self_interactions(
         add_aux,
-        stable_aux,
-        new_state,
         system,
-        hierarchy,
-        l_sparse,
         K0_data=[],
         K0_row=[],
         K0_col=[],
-        Z0_data=[[] for i in range(n_lop)],
-        Z0_row=[[] for i in range(n_lop)],
-        Z0_col=[[] for i in range(n_lop)],
     )
 
     (
@@ -711,7 +578,6 @@ def update_ksuper(
         add_aux,
         add_aux,
         system,
-        hierarchy,
         l_sparse,
         Kp1_data=[],
         Kp1_row=[],
@@ -740,7 +606,6 @@ def update_ksuper(
         add_aux,
         stable_aux,
         system,
-        hierarchy,
         l_sparse,
         Kp1_data,
         Kp1_row,
@@ -769,7 +634,6 @@ def update_ksuper(
         stable_aux,
         add_aux,
         system,
-        hierarchy,
         l_sparse,
         Kp1_data,
         Kp1_row,
@@ -799,7 +663,6 @@ def update_ksuper(
         stable_aux,
         new_state,
         system,
-        hierarchy,
         l_sparse,
         Kp1_data,
         Kp1_row,
@@ -817,7 +680,7 @@ def update_ksuper(
     K0 = (
         K0
         + sparse.coo_matrix(
-            (K0_data, (K0_row, K0_col)), shape=(n_tot, n_tot), dtype=np.complex128
+            (K0_data, (K0_row, K0_col)), shape=(hierarchy.size, hierarchy.size), dtype=np.complex128
         ).tocsc()
     )
     Kp1 = (
@@ -832,26 +695,16 @@ def update_ksuper(
             (Km1_data, (Km1_row, Km1_col)), shape=(n_tot, n_tot), dtype=np.complex128
         ).tocsc()
     )
-    Z0 = [
-        Z0[i]
-        + sparse.coo_matrix(
-            (Z0_data[i], (Z0_row[i], Z0_col[i])),
-            shape=(n_tot, n_tot),
-            dtype=np.complex128,
-        ).tocsc()
-        for i in range(n_lop)
-    ]
     Zp1 = [
         Zp1[i]
         + sparse.coo_matrix(
             (Zp1_data[i], (Zp1_row[i], Zp1_col[i])),
-            shape=(n_tot, n_tot),
+            shape=(hierarchy.size, hierarchy.size),
             dtype=np.complex128,
         ).tocsc()
         for i in range(n_lop)
     ]
-
-    return [K0, Z0, Kp1, Zp1, Km1]
+    return [K0, Kp1, Zp1, Km1]
 
 
 def calculate_ksuper(system, hierarchy):
@@ -869,15 +722,13 @@ def calculate_ksuper(system, hierarchy):
     RETURNS
     -------
     1. K0 : sparse matrix
-            updated time invariant self interaction super operator
-    2. Z0 : sparse matrix
-            updated time varying self interaction super operator
-    3. Kp1 : sparse matrix
-             updated time invariant K+1 interaction super operator
-    4. Zp1 : sparse matrix
-             updated time varying K+1 interaction super operator
-    5. Km1 : sparse matrix
-             updated time invariant K-1 interaction super operator
+            updated time-invariant self-interaction superoperator
+    2. Kp1 : sparse matrix
+             updated time-invariant K+1 interaction superoperator
+    3. Zp1 : sparse matrix
+             updated time-varying K+1 interaction superoperator
+    4. Km1 : sparse matrix
+             updated time-invariant K-1 interaction superoperator
     """
     n_site = system.size
     n_lop = system.n_l2
@@ -888,21 +739,17 @@ def calculate_ksuper(system, hierarchy):
 
     # Add new_aux --> new_aux
     # =======================
-    K0_data, K0_row, K0_col, Z0_data, Z0_row, Z0_col = _add_self_interactions(
+    (   
+        K0_data,
+        K0_row,
+        K0_col,
+    ) = _add_self_interactions(
         aux_list,
-        [],
-        [],
         system,
-        hierarchy,
-        l_sparse,
         K0_data=[],
         K0_row=[],
         K0_col=[],
-        Z0_data=[[] for i in range(n_lop)],
-        Z0_row=[[] for i in range(n_lop)],
-        Z0_col=[[] for i in range(n_lop)],
     )
-
     (
         Kp1_data,
         Kp1_row,
@@ -917,7 +764,6 @@ def calculate_ksuper(system, hierarchy):
         aux_list,
         aux_list,
         system,
-        hierarchy,
         l_sparse,
         Kp1_data=[],
         Kp1_row=[],
@@ -932,7 +778,7 @@ def calculate_ksuper(system, hierarchy):
 
     # Construct Sparse Matrices
     K0 = sparse.coo_matrix(
-        (K0_data, (K0_row, K0_col)), shape=(n_tot, n_tot), dtype=np.complex128
+        (K0_data, (K0_row, K0_col)), shape=(hierarchy.size, hierarchy.size), dtype=np.complex128
     ).tocsc()
     Kp1 = sparse.coo_matrix(
         (Kp1_data, (Kp1_row, Kp1_col)), shape=(n_tot, n_tot), dtype=np.complex128
@@ -940,21 +786,14 @@ def calculate_ksuper(system, hierarchy):
     Km1 = sparse.coo_matrix(
         (Km1_data, (Km1_row, Km1_col)), shape=(n_tot, n_tot), dtype=np.complex128
     ).tocsc()
-    Z0 = [
-        sparse.coo_matrix(
-            (Z0_data[i], (Z0_row[i], Z0_col[i])),
-            shape=(n_tot, n_tot),
-            dtype=np.complex128,
-        ).tocsc()
-        for i in range(n_lop)
-    ]
     Zp1 = [
         sparse.coo_matrix(
             (Zp1_data[i], (Zp1_row[i], Zp1_col[i])),
-            shape=(n_tot, n_tot),
+            shape=(hierarchy.size, hierarchy.size),
             dtype=np.complex128,
         ).tocsc()
         for i in range(n_lop)
     ]
 
-    return [K0, Z0, Kp1, Zp1, Km1]
+    return [K0, Kp1, Zp1, Km1]
+

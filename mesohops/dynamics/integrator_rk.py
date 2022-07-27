@@ -1,9 +1,9 @@
 import copy
-from mesohops.util.physical_constants import hbar
+from pyhops.util.physical_constants import hbar
 
 __title__ = "Integrators, Runge-Kutta"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__version__ = "1.2"
 
 
 def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
@@ -48,7 +48,6 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
             phi_tmp = phi + c_rk[i] * k[i - 1] * tau / hbar
 
         # Calculate system derivatives
-        # print('- rk_step: ', i)
         k[i], kz[i] = dsystem_dt(
             phi_tmp, z_mem_tmp, z_rnd[:, i_zrnd[i]], z_rnd2[:, i_zrnd[i]]
         )
@@ -60,7 +59,8 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     return phi, z_mem
 
 
-def runge_kutta_variables(storage, noise, noise2, tau):
+def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage
+                          ):
     """
     This is a function that accepts a storage and noise objects and returns the
     pre-requisite variables for a runge-kutta integration step in a list
@@ -68,13 +68,17 @@ def runge_kutta_variables(storage, noise, noise2, tau):
 
     PARAMETERS
     ----------
-    1. storage : HopsStorage object
-                 an instantiation of HopsStorage associated with the trajectory
-    2. noise : HopsNoise object
+    1. phi : array
+             the full hierarchy vector
+    2. z_mem : HopsNoise object
                an instantiation of HopsNoise associated with the trajectory
-    3. noise2 : HopsNoise object
+    3. t : int
+           the time point
+    4. noise : HopsNoise object
+               an instantiation of HopsNoise associated with the trajectory
+    5. noise2 : HopsNoise object
                 an instantiation of HopsNoise associated with the trajectory
-    4. tau : float
+    6. tau : float
              the time step
 
     RETURNS
@@ -82,9 +86,6 @@ def runge_kutta_variables(storage, noise, noise2, tau):
     1. variables : dict
                    a dictionary of variables needed for Runge Kutta
     """
-    phi = storage.phi
-    z_mem = storage.z_mem
-    t = storage.t
     z_rnd = noise.get_noise([t, t + tau * 0.5, t + tau])
     z_rnd2 = noise2.get_noise([t, t + tau * 0.5, t + tau])
 

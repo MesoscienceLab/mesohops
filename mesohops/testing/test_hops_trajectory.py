@@ -1,18 +1,16 @@
 import numpy as np
-import os
 import scipy as sp
-from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
-from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.dynamics.hops_storage import TrajectoryStorage as TrajStorage
-from mesohops.dynamics.hops_storage import AdaptiveTrajectoryStorage as AdapTrajStorage
-from mesohops.dynamics.noise_trajectories import NumericNoiseTrajectory as NNT
-from mesohops.dynamics.noise_zero import ZeroNoise
-from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
-from mesohops.util.physical_constants import precision  # constant
+from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxVec
+from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from pyhops.dynamics.hops_storage import HopsStorage
+from pyhops.dynamics.noise_fft import FFTFilterNoise as FFTFN
+from pyhops.dynamics.noise_zero import ZeroNoise
+from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from pyhops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
 __author__ = "D. I. G. Bennett"
-__version__ = "0.1"
+__version__ = "1.2"
 __date__ = ""
 
 noise_param = {
@@ -38,7 +36,13 @@ hier_param = {"MAXHIER": 4}
 
 eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
-integrator_param = {"INTEGRATOR": "RUNGE_KUTTA", "INCHWORM": True, "INCHWORM_MIN": 5}
+integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR':'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS':None
+    }
 t_max = 10.0
 t_step = 2.0
 psi_0 = [1.0 + 0.0 * 1j, 0.0 + 0.0 * 1j]
@@ -46,6 +50,19 @@ psi_0 = [1.0 + 0.0 * 1j, 0.0 + 0.0 * 1j]
 # Helper Function
 # ===============
 def map_to_auxvec(list_aux):
+    """
+    This function takes a list of auxiliaries and outputs the associated
+    auxiliary-objects.
+
+    PARAMETERS
+    ----------
+    1. list_aux :  list
+                   list of values corresponding to the auxiliaries in a basis.
+    RETURNS
+    -------
+    1. list_aux_vec :  list
+                       list of auxiliary-objects corresponding to these auxiliaries.
+    """
     list_aux_vec = []
     for aux_values in list_aux:
         aux_key = np.where(aux_values)[0]
@@ -59,19 +76,7 @@ def test_initialize():
     """
     test for the hops trajectory initialize function
     """
-    # Checks to make sure storage is AdaptiveTrajectoryStorage when calculation is adaptive
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.make_adaptive()
-    hops.initialize(psi_0)
-    storage = hops.storage
-    ATS = AdapTrajStorage()
-    assert type(storage) == type(ATS)
+
 
     # Checks to make sure storage is TrajectoryStorage when calculation is non-adaptive
     hops = HOPS(
@@ -83,16 +88,26 @@ def test_initialize():
     )
     hops.initialize(psi_0)
     storage = hops.storage
-    TS = TrajStorage()
+    TS = HopsStorage(True,{})
     assert type(storage) == type(TS)
 
     # Checks to make sure noise was properly initialized
     t_axis = np.array([0, 1, 2, 3, 4], dtype=np.float64)
     noise = np.array([[1, 2, 2, 1, 3], [2, 3, 3, 2, 4]], dtype=np.float64)
-    NumNT = NNT(noise, t_axis)
-    noise = hops.noise1._noise
-    known_noise = NumNT
-    assert type(noise) == type(known_noise)
+    noise = hops.noise1
+    sys_param["NSITE"] = len(sys_param["HAMILTONIAN"][0])
+    sys_param["NMODES"] = len(sys_param["GW_SYSBATH"][0])
+    sys_param["N_L2"] = 2
+    sys_param["L_IND_BY_NMODE1"] = [0, 1]
+    sys_param["LIND_DICT"] = {0: loperator[0, :, :], 1: loperator[1, :, :]}
+    noise_corr = {
+        "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
+        "N_L2": sys_param["N_L2"],
+        "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
+        "CORR_PARAM": sys_param["PARAM_NOISE1"],
+    }
+    noiseModel = FFTFN(noise_param, noise_corr)
+    assert type(noise) == type(noiseModel)
 
     ZN = ZeroNoise(noise_param, hops.basis.system.param)
     a = ZN
@@ -234,71 +249,6 @@ def test_make_adaptive_both_true():
     assert delta_h == known_delta_h
 
 
-def test_store_step():
-    """
-    Test to make sure that store_step is properly storing propagated values
-    """
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.make_adaptive()
-    hops.initialize(psi_0)
-    hops.propagate(2.0, 2.0)
-
-    # time test
-    time = hops.storage.t
-    known_time = 2.0
-    assert time == known_time
-
-    # t_axis test
-    t_axis = hops.storage.t_axis
-    known_t_axis = [0, 2.0]
-    assert np.array_equal(t_axis, known_t_axis)
-
-    # z_mem test
-    z_mem = hops.storage.z_mem
-    known_z_mem = [
-        3.76011140e-03 + 0.0j,
-        1.88182635e-03 + 0.0j,
-        1.77699341e-08 + 0.0j,
-        8.88915173e-09 + 0.0j,
-    ]
-    np.testing.assert_almost_equal(z_mem, known_z_mem, 8)
-
-    # aux storage False
-    aux = hops.storage.aux
-    known_aux = []
-    np.array_equal(aux, known_aux)
-
-    # state list test
-    state = hops.storage.state_list
-    known_state = [[0, 1], [0, 1]]
-    assert np.array_equal(state, known_state)
-
-    # phi test
-    phi = hops.storage.phi
-    assert len(phi) == hops.n_hier * hops.n_state
-    assert isinstance(phi, type(np.array([])))
-    assert isinstance(phi[0], np.complex128)
-
-    # psi test
-    psi_traj = hops.storage.psi_traj
-    known_psi_traj = [
-        [1.0 + 0.0j, 0j],
-        [0.999992832 - 0.00042642j, -4.06990909e-06 - 0.00376226j],
-    ]
-    np.testing.assert_allclose(psi_traj[0], np.array([1.0 + 0.0j, 0j]))
-    np.testing.assert_allclose(psi_traj[1], hops.psi)
-
-    phi_traj = hops.storage.phi_traj
-    known_phi_traj = []
-    assert np.array_equal(phi_traj, known_phi_traj)
-
-
 def test_check_tau_step():
     """
     Test to make sure tau is within precision, which is a constant
@@ -389,8 +339,6 @@ def test_inchworm_aux():
     hs = np.zeros([nsite, nsite], dtype=np.float64)
     hs[0, 1] = 40
     hs[1, 0] = 40
-    # hs[1, 2] = 10
-    # hs[2, 1] = 10
 
     sys_param = {
         "HAMILTONIAN": np.array(hs, dtype=np.complex128),
@@ -405,8 +353,10 @@ def test_inchworm_aux():
 
     integrator_param = {
         "INTEGRATOR": "RUNGE_KUTTA",
-        "INCHWORM": True,
-        "INCHWORM_MIN": 5,
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
     }
 
     psi_0 = np.array([0.0] * nsite, dtype=np.complex)
@@ -425,7 +375,7 @@ def test_inchworm_aux():
     aux_list = hops_inchworm.auxiliary_list
     known_aux_list = map_to_auxvec([(0, 0, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)])
     assert set(aux_list) == set(known_aux_list)
-    z_step = hops_inchworm._prepare_zstep(2.0, hops_inchworm.storage.z_mem)
+    z_step = hops_inchworm._prepare_zstep(2.0, hops_inchworm.z_mem) #hops_inchworm.storage.z_mem
     (state_update, aux_update) = hops_inchworm.basis.define_basis(
         hops_inchworm.phi, 2.0, z_step
     )
@@ -783,8 +733,10 @@ def test_inchworm_state():
 
     integrator_param = {
         "INTEGRATOR": "RUNGE_KUTTA",
-        "INCHWORM": True,
-        "INCHWORM_MIN": 5,
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
     }
 
     psi_0 = np.array([0.0] * nsite, dtype=np.complex)
@@ -805,7 +757,7 @@ def test_inchworm_state():
     known_state_list = [1, 2, 3]
     assert tuple(state_list) == tuple(known_state_list)
 
-    z_step = hops_inchworm._prepare_zstep(2.0, hops_inchworm.storage.z_mem)
+    z_step = hops_inchworm._prepare_zstep(2.0, hops_inchworm.z_mem) #hops_inchworm.storage.z_mem
     (state_update, aux_update) = hops_inchworm.basis.define_basis(
         hops_inchworm.phi, 2.0, z_step
     )
@@ -860,3 +812,32 @@ def test_inchworm_state():
     add_state = state_update[2]
     known = [6]
     assert np.array_equal(add_state, known)
+
+
+def test_prepare_zstep():
+    """
+    test for preparing the noise terms for the next time step
+    """
+    noise_param = {
+        "SEED": np.array([[1,1,2,2,3,3,4,4,5,5],[6,6,7,7,8,8,9,9,10,10]]),
+        "MODEL": "FFT_FILTER",
+        "TLEN": 5.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops.initialize(psi_0)
+    z_mem_init = np.array([1,1,1,1])
+    tau = 2
+    zran1, zrand2,z_mem = hops._prepare_zstep(tau,z_mem_init)
+    known_zran1 = np.array([[36.341675, 97.45899]],dtype=np.float32)
+
+    assert np.allclose(zran1,known_zran1)
+    assert np.allclose(zrand2,np.zeros(2))
+    assert np.array_equal(z_mem_init,z_mem)

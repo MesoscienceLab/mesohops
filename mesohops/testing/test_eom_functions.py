@@ -1,7 +1,7 @@
 import numpy as np
-from mesohops.dynamics.bath_corr_functions import bcf_exp
-from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.dynamics.eom_functions import (
+from pyhops.dynamics.bath_corr_functions import bcf_exp
+from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from pyhops.dynamics.eom_functions import (
     operator_expectation,
     calc_delta_zmem,
     compress_zmem,
@@ -9,7 +9,7 @@ from mesohops.dynamics.eom_functions import (
 
 __title__ = "Test of eom_functions"
 __author__ = "D. I. G. Bennett"
-__version__ = "0.1"
+__version__ = "1.2"
 __date__ = ""
 
 # TEST PARAMETERS
@@ -19,7 +19,6 @@ noise_param = {
     "MODEL": "FFT_FILTER",
     "TLEN": 10.0,  # Units: fs
     "TAU": 0.5,  # Units: fs
-    "DIAGONAL": True,
 }
 
 loperator = np.zeros([2, 2, 2], dtype=np.float64)
@@ -38,7 +37,13 @@ hier_param = {"MAXHIER": 4}
 
 eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
-integrator_param = {"INTEGRATOR": "RUNGE_KUTTA", "INCHWORM": True, "INCHWORM_MIN": 5}
+integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
 
 psi_0 = [1.0 + 0.0 * 1j, 0.0 + 0.0 * 1j]
 
@@ -54,6 +59,24 @@ hops.initialize(psi_0)
 
 # Test basic functions
 # ----------------------
+def test_operator_expectation():
+    """
+    Tests that operator expectation is correctly calculated and normalized in both
+    the ground state-corrected and non-ground state-corrected cases.
+    """
+    psi = np.array([np.sqrt(2)*np.exp(-1j), np.sqrt(2)*np.exp(1j)])
+    I2_identity = np.array([[1, 0],
+                            [0, 1]])
+    I2 = I2_identity
+    C2_cancellation = np.array([[1, 0],
+                                [0, -1]])
+    C2 = C2_cancellation
+    assert operator_expectation(I2, psi, flag_gcorr=False) == 1.0
+    assert operator_expectation(I2, psi, flag_gcorr=True) == 4.0/5.0
+    assert operator_expectation(C2, psi, flag_gcorr=False) == 0.0
+    assert operator_expectation(C2, psi, flag_gcorr=True) == 0.0
+
+
 def test_l_avg_calculation():
     lind_dict = hops.basis.system.param["LIST_L2_COO"]
     lop_list = lind_dict
@@ -63,6 +86,11 @@ def test_l_avg_calculation():
 
 
 def test_calc_deltz_zmem():
+    """
+    This is a test to ensure that memory-effects
+    in the noise are properly taken into account
+    during a HOPS simulation.
+    """
     lind_dict = hops.basis.system.param["LIST_L2_COO"]
     lop_list = lind_dict
     lavg_list = [operator_expectation(L2, hops.psi) for L2 in lop_list]
@@ -86,6 +114,12 @@ def test_calc_deltz_zmem():
 
 
 def test_compress_zmem():
+    """
+    This is a test to ensure that memory-compression,
+    or the implicit accumulation of Matsubara modes,
+    is properly taken into account during a HOPS
+    simulation.
+    """
     lind_dict = hops.basis.system.param["LIST_L2_COO"]
     lop_list = lind_dict
     lavg_list = [operator_expectation(L2, hops.psi) for L2 in lop_list]

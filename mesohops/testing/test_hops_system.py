@@ -1,12 +1,12 @@
 import os
 import numpy as np
 import scipy as sp
-from mesohops.dynamics.hops_system import HopsSystem as HSystem
-from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from pyhops.dynamics.hops_system import HopsSystem as HSystem
+from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 
 __title__ = "test for System Class"
-__author__ = "D. I. G. Bennett, Leonel Varvelo"
-__version__ = "0.1"
+__author__ = "D. I. G. Bennett, L. Varvelo"
+__version__ = "1.2"
 __date__ = "Jan. 15, 2020"
 
 # HOPS SYSTEM PARAMETERS

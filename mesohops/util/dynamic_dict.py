@@ -10,7 +10,7 @@ convience functions for initializing and working with classes.
 import copy
 
 
-from mesohops.util.exceptions import LockedException, UnsupportedRequest
+from pyhops.util.exceptions import LockedException, UnsupportedRequest
 
 
 class Dict_wDefaults(object):

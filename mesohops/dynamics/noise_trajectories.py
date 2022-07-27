@@ -1,11 +1,12 @@
 import numpy as np
-from mesohops.util.exceptions import UnsupportedRequest
+from pyhops.util.exceptions import UnsupportedRequest
 from abc import ABC, abstractmethod
-from mesohops.util.physical_constants import precision  # constant
+from pyhops.util.physical_constants import precision  # constant
+from scipy import interpolate
 
 __title__ = "Noise Trajectories"
-__author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__author__ = "D. I. G. Bennett, J. K. Lynd"
+__version__ = "1.2"
 
 
 class NoiseTrajectory(ABC):
@@ -32,13 +33,33 @@ class NoiseTrajectory(ABC):
 
 class NumericNoiseTrajectory(NoiseTrajectory):
     """
-    This is the class for noise that is explicitly calculated and does not support
-    interpolation.
+    This is the class for noise that is explicitly calculated.
     """
 
-    def __init__(self, noise, t_axis):
-        self.__t_axis = t_axis
-        self.__noise = noise
+    def __init__(self, noise, t_axis, spline_interpolation=False):
+        """
+
+        INPUTS
+        ------
+        1. noise : list
+                   the noise trajectory
+        2. t_axis : list
+                    list of time points
+        3. spline_interpolation : bool
+                                  If True, then off-grid calls for noise values will be
+                                  determined by interpolation
+
+        """
+        self._t_axis = t_axis
+        self._noise = noise
+        if spline_interpolation:
+            print("WARNING: spline interpolation of noise trajectories is untested")
+            # If this is a list, it will register as True, which is important later.
+            # If it is an array, it will throw an error.
+            self._noise_interpolation = [interpolate.splrep(t_axis, state_noise)
+                                          for state_noise in noise]
+        else:
+            self._noise_interpolation = False
 
     def get_noise(self, taxis_req):
         """
@@ -59,18 +80,24 @@ class NumericNoiseTrajectory(NoiseTrajectory):
         """
         # Check that to within 'precision' resolution, all timesteps
         # requested are present on the calculated t-axis.
-        it_list = []
-        for t in taxis_req:
-            test = np.abs(self.__t_axis - t) < precision
-            if np.sum(test) == 1:
-                it_list.append(np.where(test)[0][0])
-            else:
-                raise UnsupportedRequest(
-                    "Off axis t-samples",
-                    "when INTERP = False in the NoiseModel._get_noise()",
-                )
 
-        return self.__noise[:, np.array(it_list)]
+
+        if not self._noise_interpolation:
+            it_list = []
+            for t in taxis_req:
+                test = np.abs(self._t_axis - t) < precision
+                if np.sum(test) == 1:
+                    it_list.append(np.where(test)[0][0])
+                else:
+                    raise UnsupportedRequest(
+                        "Off axis t-samples",
+                        "when INTERPOLATE = False in the NoiseModel._get_noise()",
+                    )
+
+            return self._noise[:, np.array(it_list)]
+        else:
+            return np.array([[interpolate.splev(taxis_req, spline)] for spline in
+                     self._noise_interpolation])
 
     def get_taxis(self):
-        return self.__t_axis
+        return self._t_axis

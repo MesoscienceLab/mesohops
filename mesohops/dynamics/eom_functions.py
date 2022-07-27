@@ -1,13 +1,13 @@
 import numpy as np
-from mesohops.util.physical_constants import precision
+from pyhops.util.physical_constants import precision
 
 
 __title__ = "EOM Functions"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__version__ = "1.2"
 
 
-def operator_expectation(oper, vec):
+def operator_expectation(oper, vec, flag_gcorr = False):
     """
     This is a function that calculates the expectation value of a sparse
     operator
@@ -17,14 +17,20 @@ def operator_expectation(oper, vec):
     1. oper : np.array
              dense or sparse operator
     2. vec : np.array
-             a nx1 matrix
+             an nx1 matrix
+    3. flag_gcorr : bool
+                    whether or not to correct the normalization for the inclusion of
+                    a ground state (in the dyadic equation governing absorption)
 
     RETURNS
     -------
     1. expectation_value : float
                            expectation value of the operator, <vec|Oper|vec> /(<vec|vec>)
     """
-    return (np.conj(vec) @ (oper @ vec)) / (np.conj(vec) @ vec)
+    if not flag_gcorr:
+        return (np.conj(vec) @ (oper @ vec)) / (np.conj(vec) @ vec)
+    else:
+        return (np.conj(vec) @ (oper @ vec)) / (1+np.conj(vec) @ vec)
 
 
 def compress_zmem(z_mem, list_index_L2_by_mode, list_absindex_mode):
@@ -138,7 +144,7 @@ def calc_norm_corr(
                 the current dimension (size) of the system
     6. list_index_L2_by_mode : list
                                list of length equal to the number of modes in the current
-                               hierarchy basis and each entry is an index for the
+                               hierarchy basis: each entry is an index for the
                                relative list_L2.
     7. list_g : list
                 list of pre exponential factors for bath correlation functions [absolute]

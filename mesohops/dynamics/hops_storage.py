@@ -1,85 +1,122 @@
+import copy
 import numpy as np
+from pyhops.dynamics.storage_functions import storage_default_func as default_func
+from pyhops.util.exceptions import UnsupportedRequest
 
 __title__ = "Storage Class"
-__author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__author__ = "D. I. G. Bennett, L. Varvelo"
+__version__ = "1.2"
 
 
-class TrajectoryStorage(object):
+class HopsStorage:
     """
     This is an object that manages storing information for a
     HOPS trajectory.
     """
-
-    def __init__(self):
-        self.store_aux = False
-        self.adaptive = False
-        self._aux_list = []
-        self._phi = []
-        self._t = []
-        self._z_mem = []
-        self._psi_traj = []
-        self._phi_traj = []
-        self._t_axis = []
+    def __init__(self, adaptive, storage_dic):
+        """
+        INPUTS:
+        -------
+        1. adaptive : bool
+                      a boolean to describe is the calculation is adaptive or not
+        2. storage_dic : dict
+                         a dictionary of storage parameters
+        """
+        self._adaptive = False
         self._n_dim = 0
+        self.storage_dic = storage_dic
+        self.cp_store_dic = copy.copy(storage_dic)
+        self.dic_save = {}
+        self.data = {}
+        self.adaptive = adaptive
+
+    def __repr__(self):
+        key_dict = []
+        for (key,value) in self.storage_dic.items():
+            if value:
+                key_dict.append(key)
+        return 'Storage currently holds: {}'.format(key_dict)
+
+    def __getitem__(self, item):
+        if item in self.data.keys():
+            if self._adaptive and item == 'psi_traj':
+                psi_traj_full = np.zeros([len(self['t_axis']), self._n_dim],
+                                         dtype=np.complex128)
+                for (t_index, psi) in enumerate(self.data['psi_traj']):
+                    psi_traj_full[
+                        t_index, np.array(self.data['state_list'][t_index])] = psi
+                return psi_traj_full
+            else:
+                return np.array(self.data[item])
+        else:
+            print('{} not a key of storage.data'.format(item))
 
     @property
-    def t(self):
-        return self._t
+    def adaptive(self):
+        return self._adaptive
 
-    @t.setter
-    def t(self, t):
-        self._t = t
+    @adaptive.setter
+    def adaptive(self, new):
+        self._adaptive = new
+        self.storage_dic = copy.copy(self.cp_store_dic)
+        self.dic_save = {}
+        self.data = {}
 
-    @property
-    def z_mem(self):
-        return self._z_mem
+        # Set default dictionary values
+        # -----------------------------
+        self.storage_dic.setdefault('phi_traj', False)
+        self.storage_dic.setdefault('psi_traj', True)
+        self.storage_dic.setdefault('t_axis', True)
 
-    @z_mem.setter
-    def z_mem(self, z_mem):
-        self._z_mem = z_mem
+        if self._adaptive:
+            self.storage_dic.setdefault('aux_new', True)
+            self.storage_dic.setdefault('aux_stable', True)
+            self.storage_dic.setdefault('aux_bound', True)
+            self.storage_dic.setdefault('state_list', True)
+            self.storage_dic.setdefault('list_nhier', True)
+            self.storage_dic.setdefault('list_nstate', True)
 
-    @property
-    def phi(self):
-        return self._phi
 
-    @phi.setter
-    def phi(self, phi):
-        self._phi = phi
+        for (key, value) in self.storage_dic.items():
+            if value is not False:
+                if isinstance(value, bool):
+                    self.dic_save[key] = default_func[key]
+                elif callable(value):
+                    self.dic_save[key] = value
+                else:
+                    raise UnsupportedRequest('Value is not supported')
+        for (key, value) in self.storage_dic.items():
+            if value:
+                self.data[key] = []
 
-    @property
-    def psi_traj(self):
-        return self._psi_traj
+    def store_step(self, **kwargs):
+        """
+         This is the function that inserts data into the HopsStorage class at each
+         time point of the simulation.
 
-    @psi_traj.setter
-    def psi_traj(self, psi_traj_new):
-        self._psi_traj.append(psi_traj_new)
+         PARAMETERS
+         ----------
+         1. kwargs : any
+                     The following parameters are the default key word arguments that
+                     are currently being passed
+                     1. phi_new : np.array
+                                  the updated full hierarchy
+                     2. aux_new : list
+                                  a list of list defining the auxiliaries in the hierarchy basis
+                                  [aux_stable,aux_new,aux_bound]
+                     3. state_list : list
+                                    the list of current states in the system basis
+                     4. t_new : float
+                                the new time point (t+tau)
+                     5. z_mem_new : list
+                                    a list of memory values
 
-    @property
-    def phi_traj(self):
-        return self._phi_traj
-
-    @phi_traj.setter
-    def phi_traj(self, phi_traj_new):
-        if self.store_aux:
-            self._phi_traj.append(phi_traj_new)
-
-    @property
-    def t_axis(self):
-        return self._t_axis
-
-    @t_axis.setter
-    def t_axis(self, t_axis):
-        self._t_axis.append(t_axis)
-
-    @property
-    def aux_list(self):
-        return self._aux_list
-
-    @aux_list.setter
-    def aux_list(self, aux_list):
-        if self.store_aux:
-            self._aux_list.append(aux_list)
+         RETURNS
+         -------
+         None
+         """
+        for (key,value) in self.dic_save.items():
+            self.data[key].append(self.dic_save[key](**kwargs))
 
     @property
     def n_dim(self):
@@ -90,78 +127,6 @@ class TrajectoryStorage(object):
         self._n_dim = N_dim
 
 
-class AdaptiveTrajectoryStorage(TrajectoryStorage):
-    """
-    This is an object that manages storing information for a
-    HOPS trajectory.
-    """
 
-    def __init__(self):
-        super().__init__()
-        self.store_aux = False
-        self.adaptive = True
-        self._list_aux_pop = []
-        self._list_aux_boundary = []
-        self._list_aux_new = []
-        self._state_list = []
-        self._aux_list = []
-        self._list_nhier = []
-        self._list_nstate = []
 
-    @property
-    def psi_traj(self):
-        return self._psi_traj
 
-    @psi_traj.setter
-    def psi_traj(self, psi_traj_new):
-        psi_new = np.zeros(self.n_dim, dtype=np.complex128)
-        psi_new[np.array(self.state_list[-1])] = psi_traj_new
-        self._psi_traj.append(psi_new)
-
-    @property
-    def list_aux_pop(self):
-        return self._list_aux_pop
-
-    @property
-    def list_aux_new(self):
-        return self._list_aux_new
-
-    @property
-    def aux(self):
-        return [self.list_aux_new[-1], self.list_aux_pop[-1], self.list_aux_boundary[-1]]
-
-    @aux.setter
-    def aux(self, aux):
-        self._list_aux_new.append(aux[0])
-        self._list_aux_pop.append(aux[1])
-        self._list_aux_boundary.append(aux[2])
-        self.list_nhier = len(aux[0])
-
-    @property
-    def list_aux_boundary(self):
-        return self._list_aux_boundary
-
-    @property
-    def state_list(self):
-        return self._state_list
-
-    @state_list.setter
-    def state_list(self, s_list):
-        self._state_list.append(s_list)
-        self._list_nstate.append(len(s_list))
-
-    @property
-    def list_nhier(self):
-        return self._list_nhier
-
-    @list_nhier.setter
-    def list_nhier(self, N_hier):
-        self._list_nhier.append(N_hier)
-
-    @property
-    def list_nstate(self):
-        return self._list_nstate
-
-    @list_nstate.setter
-    def list_nstate(self, s_list):
-        self._list_nstate.append(s_list)

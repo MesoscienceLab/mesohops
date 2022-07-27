@@ -1,12 +1,51 @@
 import numpy as np
+from math import factorial
 from collections.abc import Mapping
-from mesohops.util.exceptions import AuxError
+from pyhops.util.exceptions import AuxError
 from scipy.special import binom
 
 __title__ = "AuxiliaryVector Class"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.0"
+__version__ = "1.2"
 
+def binom_integer(n_arr,k_arr):
+    """
+    A binomial distribution calculator that uses only Python integers to achieve
+    arbitrary precision and avoid issues with float overflow. Takes in any iterable
+    or single value
+    PARAMETERS
+    ----------
+    1. n_arr : array(int)
+               The number of options - must be larger than or equal to k
+    2. k_arr : array(int)
+               The number of choices - must be smaller than or equal to n
+    RETURNS
+    -------
+    1. dist : int
+              The result of the formula n!/(k!(n-k)!)
+    """
+    if not hasattr(n_arr, '__iter__'):
+        return factorial(n_arr)//factorial(k_arr)//factorial(n_arr-k_arr)
+    return [factorial(n)//factorial(k)//factorial(n-k) for n,k in zip(n_arr,k_arr)]
+
+def intsum(arr):
+    """
+    Helper function similar to np.sum that is exclusively for use with integers and
+    does not change the data type at any point.
+    PARAMETERS
+    ----------
+    1. arr : array(int)
+             The array of integers to be summed over
+    RETURNS
+    -------
+    1. sum : int
+             The sum of the array of integers
+    """
+    sum = 0
+    for entry in arr:
+        if type(entry) == int or np.isfinite(entry):
+            sum += int(entry)
+    return sum
 
 class AuxiliaryVector(Mapping):
     """
@@ -19,18 +58,21 @@ class AuxiliaryVector(Mapping):
 
     """
     __slots__ = ('dict_aux_vec', 'tuple_aux_vec', 'array_aux_vec', '__abs_index', '__len'
-                  , 'hash', 'index', '_sum', '_dict_aux_p1', '_dict_aux_m1')
+                  , 'hash', '_index', '_sum', '_dict_aux_p1', '_dict_aux_m1')
 
     def __init__(self, aux_array, nmodes):
         """
-        INPUTS
+        Initializes the AuxiliaryVector object with a given depth in each of nmodes
+        modes.
+
+        PARAMETERS
         ------
         1. aux_array : iterable
                       list of (mode, value) pairs for all non-zero indices of the auxiliary
                       vector
         2. nmodes : int
                    the number of modes in the hierarchy which is the length of the dense
-                   auxiliary vector.
+                   auxiliary vector
 
         RETURNS
         -------
@@ -48,7 +90,7 @@ class AuxiliaryVector(Mapping):
         self.__abs_index = None
         self.__len = nmodes
         self.hash = hash(self.tuple_aux_vec)
-        self.index = None
+        self._index = None
         self._sum = np.sum(self.values())
 
         self._dict_aux_p1 = {}
@@ -75,13 +117,13 @@ class AuxiliaryVector(Mapping):
 
     def keys(self):
         """
-        This function returns an array of mode indices for the auxiliary vectors
+        This function returns an array of mode indices for the auxiliary vectors.
 
-        Parameters
+        PARAMETERS
         ----------
         None
 
-        Returns
+        RETURNS
         -------
         1. keys : array
                   an array of mode indices with nonzero auxiliary index
@@ -93,13 +135,13 @@ class AuxiliaryVector(Mapping):
 
     def values(self):
         """
-        This function returns an array of the auxiliary vector values
+        This function returns an array of the auxiliary vector values.
 
-        Parameters
+        PARAMETERS
         ----------
         None
 
-        Returns
+        RETURNS
         -------
         1. values : array
                     an array of nonzero auxiliary index values
@@ -122,16 +164,16 @@ class AuxiliaryVector(Mapping):
 
     def _compare(self, other, comparison_function):
         """
-        This function compares two auxiliary vectors
+        This function compares two auxiliary vectors.
 
-        Parameters
+        PARAMETERS
         ----------
         1. other : array
                    the array you want to compare
         2. comparison_function : function
                                  a comparison function
 
-        Returns
+        RETURNS
         -------
         1. bool_compare : bool
                           a boolean for the comparison
@@ -200,12 +242,12 @@ class AuxiliaryVector(Mapping):
         This is a function that performs a sparse dot product between the
         auxiliary index vector and another vector.
 
-        Parameters
+        PARAMETERS
         ----------
         1. vec : np.array
                  a vector
 
-        Returns
+        RETURNS
         -------
         1. product : float
                      the dot product value
@@ -218,13 +260,13 @@ class AuxiliaryVector(Mapping):
 
     def sum(self, **unused_kwargs):
         """
-        This function returns the sum of the auxiliary vector values
+        This function returns the sum of the auxiliary vector values.
 
-        Parameters
+        PARAMETERS
         ----------
         None
 
-        Returns
+        RETURNS
         -------
         1. sum : float
                  the sum of the nonzero values of the auxiliary vectors
@@ -236,13 +278,13 @@ class AuxiliaryVector(Mapping):
 
     def todense(self):
         """
-        This function will take a sparse vector and make it dense
+        This function will take a sparse vector and make it dense.
 
-        Parameters
+        PARAMETERS
         ----------
         None
 
-        Returns
+        RETURNS
         -------
         1. output : array
                     the dense vector
@@ -255,13 +297,13 @@ class AuxiliaryVector(Mapping):
 
     def toarray(self):
         """
-        This function converts a dict to an array
+        This function converts a dict to an array.
 
-        Parameters
+        PARAMETERS
         ----------
         None
 
-        Returns
+        RETURNS
         -------
         1. array : array
                    a dict in an array form
@@ -270,14 +312,14 @@ class AuxiliaryVector(Mapping):
 
     def get_values(self, index_slice):
         """
-        This function gets the dense auxiliary vector values from a sub-indexed list
+        This function gets the dense auxiliary vector values from a sub-indexed list.
 
-        Parameters
+        PARAMETERS
         ----------
         1. index_slice : list
                          a list of indices
 
-        Returns
+        RETURNS
         -------
         1. values : array
                     an array of values at the given indices
@@ -286,17 +328,17 @@ class AuxiliaryVector(Mapping):
 
     def get_values_nonzero(self, index_slice):
         """
-        This function gets the sparse auxiliary vector values from a sub-indexed list
+        This function gets the sparse auxiliary vector values from a sub-indexed list.
 
-        NOTE: the values are returned in key order not the order
-              they are present in index_slice
+        NOTE: the values are returned in key order, not the order
+              they are present in index_slice.
 
-        Parameters
+        PARAMETERS
         ----------
         1. index_slice : list
                          a list of indices
 
-        Returns
+        RETURNS
         -------
         1. values : array
                     a sparse array of the non-zero auxiliary vector values
@@ -308,16 +350,16 @@ class AuxiliaryVector(Mapping):
     def e_step(self, mode, step):
         """
         This function returns a new Auxiliary Vector with the desired step in the given
-        mode
+        mode.
 
-        Parameters
+        PARAMETERS
         ----------
         1. mode : int
                   The absolute mode index
         2. step : int
                   The change in the aux value for the given mode
 
-        Returns
+        RETURNS
         -------
         1. aux_vec : tuple
                      the new sparse auxiliary vector
@@ -327,9 +369,9 @@ class AuxiliaryVector(Mapping):
     def hash_from_e_step(self, mode, step):
         """
         This function returns the hash of a new Auxiliary Vector with the desired step
-        in the given mode
+        in the given mode.
 
-        Parameters
+        PARAMETERS
         ----------
         1. mode : int
                   The absolute mode index
@@ -348,14 +390,14 @@ class AuxiliaryVector(Mapping):
         Returns the sparse tuple representation of the auxiliary that is the given step
         length along the given absolute mode index away from the current auxiliary.
 
-        Parameters
+        PARAMETERS
         ----------
         1. mode : int
                   The absolute mode index
         2. step : int
                   The change in the aux value for the given mode
 
-        Returns
+        RETURNS
         -------
         1. tuple_aux : tuple
                        The sparse representation of the auxiliary (sorted mode order)
@@ -434,10 +476,13 @@ class AuxiliaryVector(Mapping):
 
         if not aux.size:
             return 0
+        # Old, faster case: if the total index-depth sum is less than a thousand and
+        # ten,
+        # then there are fewer auxiliaries than the float limit
         else:
             # Calculate number of aux at order less than L
             # --------------------------------------------
-            n_aux_below_l = int(binom(n_hmode + L - 1, L - 1))
+            n_aux_below_l = binom(n_hmode + L - 1, L - 1)
 
             # Calculate N+ contribution
             # -------------------------
@@ -462,31 +507,64 @@ class AuxiliaryVector(Mapping):
             # -------------------------
             list_m_balls = L - np.cumsum(aux[:, 1]) - 1
             m = np.nansum(binom(list_nm_boxes + list_m_balls, list_m_balls))
+            if n_aux_below_l + m + n_plus - n_minus < 1.5e308:
+                return int(n_aux_below_l + m + n_plus - n_minus)
+            else:
+                # Calculate number of aux at order less than L
+                # --------------------------------------------
+                n_aux_below_l = int(binom_integer(n_hmode + L - 1, L - 1))
 
-            return int(n_aux_below_l + m + n_plus - n_minus)
+                # Calculate N+ contribution
+                # -------------------------
+                list_np_boxes = [n_hmode]
+                list_np_boxes.extend(n_hmode - aux[:-1, 0] - 1)
+                list_np_boxes = np.array(list_np_boxes)
+
+                list_np_balls = [L]
+                list_np_balls.extend(L - np.cumsum(aux[:-1, 1]))
+                list_np_balls = np.array(list_np_balls)
+
+                n_plus = intsum(
+                    binom_integer(list_np_boxes + list_np_balls - 1, list_np_boxes - 1)
+                )
+
+                # Calculate N- contributions
+                # --------------------------
+                list_nm_boxes = n_hmode - aux[:, 0] - 1
+                n_minus = intsum(binom_integer(list_nm_boxes + list_np_balls,
+                                              list_nm_boxes))
+
+                # calculate M contributions
+                # -------------------------
+                list_m_balls = L - np.cumsum(aux[:, 1]) - 1
+                m = intsum(binom(list_nm_boxes + list_m_balls, list_m_balls))
+
+                return int(n_aux_below_l + m + n_plus - n_minus)
 
     def add_aux_connect(self, index_mode, aux_other, type):
         """
-        The function that updates the HopsAux object to contain a pointer to the
+        This function updates the HopsAux object to contain a pointer to the
         other HopsAux objects it is connected to.
 
-        Parameters
+        PARAMETERS
         ----------
         1. index_mode : int
                         the mode along which the two HopsAux objects are connected
         2. aux_other : HopsAux
-                       the HopsAux object it is connected to
+                       the HopsAux object that self is connected to
         3. type : int
                   +1 or -1 depending on if the other aux has a larger or smaller sum
 
-        Returns
+        RETURNS
         -------
-        1. None
+        None
         """
         if type == 1:
             self._dict_aux_p1.update({index_mode: aux_other})
+            aux_other._dict_aux_m1.update({index_mode: self})
         elif type == -1:
             self._dict_aux_m1.update({index_mode: aux_other})
+            aux_other._dict_aux_p1.update({index_mode: self})
         else:
             raise AuxError('add_aux_connect does not support type={}'.format(type))
 
@@ -495,7 +573,7 @@ class AuxiliaryVector(Mapping):
         The function that removes the connection between the HopsAux object and another
         connected with type (+1/-1) along index mode.
 
-        Parameters
+        PARAMETERS
         ----------
         1. index_mode : int
                         the mode along which the two HopsAux objects are connected
@@ -503,7 +581,7 @@ class AuxiliaryVector(Mapping):
                   +1 or -1 depending on if the other aux has a larger or smaller sum
         Returns
         -------
-        1. None
+        None
         """
         if type == 1:
             self._dict_aux_p1.pop(index_mode)
@@ -517,13 +595,13 @@ class AuxiliaryVector(Mapping):
         The function that removes all pointers targeting the current HopsAux object
         from the set of HopsAux objects it has connections to.
 
-        Parameters
+        PARAMETERS
         ----------
-        1. None
+        None
 
         Returns
         -------
-        1. None
+        None
         """
         for (index_mode, aux) in self.dict_aux_p1.items():
             aux.remove_aux_connect(index_mode, -1)
