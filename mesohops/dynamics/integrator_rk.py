@@ -1,5 +1,5 @@
 import copy
-from pyhops.util.physical_constants import hbar
+from mesohops.util.physical_constants import hbar
 
 __title__ = "Integrators, Runge-Kutta"
 __author__ = "D. I. G. Bennett"
@@ -8,28 +8,32 @@ __version__ = "1.2"
 
 def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     """
-    This function performs a single Runge-Kutta step from the current
-    time to a time tau forward.
+    Performs a single Runge-Kutta step from the current time to a time tau forward.
 
-    PARAMETERS
+    Parameters
     ----------
     1. dsystem_dt : function
-                    a function that calculates the system derivatives
-    2. phi : array
-             the full hierarchy vector
-    3. z_mem : array
-              the memory terms for the bath
-    4. z_rnd : array
-               the random numbers for the bath (at three time points)
-    5. tau : float
-             the timestep of the calculation
+                    A function that calculates the system derivatives.
 
-    RETURNS
+    2. phi : array
+             Full hierarchy vector.
+
+    3. z_mem : array
+              Array of memory terms for the bath.
+
+    4. z_rnd : array
+               Array of random numbers for the bath (at three time points).
+
+    5. tau : float
+             Timestep of the calculation.
+
+    Returns
     -------
     1. phi : array
-             the updated hierarchy vector
+             Updated hierarchy vector.
+
     2. z_mem : array
-               the updated memory term
+               Updated memory term
     """
     # Calculation constants
     # ---------------------
@@ -59,32 +63,34 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     return phi, z_mem
 
 
-def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage
-                          ):
+def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage):
     """
-    This is a function that accepts a storage and noise objects and returns the
-    pre-requisite variables for a runge-kutta integration step in a list
-    that can be unraveled to correctly feed into runge_kutta_step.
+    Accepts a storage and noise objects and returns the pre-requisite variables for
+    a runge-kutta integration step in a list that can be unraveled to correctly feed
+    into runge_kutta_step.
 
-    PARAMETERS
+    Parameters
     ----------
     1. phi : array
-             the full hierarchy vector
-    2. z_mem : HopsNoise object
-               an instantiation of HopsNoise associated with the trajectory
-    3. t : int
-           the time point
-    4. noise : HopsNoise object
-               an instantiation of HopsNoise associated with the trajectory
-    5. noise2 : HopsNoise object
-                an instantiation of HopsNoise associated with the trajectory
-    6. tau : float
-             the time step
+             Full hierarchy vector.
 
-    RETURNS
+    2. z_mem : list
+               a list of memory terms
+
+    3. t : int
+           Integration time point.
+
+    4. noise : instance(HopsNoise)
+
+    5. noise2 : instance(HopsNoise)
+
+    6. tau : float
+             Noise time step.
+
+    Returns
     -------
     1. variables : dict
-                   a dictionary of variables needed for Runge Kutta
+                   Dictionary of variables needed for Runge Kutta.
     """
     z_rnd = noise.get_noise([t, t + tau * 0.5, t + tau])
     z_rnd2 = noise2.get_noise([t, t + tau * 0.5, t + tau])

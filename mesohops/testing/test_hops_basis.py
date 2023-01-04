@@ -4,10 +4,11 @@
 import os
 import numpy as np
 import scipy as sp
-from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxiliaryVector
-from pyhops.dynamics.hops_hierarchy import HopsHierarchy as HHier
-from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxiliaryVector
+from mesohops.dynamics.hops_hierarchy import HopsHierarchy as HHier
+from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.util.physical_constants import hbar
 
 
 def map_to_auxvec(list_aux):
@@ -233,30 +234,21 @@ def test_define_basis_state():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
 
-    z_step = hops_ad._prepare_zstep(2.0, hops_ad.z_mem)
+    z_step = hops_ad._prepare_zstep(hops_ad.z_mem)
     state_update, _ = hops_ad.basis.define_basis(hops_ad.phi, 2.0, z_step)
 
     # initial state
-    state_new, state_stable, state_bound = state_update
+    state_new = state_update
     known_new = [4, 5, 6]
     assert state_new == known_new
-    known_stable = [4, 5, 6]
-    assert tuple(state_stable) == tuple(known_stable)
-    known_bound = []
-    assert np.array_equal(state_bound, known_bound)
 
     # state after propagation
     phi_new = 0*hops_ad.phi
     phi_new[0:hops_ad.n_state] = 1/np.sqrt(hops_ad.n_state)
     state_update, _ = hops_ad.basis.define_basis(phi_new, 2.0, z_step)
-    state_new, state_stable, state_bound = state_update
+    state_new = state_update
     known_new = [3, 4, 5, 6, 7]
     assert state_new == known_new
-    known_stable = [4, 5, 6]
-    assert tuple(state_stable) == tuple(known_stable)
-    known_bound = [3, 7]
-    assert np.array_equal(state_bound, known_bound)
-
 
 def test_define_basis_hier():
     """
@@ -322,29 +314,21 @@ def test_define_basis_hier():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
 
-    z_step = hops_ad._prepare_zstep(2.0, hops_ad.z_mem)
+    z_step = hops_ad._prepare_zstep(hops_ad.z_mem)
     _, hier_update = hops_ad.basis.define_basis(hops_ad.phi, 2.0, z_step)
     # initial Hierarchy
-    hier_new, hier_stable, hier_bound = hier_update
+    hier_new = hier_update
     known_new = [
         AuxiliaryVector([], 4),
         AuxiliaryVector([(3, 1)], 4),
         AuxiliaryVector([(2, 1)], 4),
     ]
     assert set(hier_new) == set(known_new)
-    known_stable = [
-        AuxiliaryVector([], 4),
-        AuxiliaryVector([(2, 1)], 4),
-        AuxiliaryVector([(3, 1)], 4),
-    ]
-    assert tuple(hier_stable) == tuple(known_stable)
-    known_bound = []
-    assert np.array_equal(hier_bound, known_bound)
 
     # Hierachy after expansion
     known_phi = np.array([np.sqrt(0.1),np.sqrt(0.9),np.sqrt(0.05),np.sqrt(0.95),0,np.sqrt(1)])
     _, hier_update = hops_ad.basis.define_basis(known_phi, 2.0, z_step)
-    hier_new, hier_stable, hier_bound = hier_update
+    hier_new = hier_update
     known_new = [
         AuxiliaryVector([(2, 1), (3, 1)], 4),
         AuxiliaryVector([(0, 1)], 4),
@@ -359,23 +343,6 @@ def test_define_basis_hier():
     ]
 
     assert set(hier_new) == set(known_new)
-    known_stable = [
-        AuxiliaryVector([(2, 1)], 4),
-        AuxiliaryVector([], 4),
-        AuxiliaryVector([(3, 1)], 4),
-    ]
-    assert set(hier_stable) == set(known_stable)
-    known_bound = [
-        AuxiliaryVector([(0, 1)], 4),
-        AuxiliaryVector([(1, 1)], 4),
-        AuxiliaryVector([(2, 2)], 4),
-        AuxiliaryVector([(3, 2)], 4),
-        AuxiliaryVector([(0, 1), (2, 1)], 4),
-        AuxiliaryVector([(1, 1), (2, 1)], 4),
-        AuxiliaryVector([(2, 1), (3, 1)], 4),
-    ]
-    assert set(hier_bound) == set(known_bound)
-
 
 def test_update_basis():
     """
@@ -473,7 +440,7 @@ def test_update_basis():
     state_new = [3, 4, 5, 6, 7]
     state_stable = [4, 5, 6]
     state_bound = [3, 7]
-    state_update = (state_new, state_stable, state_bound)
+    state_update = state_new
 
     # hierarchy update
     hier_stable = hops_ad1.auxiliary_list[:4]
@@ -481,9 +448,9 @@ def test_update_basis():
     hier_bound = [
         AuxiliaryVector([(0, 4)], 20)
     ]
-    
+
     hier_new = hier_stable+hier_bound
-    hier_update = (hier_new, hier_stable, hier_bound)
+    hier_update = hier_new
 
     phi, _ = hops_ad1.basis.update_basis(hops_ad1.phi, state_update, hier_update)
     assert len(phi) == hops_ad1.n_state * hops_ad1.n_hier
@@ -506,9 +473,9 @@ def test_update_basis():
             assert np.allclose(P2[state_ad2, aux_ad2], P2_new[state_ad1, aux_ad1])
 
 
-def test_check_state_list():
+def test_define_state_basis():
     """
-    Test to make sure check_state_list is giving out correct stable and bound states
+    Test to make sure _define_state_basis is giving out correct stable and bound states
     """
     noise_param = {
         "SEED": basis_noise_10site,
@@ -586,10 +553,10 @@ def test_check_state_list():
     hops_ad.initialize(psi_0)
 
     # before propagation
-    z_step = hops_ad._prepare_zstep(2.0, hops_ad.z_mem)
+    z_step = hops_ad._prepare_zstep(hops_ad.z_mem)
     list_index_aux_stable = [0, 1, 2]
-    list_stable_state, list_state_bound = hops_ad.basis._check_state_list(
-        hops_ad.phi, 2.0, z_step, list_index_aux_stable
+    list_stable_state, list_state_bound = hops_ad.basis._define_state_basis(
+        hops_ad.phi, 2.0, z_step, list_index_aux_stable, []
     )
     known_states = [4, 5, 6]
     assert np.array_equal(list_stable_state, known_states)
@@ -598,8 +565,8 @@ def test_check_state_list():
     # propagate
     phi_new = 0*hops_ad.phi
     phi_new[0:hops_ad.n_state] = 1/np.sqrt(hops_ad.n_state)
-    list_stable_state, list_state_bound = hops_ad.basis._check_state_list(
-        phi_new, 2.0, z_step, list_index_aux_stable
+    list_stable_state, list_state_bound = hops_ad.basis._define_state_basis(
+        phi_new, 2.0, z_step, list_index_aux_stable, []
     )
     known_states = [4, 5, 6]
     assert np.array_equal(list_stable_state, known_states)
@@ -607,9 +574,9 @@ def test_check_state_list():
     assert np.array_equal(list_state_bound, known_boundary)
 
 
-def test_check_hierarchy_list():
+def test_define_hierarchy_basis():
     """
-    Test to make sure check_state_list is giving out correct stable and bound hierarchy
+    Test to make sure define_hierarchy_basis is giving out correct stable and bound hierarchy
     members
     """
     noise_param = {
@@ -673,8 +640,8 @@ def test_check_hierarchy_list():
     hops_ad.initialize(psi_0)
 
     # inital hierarchy
-    z_step = hops_ad._prepare_zstep(2.0, hops_ad.z_mem)
-    list_aux_stable, list_aux_boundary = hops_ad.basis._check_hierarchy_list(
+    z_step = hops_ad._prepare_zstep(hops_ad.z_mem)
+    list_aux_stable, list_aux_boundary = hops_ad.basis._define_hierarchy_basis(
         hops_ad.phi, 2.0, z_step
     )
     known_stable = [
@@ -688,7 +655,7 @@ def test_check_hierarchy_list():
 
     # hierarchy after propagate
     phi_test = np.array([np.sqrt(1/2), np.sqrt(1/2)]*hops_ad.n_hier)
-    list_aux_stable, list_aux_boundary = hops_ad.basis._check_hierarchy_list(
+    list_aux_stable, list_aux_boundary = hops_ad.basis._define_hierarchy_basis(
         phi_test, 2.0, z_step
     )
 
@@ -707,7 +674,7 @@ def test_check_hierarchy_list():
 
 def test_determine_boundary_hier():
     """
-    Test to make sure correct boundary hierarchy members are accounted for
+    Tests the selection of boundary hierarchy members
     """
     noise_param = {
         "SEED": basis_noise_2site,
@@ -767,74 +734,57 @@ def test_determine_boundary_hier():
         integration_param=integrator_param,
     )
     hops_ad.make_adaptive(1e-3, 1e-3)
-    hops_ad.basis.hierarchy._auxiliary_list = [AuxiliaryVector([],4)]
-    hops_ad.basis.system._list_absindex_mode = [2,3]
-
+    hops_ad.initialize(psi_0)
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([],4)]
+    hops_ad.basis.system.state_list = [1]
+    hops_ad.basis.mode.list_absindex_mode = [2,3]
     # Creating flux up and flux down matrices for initial hierarchy
-    # flux down
     flux_down = np.zeros((2, 1))
-    # flux up
     flux_up = np.zeros((2, 1))
-    flux_up[0, 0] = 0.1
-    flux_up[1, 0] = 0.001
+    # Set the error associated with neglecting flux into the boundary via the 0th
+    # mode to be larger than is acceptable, and the error for the 1st mode to be
+    # acceptably small.
+    flux_up[0, 0] = 0.1**2
+    flux_up[1, 0] = 0.001**2
     list_e2_kflux = np.array((flux_up, flux_down))
-    list_index_stable = [0]
-    list_aux_up, list_aux_down = hops_ad.basis._determine_boundary_hier(
+    list_index_stable = np.array([0])
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
         list_e2_kflux, list_index_stable, 0.001
     )
-    known_aux_up = [AuxiliaryVector([(2, 1)], 4)]
-    assert list_aux_up == known_aux_up
-    assert list_aux_down == []
+    known_list_aux = [AuxiliaryVector([(2, 1)], 4)]
+    assert set(list_aux_bound) == set(known_list_aux)
 
-    # Creating flux up and flux down matrices for hierarchy after propagation
-    
-    # flux down
-    flux_down = np.zeros((2, 1))
-    # flux up
-    flux_up = np.zeros((2, 1))
-    flux_up[0, 0] = 0.1
-    flux_up[1, 0] = 0.001
-    list_e2_kflux = np.array((flux_up, flux_down))
-    list_index_stable = [0]
-    list_aux_up, list_aux_down = hops_ad.basis._determine_boundary_hier(
-        list_e2_kflux, list_index_stable, 0.001
-    )
-    known_aux_up = [AuxiliaryVector([(2, 1)], 4)]
-    assert list_aux_up == known_aux_up
-    assert list_aux_down == []
-
-    # Creating flux up and flux down matrices for hierarchy after propagation
-    hops_ad.basis.hierarchy._auxiliary_list = [AuxiliaryVector([],4),AuxiliaryVector([(1, 1)],4),AuxiliaryVector([(2, 1)],4),AuxiliaryVector([(3, 1)],4),
+    # Creating flux up and flux down matrices for hierarchy after propagation with a
+    # more-complicated basis
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([],4),AuxiliaryVector([(1, 1)],4),AuxiliaryVector([(2, 1)],4),AuxiliaryVector([(3, 1)],4),
                                                AuxiliaryVector([(0, 2)],4),AuxiliaryVector([(1, 2)],4),AuxiliaryVector([(2, 1),(3, 1)],4),
                                                AuxiliaryVector([(2, 1),(3, 2)],4),AuxiliaryVector([(3, 3)],4),AuxiliaryVector([(2, 1),(3, 3)],4),AuxiliaryVector([(3, 4)],4)]
-    hops_ad.basis.system._list_absindex_mode = [0,1,2,3]
-    # flux up
+    hops_ad.basis.system.state_list = [0,1]
+    hops_ad.basis.mode.list_absindex_mode = [0,1,2,3]
+
     flux_up = np.zeros((4, 11))
-    flux_up[0, 4] = 0.00003
-    flux_up[0, 6] = 0.01
-    flux_up[1, 7] = 0.00004
-    flux_up[1, 4] = 0.01
-    flux_up[2, 4] = 0.01
-    
-    
-    # flux down
+    flux_up[0, 4] = 0.00003**2
+    flux_up[0, 6] = 0.01**2
+    flux_up[1, 7] = 0.00004**2
+    flux_up[1, 4] = 0.01**2
+    flux_up[2, 4] = 0.01**2
+
     flux_down = np.zeros((4, 11))
-    flux_down[0, 4] = 0.1
+    flux_down[0, 4] = 0.1**2
+
     list_e2_kflux = np.array((flux_up, flux_down))
-    list_index_stable = [6, 4, 10, 5, 7, 1, 9, 0, 3, 8, 2]
+    list_index_stable = np.array([6, 4, 10, 5, 7, 1, 9, 0, 3, 8, 2])
     list_index_stable.sort()
-    list_aux_up, list_aux_down = hops_ad.basis._determine_boundary_hier(
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
         list_e2_kflux, list_index_stable, 0.001
     )
-    known_aux_up = [
+    known_aux_bound = [
         AuxiliaryVector([(0, 1),(2, 1),(3, 1)], 4),
         AuxiliaryVector([(0, 2), (1, 1)], 4),
         AuxiliaryVector([(0, 2), (2, 1)], 4),
-    ]
-    assert list_aux_up == known_aux_up
-    assert list_aux_down == [
         AuxiliaryVector([(0, 1)], 4)
     ]
+    assert set(list_aux_bound) == set(known_aux_bound)
 
 
 def test_determine_basis_from_list():
@@ -942,106 +892,7 @@ def test_determine_basis_from_list():
     assert np.array_equal(list_new_member, known_members)
 
 
-def test_error_boundary_states():
-    """
-    test of the error values for the boundary states
-    """
-    noise_param = {
-        "SEED": basis_noise_10site,
-        "MODEL": "FFT_FILTER",
-        "TLEN": 250.0,  # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
-    nsite = 10
-    e_lambda = 20.0
-    gamma = 50.0
-    temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
-
-    loperator = np.zeros([10, 10, 10], dtype=np.float64)
-    gw_sysbath = []
-    lop_list = []
-    for i in range(nsite):
-        loperator[i, i, i] = 1.0
-        gw_sysbath.append([g_0, w_0])
-        lop_list.append(sp.sparse.coo_matrix(loperator[i]))
-        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
-        lop_list.append(loperator[i])
-
-    hs = np.zeros([nsite, nsite])
-    hs[0, 1] = 40
-    hs[1, 0] = 40
-    hs[1, 2] = 10
-    hs[2, 1] = 10
-    hs[2, 3] = 40
-    hs[3, 2] = 40
-    hs[3, 4] = 10
-    hs[4, 3] = 10
-    hs[4, 5] = 40
-    hs[5, 4] = 40
-    hs[5, 6] = 10
-    hs[6, 5] = 10
-    hs[6, 7] = 40
-    hs[7, 6] = 40
-    hs[7, 8] = 10
-    hs[8, 7] = 10
-    hs[8, 9] = 40
-    hs[9, 8] = 40
-
-    sys_param = {
-        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath,
-        "L_HIER": lop_list,
-        "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp,
-        "PARAM_NOISE1": gw_sysbath,
-    }
-
-    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
-
-    integrator_param = {
-        "INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
-        'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5,
-        'STATIC_BASIS': None
-    }
-
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
-    psi_0[5] = 1.0
-    psi_0 = psi_0 / np.linalg.norm(psi_0)
-
-    hops_ad = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param={"MAXHIER": 2},
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops_ad.make_adaptive(1e-3, 1e-3)
-    hops_ad.initialize(psi_0)
-    # initial boundary states
-    list_index_stable = [0, 1, 2]
-    list_index_aux_stable = [0, 1]
-    list_index_nonzero, list_error_nonzero = hops_ad.basis.error_boundary_state(
-        hops_ad.phi, list_index_stable, list_index_aux_stable
-    )
-    assert np.array_equal(list_index_nonzero, [])
-    assert np.array_equal(list_error_nonzero, [])
-
-    # boundary states after propagation
-    phi_new = 0 * hops_ad.phi
-    phi_new[0:hops_ad.n_state] = 1 / np.sqrt(hops_ad.n_state)
-    list_index_nonzero, list_error_nonzero = hops_ad.basis.error_boundary_state(
-        phi_new, list_index_stable, list_index_aux_stable
-    )
-    known_bound = [3, 7]
-    assert np.array_equal(list_index_nonzero, known_bound)
-    known_error = [0.0010875, 0.00435001]
-    assert np.allclose(list_error_nonzero, known_error)
-
-
-def test_error_stable_state():
+def test_state_stable_error():
     """
     test of the error values for the stable states
     """
@@ -1117,85 +968,44 @@ def test_error_stable_state():
         eom_param=eom_param,
         integration_param=integrator_param,
     )
-    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.make_adaptive(1, 1e-3)
     hops_ad.initialize(psi_0)
 
-    z_step = hops_ad._prepare_zstep(2.0, hops_ad.z_mem)
-    list_index_aux_stable = [0, 1, 2]
-    error = hops_ad.basis.error_stable_state(
-        hops_ad.phi, 2.0, z_step, list_index_aux_stable
+    z_step = hops_ad._prepare_zstep(hops_ad.z_mem)
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([], 20),
+                                              AuxiliaryVector([(10, 1), (11, 1)], 20)]
+    hops_ad.phi = np.array([0, 0.9 + 0j, 0, 0, 0.8 - 0j, 0], dtype=np.complex128)
+    list_index_aux_stable = [0, 1]
+    list_aux_bound = [AuxiliaryVector([(10, 1)], 20), AuxiliaryVector([(11, 1)], 20)]
+
+    hops_ad_dsystem_dt = hops_ad.basis.eom._prepare_derivative(hops_ad.basis.system,
+                                                               hops_ad.basis.hierarchy,
+                                                               hops_ad.basis.mode)
+
+    # Get all error terms
+    gw_10 = gw_sysbath[10]
+    gw_11 = gw_sysbath[11]
+    dsystem_dt = (hops_ad_dsystem_dt(hops_ad.phi, z_step[2],
+                                     z_step[0], z_step[1])[0].reshape([3,2],
+                     order = "F")/hbar)
+    deletion = (hops_ad.phi.reshape([3,2], order = "F")/2.0)
+    analytic_error_deriv_deletion = np.abs(dsystem_dt + deletion)**2
+    analytic_sflux_deriv = np.array([0, (0.9**2 + 0.8**2)*(10**2 + 40**2)/hbar**2, 0])
+    analytic_flux_up = np.array([[0, 0],
+                                 [(0.9 ** 2) * (np.abs(gw_10[1]) ** 2 + np.abs(
+                                     gw_11[1]) ** 2), 0],
+                                 [0, 0]], dtype=np.complex128) / hbar ** 2
+    analytic_flux_down = np.array([[0, 0],
+                                   [0, (0.8 ** 2 * (1.0 - 0.9 ** 2) ** 2) * (
+                                               np.abs(gw_10[0] / gw_10[1]) ** 2 +
+                                               np.abs(gw_11[0] / gw_11[1]) ** 2)],
+                                   [0, 0]], dtype=np.complex128) / hbar ** 2
+
+    known_error = np.sqrt(np.sum(analytic_error_deriv_deletion,axis=1) +
+                          analytic_sflux_deriv +
+                          np.sum(analytic_flux_up, axis=1) +
+                          np.sum(analytic_flux_down, axis=1))
+    error = hops_ad.basis.state_stable_error(
+        hops_ad.phi, 2.0, z_step, list_index_aux_stable, list_aux_bound
     )
-    known_error = [0.00753443, 0.5088798, 0.00188361]
-    assert np.allclose(error, known_error)
-
-
-def test_hier_stable_error():
-    """
-    test of the error values for the stable hierarchy members
-    """
-    noise_param = {
-        "SEED": basis_noise_2site,
-        "MODEL": "FFT_FILTER",
-        "TLEN": 250.0,  # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
-
-    nsite = 2
-    e_lambda = 20.0
-    gamma = 50.0
-    temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
-
-    loperator = np.zeros([2, 2, 2], dtype=np.float64)
-    gw_sysbath = []
-    lop_list = []
-    for i in range(nsite):
-        loperator[i, i, i] = 1.0
-        gw_sysbath.append([g_0, w_0])
-        lop_list.append(sp.sparse.coo_matrix(loperator[i]))
-        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
-        lop_list.append(loperator[i])
-
-    hs = np.zeros([nsite, nsite], dtype=np.float64)
-    hs[0, 1] = 40
-    hs[1, 0] = 40
-
-    sys_param = {
-        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath,
-        "L_HIER": lop_list,
-        "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp,
-        "PARAM_NOISE1": gw_sysbath,
-    }
-
-    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
-
-    integrator_param = {
-        "INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
-        'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5,
-        'STATIC_BASIS': None
-    }
-
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
-    psi_0[1] = 1.0
-    psi_0 = psi_0 / np.linalg.norm(psi_0)
-
-    hops_ad = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops_ad.make_adaptive(1e-3, 1e-3)
-    hops_ad.initialize(psi_0)
-
-    z_step = hops_ad._prepare_zstep(2.0, hops_ad.z_mem)
-    z_step = [0*np.array(z_step[0]), 0*np.array(z_step[1]), 0*np.array(z_step[2])]
-    error, flux_error = hops_ad.basis.hier_stable_error(hops_ad.phi, 2.0, z_step)
-    # known_error = [0.50893557, 0.00941804, 0.09418041]
-    known_error = [0.50005676, 0.00941804, 0.09418041]
     assert np.allclose(error, known_error)

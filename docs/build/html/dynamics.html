@@ -1329,7 +1329,7 @@ new basis (hierarchy and/or system).</p>
 <dl class="class">
 <dt id="dynamics.hops_eom.HopsEOM">
 <em class="property">class </em><code class="sig-name descname">HopsEOM</code><span class="sig-paren">(</span><em class="sig-param">eom_params</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_eom.HopsEOM" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyhops.util.dynamic_dict.Dict_wDefaults</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">mesohops.util.dynamic_dict.Dict_wDefaults</span></code></p>
 <p>HopsEOM is the class that defines the equation of motion for time evolving
 the hops trajectory. Its primary responsibility is to define the derivative
 of the system state. It also contains the parameters that determine what
@@ -1361,7 +1361,7 @@ kind of adaptive-hops strategies are used.</p>
 <dl class="class">
 <dt id="dynamics.hops_hierarchy.HopsHierarchy">
 <em class="property">class </em><code class="sig-name descname">HopsHierarchy</code><span class="sig-paren">(</span><em class="sig-param">hierarchy_param</em>, <em class="sig-param">system_param</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_hierarchy.HopsHierarchy" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyhops.util.dynamic_dict.Dict_wDefaults</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">mesohops.util.dynamic_dict.Dict_wDefaults</span></code></p>
 <p>HopsHierarchy defines the representation of the hierarchy in the HOPS
 calculation. It contains the user parameters, helper functions, and
 the list of all nodes contained in the hierarchy.</p>
@@ -1580,7 +1580,7 @@ such object)</p>
 <dl class="class">
 <dt id="dynamics.hops_noise.HopsNoise">
 <em class="property">class </em><code class="sig-name descname">HopsNoise</code><span class="sig-paren">(</span><em class="sig-param">noise_param</em>, <em class="sig-param">noise_corr</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.hops_noise.HopsNoise" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyhops.util.dynamic_dict.Dict_wDefaults</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">mesohops.util.dynamic_dict.Dict_wDefaults</span></code></p>
 <p>This is the BaseClass for defining a hops noise trajectory. All noise classes
 will inherit from here. Anything that defines the input-output structure of a
 noise trajectory should be controlled from this class - rather than any of the
@@ -2281,7 +2281,7 @@ that can be unraveled to correctly feed into runge_kutta_step.</p>
 <dl class="class">
 <dt id="dynamics.noise_fft.FFTFilterNoise">
 <em class="property">class </em><code class="sig-name descname">FFTFilterNoise</code><span class="sig-paren">(</span><em class="sig-param">noise_param</em>, <em class="sig-param">noise_corr</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.noise_fft.FFTFilterNoise" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyhops.dynamics.hops_noise.HopsNoise</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">mesohops.dynamics.hops_noise.HopsNoise</span></code></p>
 <p>This is a class that describes the noise function for a calculation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Attributes</dt>
@@ -2455,7 +2455,7 @@ interpolation.</p>
 <dl class="class">
 <dt id="dynamics.noise_zero.ZeroNoise">
 <em class="property">class </em><code class="sig-name descname">ZeroNoise</code><span class="sig-paren">(</span><em class="sig-param">noise_param</em>, <em class="sig-param">noise_corr</em><span class="sig-paren">)</span><a class="headerlink" href="#dynamics.noise_zero.ZeroNoise" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyhops.dynamics.hops_noise.HopsNoise</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">mesohops.dynamics.hops_noise.HopsNoise</span></code></p>
 <p>This is a class that describes the noise function for a calculation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Attributes</dt>

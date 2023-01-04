@@ -1,6 +1,6 @@
 import numpy as np
-from pyhops.dynamics.hops_noise import HopsNoise
-from pyhops.util.exceptions import LockedException
+from mesohops.dynamics.hops_noise import HopsNoise
+from mesohops.util.exceptions import LockedException
 
 __title__ = "Pyhops Noise"
 __author__ = "D. I. G. Bennett"
@@ -23,8 +23,8 @@ class ZeroNoise(HopsNoise):
 
     def __init__(self, noise_param, noise_corr):
         """
-        INPUTS:
-        -------
+        Inputs
+        ------
        1. noise_param : dict
                         A dictionary that defines the noise trajectory for
                         the calculation.
@@ -63,11 +63,11 @@ class ZeroNoise(HopsNoise):
         HopsNoise class) and provides the specific rules for calculating a noise
         trajectory using
 
-        PARAMETERS
+        Parameters
         ----------
         None
 
-        RETURNS
+        Returns
         -------
         None
         """
@@ -80,17 +80,17 @@ class ZeroNoise(HopsNoise):
 
     def get_noise(self, t_axis):
         """
-        This is a function that simply returns a zero array of the correct length.
+        Returns a zero array of the correct length.
 
-        PARAMETERS
+        Parameters
         ----------
         1. taxis : list
-                   list of time points
+                   List of time points.
 
-        RETURNS
+        Returns
         -------
         1. list_zeros : list
-                        a list of zeros
+                        List of zeros.
         """
         return np.zeros([self.n_lop, len(t_axis)])
 

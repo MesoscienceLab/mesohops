@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import interp1d
-from pyhops.dynamics.hops_noise import HopsNoise
-from pyhops.util.exceptions import UnsupportedRequest, LockedException
+from mesohops.dynamics.hops_noise import HopsNoise
+from mesohops.util.exceptions import UnsupportedRequest, LockedException
 
 __title__ = "pyhops noise"
 __author__ = "D. I. G. Bennett, B. Citty, J. K. Lynd"
@@ -23,7 +23,7 @@ class FFTFilterNoise(HopsNoise):
 
     def __init__(self, noise_param, noise_corr):
         """
-        INPUTS
+        Inputs
         ------
         1. noise_param : A dictionary that defines the noise trajectory for
                      the calculation.
@@ -58,13 +58,13 @@ class FFTFilterNoise(HopsNoise):
         """
         This function is defined for each specific noise model (children classes of
         HopsNoise class) and provides the specific rules for calculating a noise
-        trajectory using
+        trajectory using.
 
-        PARAMETERS
+        Parameters
         ----------
         None
 
-        RETURNS
+        Returns
         -------
         None
         """
@@ -99,16 +99,16 @@ class FFTFilterNoise(HopsNoise):
 
     def _prepare_rand(self):
         """
-        A function to construct the uncorrelated complex gaussian distributions that
+        Constructs the uncorrelated complex gaussian distributions that
         define the noise trajectory. Average of this uncorrelated noise trajectory is 0,
         and average of the absolute values of is sqrt(pi)/2 (assuming an arbitrarily
         long trajectory).
 
-        PARAMETERS
+        Parameters
         ----------
         None
 
-        RETURNS
+        Returns
         -------
         None
 
@@ -160,7 +160,7 @@ class FFTFilterNoise(HopsNoise):
             g_rands = random_numbers[:, np.array(g_index)]
             phi_rands = random_numbers[:, np.array(phi_index)]
             return np.complex64(
-                np.sqrt(-np.log(g_rands)) * np.exp(2.0j * np.pi * phi_rands))
+                np.sqrt(-2.0 * np.log(g_rands)) * np.exp(2.0j * np.pi * phi_rands))
         else:
             raise UnsupportedRequest('Noise.param[SEED] of type {} not supported'.format(type(self.param['SEED'])),
                 'Noise._prepare_rand')
@@ -168,64 +168,94 @@ class FFTFilterNoise(HopsNoise):
     @staticmethod
     def _construct_correlated_noise(c_t, z_t):
         """
-        This function calculates a noise trajectory using the
-        bath correlation function (c_t). This function is
-        based on the description given by:
+        Calculates a noise trajectory using the bath correlation function (c_t).
+        This function is based on the description given by:
 
-        "Exact Simulation of Noncircular or Improper Complex-Valued
-        Stationary Gaussian Processes using circulant embedding."
-        Adam M. Sykulski and Donald B. Percival
-        IEEE Internation Workship on Machine Learning for Signal
-        Processing (2016)
+        "Exact simulation of complex-valued
+        Gaussian stationary Processes via circulant embedding."
+        Donald B. Percival Signal Processing 86, p. 1470-1476 (2006)
+        [Section 3, p. 5-7]
 
-        PARAMETERS
+        Parameters
         ----------
         1. c_t : list
-                  correlation function sampled at specific time points
-        2. z_t : list
-                  the list of uncorrelated noise
+                 List of correlation function sampled at specific time points.
 
-        RETURNS
+        2. z_t : list
+                  List of complex-valued, uncorrelated random noise
+                  trajectories with real and imaginary components at
+                  each time having mean 0 and variance 1
+                  [Re(z_t) ~ N(0,1), Im(z_t) ~ N(0,1)].
+
+
+        Returns
         -------
         1. corr_noise : list
-                        the correlated noise trajectory
+                        List of correlated noise trajectory
         """
+        # Rotate stochastic process such that final entry is real
+        # -------------------------------------------------------
+        list_angles = np.array(np.angle(c_t), dtype=np.float64)
+        list_nu = list_angles[:, -1]/((len(c_t[0, :]) - 1.0) * 2.0 * np.pi)
+        E2_expmatrix = np.exp(-1.0j * 2.0 * np.pi * np.outer(list_nu,np.arange(len(c_t[0, :]))))
+        tildec_t = np.abs(c_t) * np.exp(1.0j * list_angles) * E2_expmatrix
+
+        # Construct the embedding
+        # -----------------------
+        
         s_w = np.real(np.fft.fft(np.array(
-            np.concatenate([c_t, np.conj(np.flip(c_t[:, 1:-1], axis=1))], axis=1)),
+            np.concatenate([tildec_t, np.conj(np.flip(tildec_t[:, 1:-1], axis=1))], axis=1)),
                                  axis=1))
 
         # Check that the embedding is positive semidefinite
         # -------------------------------------------------
         if np.min(s_w) < 0:
             print('WARNING: circulant embedding is NOT positive semidefinite.')
-            print('max negative: {}'.format(np.min(s_w)))
-            print('fractional negative: {}'.format(-np.min(s_w) / np.max(s_w)))
-            print('negative number: {}'.format(len(np.where(s_w < 0)[1])))
-
+            print('* Negative values will be set to 0.')
+            print(f'max negative: {np.min(s_w)}')
+            print(f'fractional negative: {-np.min(s_w) / np.max(s_w)}')
+            print(f'negative number: {len(np.where(s_w < 0)[1])}')
+            # Set negative entries to zero to obtain approximate result
+            s_w[np.where(s_w < 0)] = 0
+        
         # Construct the frequency domain components
         # -----------------------------------------
-        sqrt_sw = np.sqrt(s_w + 0j)
+        # To allow for controlling noise trajectories in specific time windows,
+        # we take our uncorrelated noise in the time axis, convert to the frequency
+        # domain, and then proceed with the standard algorithm.
+        # The Fourier transform of Gaussian noise with a std. dev. (\sigma)
+        # has a std. dev. of \sigma*\sqrt(N/2) where N is the length of the trajectory.
+        # As a result, the equation from the paper is slightly modified below.
+        # Stack Exchange: https://dsp.stackexchange.com/questions/24170/what-are-the-statistics-of-the-discrete-fourier-transform-of-white-gaussian-nois
         z_w = np.fft.fft(z_t, axis=1)
+        
+        tildey_t = np.fft.ifft(np.array(np.abs(z_w) * np.exp(1.0j * np.angle(z_w))
+                                        * np.sqrt(s_w/2.0)), axis=1)[:, :len(c_t[0, :])]
 
-        return np.fft.ifft(np.multiply(z_w, sqrt_sw), axis=1)[:, :len(c_t[0, :])]
+        # Undo initial phase rotation
+        # ---------------------------
+        return (np.abs(tildey_t) * np.exp(1.0j * np.angle(tildey_t)) * np.conj(E2_expmatrix))
 
     @staticmethod
     def _construct_indexing(ntaus):
         """
         Constructs a self-consistent indexing scheme that controls assignment of
         random numbers to different time points.
-        parameters
+
+        Parameters
         ----------
         1. ntaus : int
-                   Length of the noise time-axis (that is, number of time points)
-        returns
+                   Length of the noise time-axis (that is, number of time points).
+
+        Returns
         -------
         1. g_index : list(int)
                      List of indices where the Gaussian-determined norm of an
-                     uncorrelated random noise point is placed
+                     uncorrelated random noise point is placed.
+
         2. phi_index : list(int)
                        List of indices where the phase of an uncorrelated random
-                       noise point is placed
+                       noise point is placed.
         """
         # Construct indexing scheme
         # -------------------------

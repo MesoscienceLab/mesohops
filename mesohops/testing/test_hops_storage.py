@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-import pyhops.dynamics.storage_functions as sf
-from pyhops.dynamics.hops_storage import HopsStorage
+import mesohops.dynamics.storage_functions as sf
+from mesohops.dynamics.hops_storage import HopsStorage
 
 
 # New Hops_Storage tests
@@ -106,52 +106,6 @@ def test_aux_new_save():
     assert not "aux_new" in false_AHS.dic_save
     with pytest.raises(TypeError) as excinfo:
         empty_AHS = HopsStorage(True, {"aux_new": None})
-        assert 'Value is not supported' in str(excinfo.value)
-
-
-def test_aux_stable_save():
-    """
-       test to see if the current auxiliary population is saved with the proper function
-    """
-    HS = HopsStorage(False, {})
-    AHS = HopsStorage(True, {})
-
-    def fake_save_func():
-        return
-
-    broken_HS = HopsStorage(False, {"aux_stable": fake_save_func})
-    false_AHS = HopsStorage(True, {"aux_stable": False})
-
-    assert not "aux_stable" in HS.dic_save
-    assert AHS.dic_save["aux_stable"] == sf.save_aux_stable
-
-    assert broken_HS.dic_save["aux_stable"] == fake_save_func
-    assert not "aux_stable" in false_AHS.dic_save
-    with pytest.raises(TypeError) as excinfo:
-        empty_AHS = HopsStorage(True, {"aux_stable": None})
-        assert 'Value is not supported' in str(excinfo.value)
-
-
-def test_aux_bound_save():
-    """
-       test to see if the current bound auxiliaries are saved with the proper function
-    """
-    HS = HopsStorage(False, {})
-    AHS = HopsStorage(True, {})
-
-    def fake_save_func():
-        return
-
-    broken_HS = HopsStorage(False, {"aux_bound": fake_save_func})
-    false_AHS = HopsStorage(True, {"aux_bound": False})
-
-    assert not "aux_bound" in HS.dic_save
-    assert AHS.dic_save["aux_bound"] == sf.save_aux_bound
-
-    assert broken_HS.dic_save["aux_bound"] == fake_save_func
-    assert not "aux_bound" in false_AHS.dic_save
-    with pytest.raises(TypeError) as excinfo:
-        empty_AHS = HopsStorage(True, {"aux_bound": None})
         assert 'Value is not supported' in str(excinfo.value)
 
 
@@ -285,7 +239,6 @@ def test_store_step():
     AHS.store_step(phi_new=phi_new, aux_new=aux_new, state_list=state_new, t_new=t_new, z_mem_new=zmem_new)
 
     assert AHS.data['t_axis'] == [1.0, 2.0]
-    assert AHS.data['aux_bound'][1] == ['aux_bound_2']
     assert AHS.data['state_list'][1] == ["state 1 at time 2", "state 2 at time 2"]
     assert broken_AHS.data['psi_traj'][0] == np.pi
 
@@ -293,12 +246,11 @@ def test_store_step():
 def test_get_item():
     AHS = HopsStorage(True, {})
     phi_new = np.array([1, 2, 3, 4, 5, 6, 7])
-    aux_new = [["aux_1"], ["aux_crit_1"], ["aux_bound_1"]]
+    aux_new = ["aux_1"]
     state_new = ["state 1 at time 1", "state 2 at time 1"]
     t_new = 1.0
     zmem_new = [1, 1, 1]
     AHS.store_step(phi_new=phi_new, aux_new=aux_new, state_list=state_new, t_new=t_new, z_mem_new=zmem_new)
     assert AHS['t_axis'] == [t_new]
     assert np.array_equal(AHS['state_list'], [state_new])
-    assert np.array_equal(AHS['aux_new'], [aux_new[0]])
-    assert np.array_equal(AHS['aux_bound'], [aux_new[2]])
+    assert AHS['aux_new'] == aux_new

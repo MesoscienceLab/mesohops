@@ -1,8 +1,8 @@
 import os
 import numpy as np
 import scipy as sp
-from pyhops.dynamics.hops_system import HopsSystem as HSystem
-from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.dynamics.hops_system import HopsSystem as HSystem
+from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 
 __title__ = "test for System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
@@ -159,15 +159,6 @@ def test_state_list_setter():
     known_sorted_list = [0, 1, 3]
     assert np.array_equal(state_list, known_sorted_list)
 
-    # test to make sure the absolute indexing of L2 is working
-    list_absindex_L2 = HS._list_absindex_L2
-    known_absindex_L2 = [0, 1, 3]
-    assert np.array_equal(list_absindex_L2, known_absindex_L2)
-
-    # test to make sure the absolute indexing of the modes is working
-    list_absindex_mode = HS._list_absindex_mode
-    known_absindex_mode = [0, 1, 2, 3, 6, 7]
-    assert np.array_equal(list_absindex_mode, known_absindex_mode)
 
     # test to make sure the sub-setting of the hamiltonian is working
     hamiltonian = HS._hamiltonian
@@ -175,51 +166,72 @@ def test_state_list_setter():
     known_h[0, 1] = 40
     known_h[1, 0] = 40
     assert np.array_equal(hamiltonian, np.array(known_h, dtype=np.complex128))
+    # test list_absindex_state_modes
+    # test 1: One particle, two modes per site
+    HS.state_list = [1,3]
+    known_list_absindex_state_modes = np.array([2,3,6,7])
+    list_absindex_state_modes = HS.list_absindex_state_modes
+    known_list_absindex_L2_active = np.array([1,3])
+    list_absindex_L2_active = HS.list_absindex_L2_active
+    assert np.array_equal(known_list_absindex_state_modes, list_absindex_state_modes)
+    assert np.array_equal(known_list_absindex_L2_active, list_absindex_L2_active)
+    # test 2: Two particle, indistinguishable, two modes per site
+    # Two-particle states given the ordering 
+    # (a,b) < (c,d) (if a < c) or (if a = c and b < d)
+    nsite = 4 
+    nstate = 10
+    loperator0 = np.diag([1.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0])
+    loperator1 = np.diag([0.0,1.0,0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0])
+    loperator2 = np.diag([0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,1.0,0.0])
+    loperator3 = np.diag([0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,1.0])
+    list_loperator = [loperator0,loperator1,loperator2,loperator3]
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
 
-    # test to make sure correct number of modes are saved (relative basis)
-    n_hmodes = HS._n_hmodes
-    known_len = 6
-    assert n_hmodes == known_len
+    gw_sysbath = []
+    lop_list = []
+    for loperatori in list_loperator:
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(sp.sparse.coo_matrix(loperatori))
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(loperatori)
 
-    # test to make sure correct g is being sub-indexed (relative basis)
-    g = HS._g
-    known_g = np.array(HS.param["G"])[known_absindex_mode]
-    assert np.array_equal(g, known_g)
-
-    # test to make sure correct w is being sub-indexed (relative basis)
-    w = HS._w
-    known_w = np.array(HS.param["W"])[known_absindex_mode]
-    assert np.array_equal(w, known_w)
-
-    # test to make sure correct number of L2 operators are showing up (relative basis)
-    n_l2 = HS._n_l2
-    known_n_l2 = 3
-    assert n_l2 == known_n_l2
-
-    # test to make sure list_L2_coo is in the proper relative basis order
-    list_L2_coo = HS._list_L2_coo[2]
-    list_L2_coo = list_L2_coo.todense()
-    known_L2 = np.zeros((3, 3))
-    known_L2[2, 2] = 1
-    assert np.array_equal(list_L2_coo, known_L2)
-
-    # test to make sure correct relative indexing of L2 by modes is stored
-    list_index_L2_by_hmode = HS._list_index_L2_by_hmode
-    known_index_L2_by_hmode = [0, 0, 1, 1, 2, 2]
-    assert np.array_equal(list_index_L2_by_hmode, known_index_L2_by_hmode)
-
-    # test to make sure correct relative indexing of state indices by mode is saved
-    list_state_indices_by_hmode = HS._list_state_indices_by_hmode
-    known_state_indices_by_hmode = [[0], [0], [1], [1], [2], [2]]
-    assert np.array_equal(list_state_indices_by_hmode, known_state_indices_by_hmode)
-
-    # test to make sure correct relative state indices are ordered in the correct
-    # relative L2 order
-    list_state_indices_by_index_L2 = HS._list_state_indices_by_index_L2
-    known_state_indices_by_index_L2 = [[0], [1], [2]]
-    assert np.array_equal(
-        list_state_indices_by_index_L2, known_state_indices_by_index_L2
-    )
+    hs = np.zeros([nstate, nstate])
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+    HS2P = HSystem(sys_param)
+    #Test 2a: just state 0
+    HS2P.state_list = [0]
+    known_list_absindex_state_modes = [0,1]
+    list_absindex_state_modes = HS2P.list_absindex_state_modes
+    known_list_absindex_L2_active = [0]
+    list_absindex_L2_active = HS2P.list_absindex_L2_active
+    assert np.array_equal(known_list_absindex_state_modes, list_absindex_state_modes)
+    assert np.array_equal(known_list_absindex_L2_active, list_absindex_L2_active)
+    #Test 2b: state 0,2
+    HS2P.state_list = [0,2]
+    known_list_absindex_state_modes = [0,1,4,5]
+    list_absindex_state_modes = HS2P.list_absindex_state_modes
+    known_list_absindex_L2_active = [0,2]
+    list_absindex_L2_active = HS2P.list_absindex_L2_active
+    assert np.array_equal(known_list_absindex_state_modes, list_absindex_state_modes)
+    assert np.array_equal(known_list_absindex_L2_active, list_absindex_L2_active)
+    #Test 2c: state 1,7,9
+    HS2P.state_list = [1,7]
+    known_list_absindex_state_modes = [0,1,2,3,4,5]
+    list_absindex_state_modes = HS2P.list_absindex_state_modes
+    known_list_absindex_L2_active = [0,1,2]
+    list_absindex_L2_active = HS2P.list_absindex_L2_active
+    assert np.array_equal(known_list_absindex_state_modes, list_absindex_state_modes)
+    assert np.array_equal(known_list_absindex_L2_active, list_absindex_L2_active)
 
 
 def test_reduce_sparse_matrix():
@@ -235,4 +247,47 @@ def test_reduce_sparse_matrix():
     coo_matrix = coo_matrix.todense()
     known_matrix = np.zeros((3, 3))
     known_matrix[2, 2] = 1
+    assert np.array_equal(coo_matrix, np.array(known_matrix))
+    #Begin 2-particle tests
+    #Test arbitrary diagonal matrix
+    state_list = [0,1,5,6]
+    full_matrix = np.zeros((7,7))
+    full_matrix[0,0] = 1
+    full_matrix[1,1] = 2
+    full_matrix[4,4] = 1
+    full_matrix[5,5] = 4
+    coo_matrix = sp.sparse.coo_matrix(full_matrix)
+    coo_matrix = HS.reduce_sparse_matrix(coo_matrix, state_list)
+    coo_matrix = coo_matrix.todense()
+    known_matrix = np.zeros((4,4))
+    known_matrix[0,0] = 1
+    known_matrix[1,1] = 2
+    known_matrix[2,2] = 4
+    known_matrix[3,3] = 0
+    assert np.array_equal(coo_matrix, np.array(known_matrix))
+    #Test arbitrary matrix
+    state_list = [1,3,5,6]
+    full_matrix = np.zeros((7,7))
+    full_matrix[0,0] = 1
+    full_matrix[1,1] = 2
+    full_matrix[4,4] = 1
+    full_matrix[5,5] = 4
+    full_matrix[1,2] = 3
+    full_matrix[1,3] = 5
+    full_matrix[1,5] = 6
+    full_matrix[3,5] = 8
+    full_matrix[3,4] = 9
+    full_matrix[5,6] = -3
+    coo_matrix = sp.sparse.coo_matrix(full_matrix)
+    coo_matrix = HS.reduce_sparse_matrix(coo_matrix, state_list)
+    coo_matrix = coo_matrix.todense()
+    known_matrix = np.zeros((4,4))
+    known_matrix[0,0] = 2
+    known_matrix[1,1] = 0
+    known_matrix[2,2] = 4
+    known_matrix[3,3] = 0
+    known_matrix[0,1] = 5
+    known_matrix[0,2] = 6
+    known_matrix[1,2] = 8
+    known_matrix[2,3] = -3
     assert np.array_equal(coo_matrix, np.array(known_matrix))

@@ -1,8 +1,8 @@
 import copy
 import numpy as np
-from pyhops.util.dynamic_dict import Dict_wDefaults
-from pyhops.util.exceptions import LockedException, UnsupportedRequest
-from pyhops.util.physical_constants import precision  # constant
+from mesohops.util.dynamic_dict import Dict_wDefaults
+from mesohops.util.exceptions import LockedException, UnsupportedRequest
+from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "Pyhops Noise"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
@@ -48,8 +48,8 @@ class HopsNoise(Dict_wDefaults):
         Initializes the HopsNoise object with the parameters that it will use to
         construct the noise.
 
-        INPUTS:
-        -------
+        Inputs
+        ------
         1. noise_param : dict
                         A dictionary that defines the noise trajectory for
                         the calculation.
@@ -77,7 +77,7 @@ class HopsNoise(Dict_wDefaults):
                     * CORR_PARAM:     The parameters that define the components of
                                       alpha(t)
 
-        RETURNS
+        Returns
         -------
         None
         """
@@ -103,19 +103,18 @@ class HopsNoise(Dict_wDefaults):
 
     def _corr_func_by_lop_taxis(self, t_axis):
         """
-        This function calculates the correlation function for each L
-        operator by combining all of the system-bath components that
-        have the same L-operator.
+        Calculates the correlation function for each L operator by combining all the
+        system-bath components that have the same L-operator.
 
-        PARAMETERS
+        Parameters
         ----------
         1. t_axis : list
-                    list of time points
+                    List of time points.
 
-        RETURNS
+        Returns
         -------
-        1. alpha : list
-                   a list of list of correlation functions evaluated at each time point
+        1. alpha : List
+                   List of lists of correlation functions evaluated at each time point.
         """
         alpha = np.zeros([self.param["N_L2"], len(t_axis)], dtype=np.complex128)
         for l_ind in set(self.param["LIND_BY_NMODE"]):
@@ -132,15 +131,15 @@ class HopsNoise(Dict_wDefaults):
         """
         Gets the noise.
 
-        PARAMETERS
+        Parameters
         ----------
         1. t_axis : list
-                    a list of time points
+                    List of time points.
 
-        RETURNS
+        Returns
         -------
         1. noise : list
-                   a list of list of noise values sampled at the given time points
+                   List of lists of noise values sampled at the given time points.
         """
         if not self.__locked__:
             self.prepare_noise()
@@ -167,19 +166,21 @@ class HopsNoise(Dict_wDefaults):
         Creates the full default parameter dictionary, by merging default dictionary of
         the base HopsNoise class with the child class
 
-        PARAMETERS
+        Parameters
         ----------
         1. method_defaults : dict
-                             a dictionary of default parameter values
-        2. method_types : dict
-                          a dictionary of parameter types
+                             Dictionary of default parameter values.
 
-        RETURNS
+        2. method_types : dict
+                          Dictionary of parameter types.
+
+        Returns
         -------
         1. default_params : dict
-                            the full default dictionary
+                            Full default dictionary
+
         2. param_types : dict
-                         the full default dictionary of parameter types
+                         Full default dictionary of parameter types
         """
         default_params = copy.deepcopy(NOISE_DICT_DEFAULT)
         default_params.update(method_defaults)

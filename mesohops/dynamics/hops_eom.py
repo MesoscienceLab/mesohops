@@ -1,8 +1,8 @@
 import numpy as np
-from pyhops.util.dynamic_dict import Dict_wDefaults
-from pyhops.util.exceptions import UnsupportedRequest
-from pyhops.dynamics.eom_hops_ksuper import calculate_ksuper, update_ksuper
-from pyhops.dynamics.eom_functions import (
+from mesohops.util.dynamic_dict import Dict_wDefaults
+from mesohops.util.exceptions import UnsupportedRequest
+from mesohops.dynamics.eom_hops_ksuper import calculate_ksuper, update_ksuper
+from mesohops.dynamics.eom_functions import (
     calc_norm_corr,
     calc_delta_zmem,
     operator_expectation,
@@ -46,8 +46,8 @@ class HopsEOM(Dict_wDefaults):
         A self initializing function that defines the normalization condition and
         checks the adaptive definition.
 
-        PARAMETERS
-        ----------
+        Inputs
+        ------
         1. eom_params: a dictionary of user-defined parameters
             a. TIME_DEPENDENCE : boolean          [Allowed: False]
                                  defines time-dependence of system Hamiltonian
@@ -65,7 +65,7 @@ class HopsEOM(Dict_wDefaults):
             f. DELTA_S : float                    [Allowed: >0]
                          The threshold value for the adaptive system
     
-        RETURNS
+        Returns
         -------
         None
         """
@@ -100,56 +100,43 @@ class HopsEOM(Dict_wDefaults):
         self,
         system,
         hierarchy,
-        list_stable_aux=None,
-        list_add_aux=None,
-        list_stable_state=None,
-        list_old_absindex_L2=None,
-        n_old=None,
+        mode,
         permute_index=None,
         update=False,
     ):
         """
-        This function prepares a new derivative function that performs an update
+        Prepares a new derivative function that performs an update
         on previous super-operators.
 
-        PARAMETERS
+        Parameters
         ----------
-        1. system : HopsSystems object
-                    an instance of HopsSystem
-        2. hierarchy : HopsHierarchy object
-                       an instance of HopsHierarchy
-        3. list_stable_aux : list
-                             list of current auxiliaries that were also present in
-                             the previous basis
-        4. list_add_aux : list
-                          list of additional auxiliaries needed for the current basis
-        5. list_stable_state : list
-                               list of current states that were also present in the
-                               previous basis
-        6. list_old_absindex_L2 : list
-                                  list of the absolute indices of L operators in
-                                  the previous basis
-        7. n_old : int
-                   multiplication of the previous hierarchy and system dimensions
-        8. permute_index : list
-                           list of rows and columns of non zero entries that define
-                           a permutation matrix
-        9. update : boolean
-                    True = updating adaptive calculation,
-                    False = non-adaptive calculation
+        1. system : instance(HopsSystem)
 
-        RETURNS
+        2. hierarchy : instance(HopsHierarchy)
+
+        3. mode : instance(HopsMode)
+
+        4. permute_index : list(int)
+                           List of rows and columns of non-zero entries that define
+                           a permutation matrix.
+
+        5. update : boolean
+                    True = updating adaptive calculation,
+                    False = non-adaptive calculation.
+
+        Returns
         -------
         1. dsystem_dt : function
-                        a function that returns the derivative of phi and z_mem based
+                        Function that returns the derivative of phi and z_mem based
                         on whether the calculation is linear or nonlinear
         """
-
         # Prepare Super-Operators
         # -----------------------
         if not update:
             self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1 = calculate_ksuper(
-                system, hierarchy
+                system, 
+                hierarchy,
+                mode
             )
         else:
             self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1 = update_ksuper(
@@ -157,40 +144,36 @@ class HopsEOM(Dict_wDefaults):
                 self.K2_kp1,
                 self.Z2_kp1,
                 self.K2_km1,
-                list_stable_aux,
-                list_add_aux,
-                list_stable_state,
-                list_old_absindex_L2,
                 system,
                 hierarchy,
-                n_old,
+                mode,
                 permute_index,
             )
 
         # Combine Sparse Matrices
         # -----------------------
         K2_stable = self.K2_kp1 + self.K2_km1
-        list_L2 = system.list_L2_coo  # list_L2
+        list_L2 = mode.list_L2_coo  # list_L2
+        list_index_L2_active = [list(mode.list_absindex_L2).index(absindex)
+                                      for absindex in system.list_absindex_L2_active]
         if (self.param["EQUATION_OF_MOTION"] == "NORMALIZED NONLINEAR"
                 or self.param["EQUATION_OF_MOTION"] == "NONLINEAR"
                 or self.param["EQUATION_OF_MOTION"] == "NONLINEAR ABSORPTION"):
             nmode = len(hierarchy.auxiliary_list[0])
-            list_tuple_index_phi1_L2_mode = [
-                (
-                    hierarchy._aux_index(
-                        hierarchy._const_aux_edge(
-                            system.list_absindex_mode[i], 1, nmode
-                        )
-                    ),
-                    index_L2,
-                    i,
-                )
-                for (i, index_L2) in enumerate(system.list_index_L2_by_hmode)
-                if (
-                    hierarchy._const_aux_edge(system.list_absindex_mode[i], 1, nmode)
-                    in hierarchy.auxiliary_list
-                )
-            ]
+
+            # Construct tuple containing:
+            # 1. aux_index for the phi_1
+            # 2. associated L2 index
+            # 3. associated absindex mode
+            list_tuple_index_phi1_L2_mode = []
+            aux0 = hierarchy.auxiliary_list[0]
+            for absmode in aux0.dict_aux_p1.keys():
+                index_aux = aux0.dict_aux_p1[absmode]._index
+                relmode = list(mode.list_absindex_mode).index(absmode)
+                index_l2 = mode.list_index_L2_by_hmode[relmode]
+                if index_l2 in list_index_L2_active:
+                    actindex_l2 = list_index_L2_active.index(index_l2)
+                    list_tuple_index_phi1_L2_mode.append([index_aux, actindex_l2, relmode])
 
             def dsystem_dt(
                 Φ,
@@ -200,13 +183,15 @@ class HopsEOM(Dict_wDefaults):
                 K2_stable=K2_stable,
                 Z2_kp1=self.Z2_kp1,
                 list_L2=list_L2,
-                list_index_L2_by_hmode=system.list_index_L2_by_hmode,
+                list_index_L2_by_hmode=mode.list_index_L2_by_hmode,
                 list_mode_absindex_L2=system.param["LIST_INDEX_L2_BY_HMODE"],
                 nsys=system.size,
-                list_absindex_L2=system.list_absindex_L2,
-                list_absindex_mode=system.list_absindex_mode,
+                list_absindex_L2=mode.list_absindex_L2,
+                list_absindex_mode=mode.list_absindex_mode,
+                list_index_L2_active=list_index_L2_active,
                 list_g=system.param["G"],
                 list_w=system.param["W"],
+                list_L2_csc = mode.list_L2_csc,
                 list_tuple_index_phi1_L2_mode=list_tuple_index_phi1_L2_mode,
             ):
 
@@ -231,87 +216,109 @@ class HopsEOM(Dict_wDefaults):
                 with z~ = z^* + ∫ds(a^*)(t-s)〈L†〉
                 A super operator notation is implemented in this code.
 
-                PARAMETERS
+                Parameters
                 ----------
-                1. Φ : np.array
-                       current full hierarchy
-                2. z_mem1_tmp : np.array
-                                array of memory values for each mode
-                3. z_rnd1_tmp : np.array
-                                array of random noise corresponding to NOISE1 for the
-                                set of time points required in the integration
-                4. z_rnd2_tmp : np.array
-                                array of random noise corresponding to NOISE2 for the
-                                set of time points required in the integration
-                5. K2_stable : np.array
-                               the component of the super operator that does not depend
-                               on noise
-                6. Z2_kp1 : np.array
-                            the component of the super operator that is multiplied by
-                            noise z and maps the (K+1) hierarchy to the kth hierarchy
-                7. list_L2 : list
-                             list of L operators
-                8. list_index_L2_by_hmode : list
-                                             list of length equal to the number of modes
-                                             in the current hierarchy basis and each
-                                             entry is an index for the relative list_L2.
-                9. list_mode_absindex_L2 : list
-                                            list of length equal to the number of
-                                            'modes' in the current hierarchy basis and
-                                            each entry is an index for the absolute
-                                            list_L2.
+                1. Φ : np.array(complex)
+                       Full hierarchy.
+
+                2. z_mem1_tmp : np.array(complex)
+                                Array of memory values for each mode.
+
+                3. z_rnd1_tmp : np.array(complex)
+                                Array of random noise corresponding to NOISE1 for the
+                                set of time points required in the integration.
+
+                4. z_rnd2_tmp : np.array(complex)
+                                Array of random noise corresponding to NOISE2 for the
+                                set of time points required in the integration.
+
+                5. K2_stable : np.array(complex)
+                               The component of the super operator that does not depend
+                               on noise.
+
+                6. Z2_kp1 : np.array(complex)
+                            The component of the super operator that is multiplied by
+                            noise z and maps the (K+1) hierarchy to the kth hierarchy.
+
+                7. list_L2 : list(sparse matrix)
+                             List of L operators.
+
+                8. list_index_L2_by_hmode : list(int)
+                                            List of length equal to the number of modes
+                                            in the current hierarchy basis and each
+                                            entry is an index for the relative list_L2.
+                9. list_mode_absindex_L2 : list(int)
+                                           List of length equal to the number of
+                                           'modes' in the current hierarchy basis and
+                                           each entry is an index for the absolute
+                                           list_L2.
                 10. nsys : int
-                          the current dimension (size) of the system basis
-                11. list_absindex_L2 : list
-                                       list of length equal to the number of L-operators
+                          Current dimension (size) of the system basis.
+
+                11. list_absindex_L2 : list(int)
+                                       List of length equal to the number of L-operators
                                        in the current system basis where each element
-                                       is the index for the absolute list_L2
-                12. list_absindex_mode : list
-                                         list of length equal to the number of modes in
+                                       is the index for the absolute list_L2.
+
+                12. list_absindex_mode : list(int)
+                                         List of length equal to the number of modes in
                                          the current system basis that corresponds to
-                                         the absolute index of the modes
-                13. list_g : list
-                             list of pre exponential factors for bath correlation
-                             functions
-                14. list_w : list
-                             list of exponents for bath correlation functions (w = γ+iΩ)
-                15. list_tuple_index_phi1_index_L2 : list
-                                                     list of tuples with each tuple
+                                         the absolute index of the modes.
+
+                13. list_index_L2_active : list(int)
+                                           List of relative indices of L-operators that have any
+                                           non-zero values.
+
+                14. list_g : list(complex)
+                             List of pre exponential factors for bath correlation
+                             functions.
+
+                15. list_w : list(complex)
+                             List of exponents for bath correlation functions (w =
+                             γ+iΩ).
+
+                16. list_L2_csc : list(sparse matrix)
+                                  L-operators in csc format in the current basis.
+
+                17. list_tuple_index_phi1_index_L2 : list(int)
+                                                     List of tuples with each tuple
                                                      containing the index of the first
                                                      auxiliary mode (phi1) in the
                                                      hierarchy and the index of the
-                                                     corresponding L operator
+                                                     corresponding L operator.
 
-                RETURNS
+                Returns
                 -------
-                1. Φ_deriv : np.array
-                             the derivative of phi with respect to time
-                2. z_mem1_deriv : np.array
-                                  the derivative of z_mem with respect to time
+                1. Φ_deriv : np.array(complex)
+                             Derivative of phi with respect to time.
+
+                2. z_mem1_deriv : np.array(complex)
+                                  Derivative of z_mem with respect to time.
                 """
 
                 # Construct Noise Terms
                 # ---------------------
-                z_hat1_tmp = np.conj(z_rnd1_tmp[list_absindex_L2]) + compress_zmem(
+                z_hat1_tmp = (np.conj(z_rnd1_tmp[list_absindex_L2]) + compress_zmem(
                     z_mem1_tmp, list_index_L2_by_hmode, list_absindex_mode
-                )
-                z_tmp2 = z_rnd2_tmp[list_absindex_L2]
+                ))[list_index_L2_active]
+                z_tmp2 = (z_rnd2_tmp[list_absindex_L2])[list_index_L2_active]
 
                 # Construct other fluctuating terms
                 # ---------------------------------
                 if self.param["EQUATION_OF_MOTION"] == "NONLINEAR ABSORPTION":
                     list_avg_L2 = [
-                        operator_expectation(L, Φ[:nsys], flag_gcorr=True) for L in list_L2
-                    ]  # <L>
+                        operator_expectation(list_L2[index], Φ[:nsys], flag_gcorr=True)
+                        for index in list_index_L2_active]  # <L>
                 else:
                     list_avg_L2 = [
-                        operator_expectation(L, Φ[:nsys]) for L in list_L2
-                    ]  # <L>
+                        operator_expectation(list_L2[index], Φ[:nsys])
+                        for index in list_index_L2_active] # <L>
+
                 norm_corr = calc_norm_corr(
                     Φ,
                     z_hat1_tmp,
                     list_avg_L2,
-                    list_L2,
+                    list_L2[list_index_L2_active],
                     nsys,
                     list_tuple_index_phi1_L2_mode,
                     np.array(list_g)[np.array(list_absindex_mode)],
@@ -333,14 +340,16 @@ class HopsEOM(Dict_wDefaults):
                 Φ_deriv_view = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
                 Φ_view = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
                 for j in range(len(list_avg_L2)):
+                    rel_index = list_index_L2_active[j]
                     # ASSUMING: L = L^*
-                    Φ_deriv_view += (z_hat1_tmp[j] - 2.0j * np.real(z_tmp2[j])) * system.list_L2_csc[j] @ Φ_view
+                    Φ_deriv_view += (z_hat1_tmp[j] - 2.0j * np.real(z_tmp2[j])) * list_L2_csc[rel_index] @ Φ_view
 
                 Φ_deriv_view = np.asarray(Φ_deriv).reshape([hierarchy.size,system.size],order="C")
                 Φ_view = np.asarray(Φ).reshape([hierarchy.size,system.size],order="C")
                 for j in range(len(list_avg_L2)):
+                    rel_index = list_index_L2_active[j]
                     # ASSUMING: L = L^*
-                    Φ_deriv_view += np.conj(list_avg_L2[j]) * (Z2_kp1[j] @ Φ_view)
+                    Φ_deriv_view += np.conj(list_avg_L2[j]) * (Z2_kp1[rel_index] @ Φ_view)
 
                 # calculate dz/dt
                 # ---------------
@@ -351,6 +360,7 @@ class HopsEOM(Dict_wDefaults):
                     list_w,
                     list_mode_absindex_L2,
                     list_absindex_mode,
+                    list_index_L2_active
                 )
 
                 return Φ_deriv, z_mem1_deriv
@@ -362,6 +372,7 @@ class HopsEOM(Dict_wDefaults):
                 z_mem1_tmp,
                 z_rnd1_tmp,
                 z_rnd2_tmp,
+                list_L2_csc = mode.list_L2_csc,
                 K2_stable=K2_stable,
                 Z2_kp1=self.Z2_kp1,
             ):
@@ -381,31 +392,40 @@ class HopsEOM(Dict_wDefaults):
                 Ψ_̇t^(k)=(-iH-kw+((z^*)_t)L)ψ_t^(k) + κα(0)Lψ_t^(k-1) - (L^†)ψ_t^(k+1)
                 A super operator notation is implemented in this code.
 
-                PARAMETERS
+                Parameters
                 ----------
-                1. Φ : np.array
-                       current full hierarchy
-                2. z_mem1_tmp : np.array
-                                array of memory values for each mode
-                3. z_rnd1_tmp : np.array
-                                array of random noise corresponding to NOISE1 for the
-                                set of time points required in the integration
-                4. z_rnd2_tmp : np.array
-                                array of random noise corresponding to NOISE2 for the
-                                set of time points required in the integration
-                5. K2_stable : np.array
-                               the component of the super operator that does not depend
-                               on noise
-                6. Z2_kp1 : np.array
-                            the component of the super operator that is multiplied by
-                            noise z and maps the (K+1)th hierarchy to the Kth hierarchy
+                1. Φ : np.array(complex)
+                       Current full hierarchy.
 
-                RETURNS
+                2. z_mem1_tmp : np.array(complex)
+                                Array of memory values for each mode.
+
+                3. z_rnd1_tmp : np.array(complex)
+                                Array of random noise corresponding to NOISE1 for the
+                                set of time points required in the integration.
+
+                4. z_rnd2_tmp : np.array(complex)
+                                Array of random noise corresponding to NOISE2 for the
+                                set of time points required in the integration.
+
+                5. list_L2_csc : list(sparse matrix)
+                                 L-operators in csc format in the current basis.
+
+                6. K2_stable : np.array(complex)
+                               The component of the super operator that does not depend
+                               on noise.
+
+                7. Z2_kp1 : np.array(complex)
+                            The component of the super operator that is multiplied by
+                            noise z and maps the (K+1)th hierarchy to the Kth hierarchy.
+
+                Returns
                 -------
-                1. Φ_deriv : np.array
-                             the derivative of phi with respect to time
-                2. z_mem1_deriv : np.array
-                                  the derivative of z_men with respect to time (=0)
+                1. Φ_deriv : np.array(complex)
+                             Derivative of phi with respect to time.
+
+                2. z_mem1_deriv : np.array(complex)
+                                  Derivative of z_men with respect to time.
                 """
 
                 # prepare noise
@@ -424,9 +444,9 @@ class HopsEOM(Dict_wDefaults):
                 
                 Φ_deriv_view = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
                 Φ_view = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
-                for j in range(len(system.list_L2_csc)):
+                for j in range(len(list_L2_csc)):
                     Φ_deriv_view += (z_hat1_tmp[j] - 2.0j * np.real(z_rnd2_tmp[j])) * (
-                                system.list_L2_csc[j] @ Φ_view)
+                                list_L2_csc[j] @ Φ_view)
 
                 # calculate dz/dt
                 # ---------------

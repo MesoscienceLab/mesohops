@@ -1,7 +1,7 @@
 import numpy as np
-from pyhops.util.exceptions import UnsupportedRequest
+from mesohops.util.exceptions import UnsupportedRequest
 from abc import ABC, abstractmethod
-from pyhops.util.physical_constants import precision  # constant
+from mesohops.util.physical_constants import precision  # constant
 from scipy import interpolate
 
 __title__ = "Noise Trajectories"
@@ -38,17 +38,21 @@ class NumericNoiseTrajectory(NoiseTrajectory):
 
     def __init__(self, noise, t_axis, spline_interpolation=False):
         """
-
-        INPUTS
+        Inputs
         ------
         1. noise : list
-                   the noise trajectory
+                   The noise trajectory.
+
         2. t_axis : list
-                    list of time points
+                    List of time points.
+
         3. spline_interpolation : bool
                                   If True, then off-grid calls for noise values will be
-                                  determined by interpolation
+                                  determined by interpolation.
 
+        Returns
+        -------
+        None
         """
         self._t_axis = t_axis
         self._noise = noise
@@ -63,20 +67,20 @@ class NumericNoiseTrajectory(NoiseTrajectory):
 
     def get_noise(self, taxis_req):
         """
-        This function simply returns the noise values for the selected times.
+        Returns the noise values for the selected times.
 
         NOTE: INTERPOLATION SHOULD BE IMPLEMENTED BY DEFAULT. USE FCSPLINE
               FROM RICHARD TO DO IT!
 
-        PARAMETERS
+        Parameters
         ----------
         1. taxis_req : list
-                       a list of requested time points
+                       List of requested time points.
 
-        RETURNS
+        Returns
         -------
         1. noise : list
-                   a list of list of noise at the requested time points
+                   List of lists of noise at the requested time points.
         """
         # Check that to within 'precision' resolution, all timesteps
         # requested are present on the calculated t-axis.

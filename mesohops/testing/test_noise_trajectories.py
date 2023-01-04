@@ -1,7 +1,7 @@
 import numpy as np
-from pyhops.dynamics.bath_corr_functions import bcf_exp
-from pyhops.dynamics.noise_fft import FFTFilterNoise
-from pyhops.dynamics.noise_trajectories import NumericNoiseTrajectory
+from mesohops.dynamics.bath_corr_functions import bcf_exp
+from mesohops.dynamics.noise_fft import FFTFilterNoise
+from mesohops.dynamics.noise_trajectories import NumericNoiseTrajectory
 
 __title__ = "Test of noise_trajectories"
 __author__ = "J. K. Lynd"

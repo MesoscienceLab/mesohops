@@ -1,14 +1,14 @@
 from collections import Counter
 import itertools as it
 import numpy as np
-from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxVec
-from pyhops.util.dynamic_dict import Dict_wDefaults
-from pyhops.dynamics.hierarchy_functions import (
+from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
+from mesohops.util.dynamic_dict import Dict_wDefaults
+from mesohops.dynamics.hierarchy_functions import (
     filter_aux_triangular,
     filter_aux_longedge,
     filter_markovian,
 )
-from pyhops.util.exceptions import AuxError, UnsupportedRequest
+from mesohops.util.exceptions import AuxError, UnsupportedRequest
 
 __title__ = "Hierarchy Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
@@ -36,7 +36,7 @@ class HopsHierarchy(Dict_wDefaults):
         Initializes the HopsHierarchy object with the parameters that it will use to
         construct the hierarchy.
 
-        INPUTS
+        Inputs
         ------
         1. hierarchy_param :
             [see hops_basis]
@@ -56,7 +56,7 @@ class HopsHierarchy(Dict_wDefaults):
             a. N_HMODES : int
                           number of modes that appear in hierarchy
 
-        RETURNS
+        Returns
         -------
         None
 
@@ -73,17 +73,23 @@ class HopsHierarchy(Dict_wDefaults):
         self._auxiliary_list = []
         self._auxiliary_by_depth = {depth: [] for depth in range(self.param['MAXHIER']+1)}
         self._hash_by_depth = {depth : [] for depth in range(self.param['MAXHIER']+1)}
+        self._new_connect_p1 = {mode: {} for mode in range(system_param["N_HMODES"])}
+        self._new_connect_m1 = {mode: {} for mode in range(system_param["N_HMODES"])}
+        self._new_mode_values_m1 = {mode: {} for mode in range(system_param["N_HMODES"])}
+        self._aux_by_hash = {}
+        self._list_modes_in_use = []
+        self._count_by_modes = {}
 
     def initialize(self, flag_adaptive):
         """
         This function will initialize the hierarchy.
 
-        PARAMETERS
+        Parameters
         ----------
         1. flag_adaptive : boolean
-                           boolean describing whether the calculation is adaptive or not
+                           Boolean describing whether the calculation is adaptive or not.
 
-        RETURNS
+        Returns
         -------
         None
         """
@@ -136,7 +142,7 @@ class HopsHierarchy(Dict_wDefaults):
                     self.auxiliary_list = self.filter_aux_list(
                         self.define_markovian_and_LE_filtered_triangular_hierarchy(
                             self.n_hmodes, self.param["MAXHIER"], list_mark, list_LE,
-                            LE_depth, LE_edge)
+                            LE_edge)
                     )
 
 
@@ -149,21 +155,25 @@ class HopsHierarchy(Dict_wDefaults):
             #       Nsteps). At the moment, though, I'm skipping this and allowing
             #       the hierarchy to control its own growth.
             self.auxiliary_list = [AuxVec([], self.n_hmodes)]
+            if np.any([name != "Markovian" for (name, param) in self.param["STATIC_FILTERS"]]):
+                self.only_markovian_filter = False
+            else:
+                self.only_markovian_filter = True
 
     def filter_aux_list(self, list_aux):
         """
-        A function that applies all of the filters defined for the hierarchy
-        in "STATIC_FILTERS"
+        Applies all of the filters defined for the hierarchy
+        in "STATIC_FILTERS".
 
-        PARAMETERS
+        Parameters
         ----------
         1. list_aux : list
-                      the list of auxiliaries to be filtered
+                      List of auxiliaries to be filtered.
 
-        RETURNS
+        Returns
         -------
         1. list_aux : list
-                      the filtered list of auxiliaries
+                      Filtered list of auxiliaries.
 
         """
         for (filter_i, param_i) in self.param["STATIC_FILTERS"]:
@@ -173,23 +183,25 @@ class HopsHierarchy(Dict_wDefaults):
 
     def apply_filter(self, list_aux, filter_name, params):
         """
-        This is a function that implements a variety of different hierarchy filtering
-        methods. In all cases, this filtering begins with the current list of auxiliaries
-        and then prunes down from that list according to a set of rules.
+        Implements a variety of different hierarchy filtering methods. In all cases,
+        this filtering begins with the current list of auxiliaries and then prunes
+        down from that list according to a set of rules.
 
-        PARAMETERS
+        Parameters
         ----------
         1. list_aux : list
-                      the list of auxiliaries that needs to be filtered
-        2. filter_name : str
-                         name of filter
-        3. params : list
-                    the list of parameters for the filter
+                      List of auxiliaries that needs to be filtered.
 
-        RETURNS
+        2. filter_name : str
+                         Name of filter.
+
+        3. params : list
+                    List of parameters for the filter.
+
+        Returns
         -------
         1. list_aux : list
-                      a list of filtered auxiliaries
+                      List of filtered auxiliaries.
 
 
         ALLOWED LIST OF FILTERS:
@@ -235,11 +247,11 @@ class HopsHierarchy(Dict_wDefaults):
 
         return list_aux
 
-    def _aux_index(self, aux, absolute=False):
+    def _aux_index(self, aux):
         """
-        This function will return the index value for a given auxiliary. The
-        important thing is that this function is aware of whether or not the
-        calculation should be using an 'absolute' index or a 'relative' index. 
+        Returns the index value for a given auxiliary. The important thing is that this
+        function is aware of whether the calculation should be using an 'absolute'
+        index or a 'relative' index.
         
         Absolute index: no matter which auxiliaries are in the hierarchy, the index
                         value does not change. This is a useful approach when trying
@@ -249,23 +261,21 @@ class HopsHierarchy(Dict_wDefaults):
                         track of the auxiliary vectors that are actually in the
                         hierarchy.
 
-        PARAMETERS
+        Parameters
         ----------
         1. aux : Auxiliary object
-                 a hops_aux auxiliary object
-        2. absolute : boolean
-                      describes whether the indexing should be relative or absolute
-                      the default value is False
+                 Hops_aux auxiliary object.
 
-        RETURNS
+        2. absolute : boolean
+                      Describes whether the indexing should be relative or absolute
+                      the default value is False.
+
+        Returns
         -------
         1. aux_index : int
-                       the relative or absolute index of a single
-                       auxiliary
+                       Relative or absolute index of a single auxiliary
         """
-        if absolute:
-            return aux.absolute_index
-        elif aux._index is None:
+        if aux._index is None:
             return self.auxiliary_list.index(aux)
         else:
             return aux._index
@@ -273,43 +283,45 @@ class HopsHierarchy(Dict_wDefaults):
     @staticmethod
     def _const_aux_edge(absindex_mode, depth, n_hmodes):
         """
-        This function creates an auxiliary object for an edge node at
+        Creates an auxiliary object for an edge node at
         a particular depth along a given mode. 
 
-        PARAMETERS
+        Parameters
         ----------
         1. absindex_mode : int
-                           absolute index of the edge mode
-        2. depth : int
-                   the depth of the edge auxiliary
-        3. n_hmodes : int
-                      number of modes that appear in the hierarchy
+                           Absolute index of the edge mode.
 
-        RETURNS
+        2. depth : int
+                   Depth of the edge auxiliary.
+
+        3. n_hmodes : int
+                      Number of modes that appear in the hierarchy.
+
+        Returns
         -------
         1. aux : Auxiliary object
-                 the auxiliary at the the edge node
-
+                 Auxiliary at the edge node.
         """
         return AuxVec([(absindex_mode, depth)], n_hmodes)
 
     @staticmethod
     def define_triangular_hierarchy(n_hmodes, maxhier):
         """
-        This function creates a triangular hierarchy for a given number of modes at a
+        Creates a triangular hierarchy for a given number of modes at a
         given depth.
 
-        PARAMETERS
+        Parameters
         ----------
         1. n_hmodes : int
-                      number of modes that appear in the hierarchy
-        2. maxhier : int
-                     the max single value of the hierarchy
+                      Number of modes that appear in the hierarchy.
 
-        RETURNS
+        2. maxhier : int
+                     Max single value of the hierarchy.
+
+        Returns
         -------
         1. list_aux : list
-                      list of auxiliaries in the new triangular hierarchy
+                      List of auxiliaries in the new triangular hierarchy.
         """
         list_aux = []
         # first loop over hierarchy depth
@@ -330,20 +342,22 @@ class HopsHierarchy(Dict_wDefaults):
         use, applying the Markovian filter as the hierarchy is constructed to reduce
         transient memory burdens.
 
-        PARAMETERS
+        Parameters
         ----------
         1. n_hmodes : int
-                      number of modes that appear in the hierarchy
-        2. maxhier : int
-                     the max single value of the hierarchy
-        3. list_boolean_mark : list(boolean)
-                               the list by mode of whether the Markovian filter will be
-                               applied
+                      Number of modes that appear in the hierarchy.
 
-        RETURNS
+        2. maxhier : int
+                     Max single value of the hierarchy
+
+        3. list_boolean_mark : list(boolean)
+                               List by mode of whether the Markovian filter will
+                               be applied
+
+        Returns
         -------
         1. list_aux : list
-                      list of auxiliaries in the new triangular hierarchy
+                      List of auxiliaries in the new triangular hierarchy.
         """
         list_not_boolean_mark = [not bool_mark for bool_mark in list_boolean_mark]
         list_aux = []
@@ -371,7 +385,8 @@ class HopsHierarchy(Dict_wDefaults):
 
     @staticmethod
     def define_markovian_and_LE_filtered_triangular_hierarchy(n_hmodes, maxhier,
-                list_boolean_mark, list_boolean_le, depth_le, edge_le):
+                                                              list_boolean_mark,
+                                                              list_boolean_le, edge_le):
         """
         Creates a triangular hierarchy when the Markovian and LongEdge filters are in
         use, applying the filters as the hierarchy is constructed to reduce
@@ -382,30 +397,33 @@ class HopsHierarchy(Dict_wDefaults):
         list_boolean_LE. THIS FUNCTION SHOULD NEVER BE RUN WITHOUT BEING WRAPPED BY
         SELF.FILTER_AUX_LIST()!
 
-        PARAMETERS
+        Parameters
         ----------
         1. n_hmodes : int
-                      number of modes that appear in the hierarchy
-        2. maxhier : int
-                     the max single value of the hierarchy
-        3. list_boolean_mark : list(boolean)
-                               the list by mode of whether the Markovian filter will be
-                               applied
-        4. list_boolean_LE: list(boolean)
-                            the list by mode of whether the LongEdge filter will be
-                            applied
-        5. depth_le: int
-                     The allowed hierarchy depth of the LongEdge-filtered modes. This
-                     parameter is unused in the code: we include it due to the
-                     dictionary structure associated with the LongEdge filter
-        6. edge_le: int
-                    The depth beyond which LongEdge-filtered modes retain only edge
-                    terms
+                      Number of modes that appear in the hierarchy.
 
-        RETURNS
+        2. maxhier : int
+                     Max single value of the hierarchy.
+
+        3. list_boolean_mark : list(boolean)
+                               List by mode of whether the Markovian filter will
+                               be applied.
+
+        4. list_boolean_LE: list(boolean)
+                            List by mode of whether the LongEdge filter will be applied.
+
+        5. depth_le: int
+                     Allowed hierarchy depth of the LongEdge-filtered modes. This
+                     parameter is unused in the code: we include it due to the
+                     dictionary structure associated with the LongEdge filter.
+
+        6. edge_le: int
+                    Depth beyond which LongEdge-filtered modes retain only edge terms.
+
+        Returns
         -------
         1. list_aux : list
-                      list of auxiliaries in the new triangular hierarchy
+                      List of auxiliaries in the new triangular hierarchy.
         """
         list_aux = []
         list_not_boolean_mark = [not bool_mark for bool_mark in list_boolean_mark]
@@ -459,6 +477,121 @@ class HopsHierarchy(Dict_wDefaults):
 
         return list_aux
 
+    def __update_count(self, aux, type):
+        """
+        Updates the dictionary of number of auxiliaries possessing non-zero depth in
+        each mode, called when a new auxiliary is added to the basis.
+
+        Parameters
+        ----------
+        1. aux : instance(HopsAuxiliary)
+
+        2. type : str
+                  Two options add or remove
+
+        Returns
+        -------
+        None
+        """
+        if type == 'add':
+            self._count_by_modes |= {mode:(self._count_by_modes[mode] + 1)
+            if mode in self._count_by_modes.keys() else 1 for mode in aux.keys()}
+        elif type == 'remove':
+            self._count_by_modes |= {mode: (self._count_by_modes[mode] - 1)
+                                     for mode in aux.keys()}
+        else:
+            raise UnsupportedRequest(type, "__update_count")
+
+    def __update_modes_in_use(self):
+        """
+        Extracts the list of modes for which any auxiliaries in the current auxiliary
+        basis has non-zero depth
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        list_modes_in_use = []
+        list_to_remove = []
+        for (mode, value) in self._count_by_modes.items():
+            if value == 0:
+                list_to_remove.append(mode)
+            elif value>0:
+                list_modes_in_use.append(mode)
+            else:
+                print(f'ERROR: _count_by_modes is negative for mode {mode}')
+
+        [self._count_by_modes.pop(mode) for mode in list_to_remove]
+        self._list_modes_in_use = list_modes_in_use
+
+    def add_connections(self):
+        """
+        The method responsible for adding the connections between HopsAux objects
+        composing an auxiliary list.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        self._new_connect_p1 = {mode: {} for mode in range(self.n_hmodes)}
+        self._new_connect_m1 = {mode: {} for mode in range(self.n_hmodes)}
+        self._new_mode_values_m1 = {mode: {} for mode in range(self.n_hmodes)}
+        for aux in self.list_aux_add:
+            sum_aux = np.sum(aux)
+            # add connections to k+1
+            
+            if sum_aux < self.param['MAXHIER']:
+                list_identity_str_p1, mode_values, mode_connects = aux.get_list_identity_string_up(self._list_modes_in_use)
+                #we need to return mode_connects, so simple modification of identity_string_up was made.
+                for (index,my_ident) in enumerate(list_identity_str_p1):
+                    try:
+                        aux_p1 = self._aux_by_hash[hash(my_ident)]
+                        aux.add_aux_connect(mode_connects[index],aux_p1,1)
+                        #We simply keep track of the index connections of new auxiliaries
+                        #Note: It does not matter that the indices will change because we only use this dictionary 
+                        #once, immediately after it is created in eom.ksuper
+                        self._new_connect_p1[mode_connects[index]][aux._index] = aux_p1._index 
+                        self._new_connect_m1[mode_connects[index]][aux_p1._index] = aux._index 
+                        self._new_mode_values_m1[mode_connects[index]][aux_p1._index] = mode_values[index] + 1
+                    except:
+                        pass
+
+            # Add connections to k-1
+            if sum_aux > 0:
+            
+                list_identity_str_m1, list_value_connects, mode_connects = aux.get_list_identity_string_down()
+
+                for (index,my_ident) in enumerate(list_identity_str_m1):
+                    try:
+                        aux_m1 = self._aux_by_hash[hash(my_ident)]
+                        aux.add_aux_connect(mode_connects[index], aux_m1, -1)
+                        if aux_m1 not in self.list_aux_add:
+                            self._new_connect_m1[mode_connects[index]][aux._index] = aux_m1._index
+                            self._new_connect_p1[mode_connects[index]][aux_m1._index] = aux._index
+                            self._new_mode_values_m1[mode_connects[index]][aux._index] = list_value_connects[index]
+                    except:
+                        pass
+
+    @property
+    def new_connect_p1(self):
+        return self._new_connect_p1
+
+    @property
+    def new_connect_m1(self):
+        return self._new_connect_m1
+
+    @property
+    def new_mode_values_m1(self):
+        return self._new_mode_values_m1
+
     @property
     def size(self):
         return len(self.auxiliary_list)
@@ -467,115 +600,84 @@ class HopsHierarchy(Dict_wDefaults):
     def auxiliary_list(self):
         return self._auxiliary_list
 
+    @property
+    def aux_by_hash(self):
+        return self._aux_by_hash
+
+    @property
+    def list_absindex_hierarchy_modes(self):
+        return list(self._count_by_modes.keys())
+
     @auxiliary_list.setter
     def auxiliary_list(self, aux_list):
-        aux_list.sort()
-        if not aux_list[0].absolute_index == 0:
-            raise AuxError("Zero Vector not contained in list_aux!")
+        # Construct information about pevious timestep
+        # --------------------------------------------
+        self.__previous_auxiliary_list = self.auxiliary_list
 
-        # Determine the added and removed aux
         set_aux_add = set(aux_list) - set(self.auxiliary_list)
         set_aux_remove = set(self.auxiliary_list) - set(aux_list)
+        list_aux_remove = [self.auxiliary_list[self.auxiliary_list.index(aux)]
+                           for aux in set_aux_remove]
+        self.__list_aux_remove = list_aux_remove
+        self.__list_aux_add = list(set_aux_add)
+        self.__list_aux_add.sort()
 
-        # Update auxiliary_by_depth
-        for aux in set_aux_add:
-            self._auxiliary_by_depth[np.sum(aux)].append(aux)
-            self._hash_by_depth[np.sum(aux)].append(aux.hash)
+        set_aux_stable = set(self.auxiliary_list).intersection(set(aux_list))
+        self.__list_aux_stable = [aux for aux in self.auxiliary_list if aux in set_aux_stable]
+        self.__previous_list_auxstable_index = [aux._index for aux in self.__list_aux_stable]
 
-        for aux in set_aux_remove:
-            self._auxiliary_by_depth[np.sum(aux)].remove(aux)
-            self._hash_by_depth[np.sum(aux)].remove(aux.hash)
+        if set(aux_list) != set(self.__previous_auxiliary_list):
+            # Prepare New Auxiliary List
+            # --------------------------
+            # Update auxiliary_by_depth
+            for aux in set_aux_add:
+                self._auxiliary_by_depth[np.sum(aux)].append(aux)
+                self._hash_by_depth[np.sum(aux)].append(aux.hash)
+                self._aux_by_hash[aux.hash] = aux
+                self.__update_count(aux, 'add')
 
-        # Update auxiliary_list
-        self._auxiliary_list = aux_list
-        for (index, aux) in enumerate(aux_list):
-            aux._index = index
+            for aux in list_aux_remove:
+                self._auxiliary_by_depth[np.sum(aux)].remove(aux)
+                self._hash_by_depth[np.sum(aux)].remove(aux.hash)
+                self._aux_by_hash.pop(aux.hash)
+                self.__update_count(aux, 'remove')
+
+            # Update auxiliary_list
+            aux_list.sort()
+            self._auxiliary_list = aux_list
+            if not aux_list[0].absolute_index == 0:
+                raise AuxError("Zero Vector not contained in list_aux!")
+
+            # Update modes_in_use
+            self.__update_modes_in_use()
+
+            # Update indexing for aux
+            for (index, aux) in enumerate(aux_list):
+                aux._index = index
+
+            # Remove auxiliary connections
+            for aux in set_aux_remove:
+                aux.remove_pointers()
 
         # Add auxiliary connections
-        self.add_connections(set_aux_add)
+        self.add_connections()
+    
+    @property
+    def list_aux_stable(self):
+        return self.__list_aux_stable
 
-        # Remove auxiliary connections
-        for aux in set_aux_remove:
-            aux.remove_pointers()
+    @property
+    def list_aux_add(self):
+        return self.__list_aux_add
 
-    def add_connections(self, list_aux_add):
-        """
-        The method responsible for adding the connections between HopsAux objects
-        composing an auxiliary list.
+    @property
+    def list_aux_remove(self):
+        return self.__list_aux_remove
 
-        PARAMETERS
-        ----------
-        1. list_aux_add : list
-                          a list of HopsAux objects being added to the auxiliary list
+    @property
+    def previous_auxiliary_list(self):
+        return self.__previous_auxiliary_list
 
-        RETURNS
-        -------
-        None
-        """
-        for aux in list_aux_add:
-            sum_aux = np.sum(aux)
-            # add connections to k+1
-            if sum_aux < self.param['MAXHIER']:
-                # if there are fewer possible k+1 auxiliaries than the number of modes
-                # in the hierarchy then loop over list of auxiliaries
-                if len(self._auxiliary_by_depth[sum_aux + 1]) <= self.n_hmodes:
-                    for aux_p1 in self._auxiliary_by_depth[sum_aux + 1]:
-                        index_mode = aux.difference_by_mode(aux_p1)
-                        if index_mode is not False:
-                            aux.add_aux_connect(index_mode, aux_p1, 1)
-                else:
-                    for index_mode in range(self.n_hmodes):
-                        aux_p1_hash = aux.hash_from_e_step(index_mode, 1)
-                        aux_p1 = listobj_or_none(aux_p1_hash,
-                                                 self._auxiliary_by_depth[
-                                                     sum_aux + 1],
-                                                 self._hash_by_depth[sum_aux + 1])
-                        if aux_p1 is not None:
-                            aux.add_aux_connect(index_mode, aux_p1, 1)
-
-            # add connections to k-1
-            if sum_aux > 0:
-                # if there are fewer possible k-1 auxiliaries than the number of modes
-                # in the hierarchy then loop over list of auxiliaries
-                if len(self._auxiliary_by_depth[sum_aux - 1]) <= self.n_hmodes:
-                    for aux_m1 in self._auxiliary_by_depth[sum_aux - 1]:
-                        index_mode = aux.difference_by_mode(aux_m1)
-                        if index_mode is not False:
-                            aux.add_aux_connect(index_mode, aux_m1, -1)
-                else:
-                    for index_mode in range(self.n_hmodes):
-                        aux_m1_hash = aux.hash_from_e_step(index_mode, -1)
-                        aux_m1 = listobj_or_none(aux_m1_hash,
-                                                 self._auxiliary_by_depth[
-                                                     sum_aux - 1],
-                                                 self._hash_by_depth[sum_aux - 1])
-                        if aux_m1 is not None:
-                            aux.add_aux_connect(index_mode, aux_m1, -1)
-
-def listobj_or_none(hash, list_obj, list_hash):
-    """
-    A convenience function for determining which object in a list to return
-    based on a list of the hash values for the objects.
-
-    Parameters
-    ----------
-    1. hash : int
-              The hash value for the desired object
-    2. list_obj : list
-                  A list of objects
-    3. list_hash : list
-                   The hash values for the objects in list_obj
-
-    Returns
-    -------
-    1. obj : object or None
-             The object from list_obj with matching hash or None (if there was no
-             such object)
-    """
-    try:
-        index = list_hash.index(hash)
-        obj_new = list_obj[index]
-    except:
-        obj_new = None
-
-    return obj_new
+    @property
+    def previous_list_auxstable_index(self):
+        return self.__previous_list_auxstable_index

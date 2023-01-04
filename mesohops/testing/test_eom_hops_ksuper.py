@@ -1,9 +1,9 @@
 import numpy as np
 import scipy as sp
 from scipy import sparse
-from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from pyhops.dynamics.bath_corr_functions import bcf_exp
-from pyhops.dynamics.eom_hops_ksuper import (
+from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.dynamics.bath_corr_functions import bcf_exp
+from mesohops.dynamics.eom_hops_ksuper import (
     _permute_aux_by_matrix,
     _add_self_interactions,
     _add_crossterms,
@@ -128,7 +128,7 @@ def test_permute_ksuper_by_matrix():
     """
     auxiliary_list_2 = [hops.basis.hierarchy.auxiliary_list[i] for i in [0, 1, 3, 5]]
     auxiliary_list_2.sort(
-        key=lambda x: hops.basis.hierarchy._aux_index(x, absolute=True)
+        key=lambda x: hops.basis.hierarchy._aux_index(x)
     )
     stable_aux = set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list)
     permute_aux_row = []
@@ -189,9 +189,20 @@ def test_add_self_interaction_remove_aux():
         if i != 2 and i != 3
     ]
     auxiliary_list_2.sort(
-        key=lambda x: hops.basis.hierarchy._aux_index(x, absolute=True)
+        key=lambda x: hops.basis.hierarchy._aux_index(x)
     )
     stable_aux = set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list)
+
+    hops2 = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops2.initialize(psi_0)
+    hops2.basis.hierarchy.auxiliary_list = list(stable_aux)
+
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
@@ -207,6 +218,7 @@ def test_add_self_interaction_remove_aux():
         shape=(68, 70),
         dtype=np.complex128,
     ).tocsc()
+
     K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat)
 
     # Add indices
@@ -215,15 +227,13 @@ def test_add_self_interaction_remove_aux():
     Pmat = Pmat.transpose()
     K0_new = _permute_aux_by_matrix(K0_new, Pmat)
 
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
 
         # Add back interactions
     # ---------------------
     K0_data, K0_row, K0_col = _add_self_interactions(
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        hops.basis.system,
+        hops2.basis.system,
+        hops2.basis.hierarchy,
         K0_data=[],
         K0_row=[],
         K0_col=[],
@@ -236,7 +246,7 @@ def test_add_self_interaction_remove_aux():
         ).tocsc()
     )
 
-    assert (K0.todense() == hops.basis.eom.K2_k.todense()).all()
+    assert (K0.todense() == hops2.basis.eom.K2_k.todense()).all()
 
 
 # noinspection PyTupleAssignmentBalance
@@ -251,7 +261,6 @@ def test_add_cross_terms():
     n_mode = hops.basis.system.param["N_HMODES"]
     n_tot = n_site * hops.basis.hierarchy.size
     n_tot2 = hops.basis.hierarchy.size
-
     l_sparse = [
         sp.sparse.coo_matrix(hops.basis.system.param["LIST_L2_COO"][i_lop])
         for i_lop in range(n_lop)
@@ -259,7 +268,7 @@ def test_add_cross_terms():
     for i_lop in range(n_lop):
         l_sparse[i_lop].eliminate_zeros()
 
-        # Remove indices
+    # Remove indices
     # --------------
     auxiliary_list_2 = [
         hops.basis.hierarchy.auxiliary_list[i]
@@ -267,9 +276,20 @@ def test_add_cross_terms():
         if i != 2 and i != 3
     ]
     auxiliary_list_2.sort(
-        key=lambda x: hops.basis.hierarchy._aux_index(x, absolute=True)
+        key=lambda x: hops.basis.hierarchy._aux_index(x)
     )
-    stable_aux = set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list)
+    stable_aux = list(set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list))
+    
+    hops2 = HOPS(
+    sys_param,
+    noise_param=noise_param,
+    hierarchy_param=hier_param,
+    eom_param=eom_param,
+    integration_param=integrator_param,
+    )
+    hops2.initialize(psi_0)
+    hops2.basis.hierarchy.auxiliary_list = stable_aux
+    
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
@@ -321,7 +341,9 @@ def test_add_cross_terms():
     for i_lop in range(n_lop):
         Zp1_new2[i_lop] = _permute_aux_by_matrix(Zp1_new[i_lop], Pmat2)
 
-        # Add back interactions
+
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
+    # Add back interactions
     # ---------------------
     (
         Kp1_data,
@@ -334,16 +356,9 @@ def test_add_cross_terms():
         Km1_row,
         Km1_col,
     ) = _add_crossterms(
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        [
-            hops.basis.hierarchy.auxiliary_list[0],
-            hops.basis.hierarchy.auxiliary_list[1],
-            *hops.basis.hierarchy.auxiliary_list[4:],
-        ],
-        hops.basis.system,
+        hops2.basis.system,
+        hops2.basis.hierarchy,
+        hops2.basis.mode,
         l_sparse,
         Kp1_data=[],
         Kp1_row=[],
@@ -354,39 +369,6 @@ def test_add_cross_terms():
         Km1_data=[],
         Km1_row=[],
         Km1_col=[],
-    )
-
-    (
-        Kp1_data,
-        Kp1_row,
-        Kp1_col,
-        Zp1_data,
-        Zp1_row,
-        Zp1_col,
-        Km1_data,
-        Km1_row,
-        Km1_col,
-    ) = _add_crossterms(
-        [
-            hops.basis.hierarchy.auxiliary_list[0],
-            hops.basis.hierarchy.auxiliary_list[1],
-            *hops.basis.hierarchy.auxiliary_list[4:],
-        ],
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        hops.basis.system,
-        l_sparse,
-        Kp1_data,
-        Kp1_row,
-        Kp1_col,
-        Zp1_data,
-        Zp1_row,
-        Zp1_col,
-        Km1_data,
-        Km1_row,
-        Km1_col,
     )
 
     Kp1 = (
@@ -424,6 +406,7 @@ def test_matrix_updates_with_missing_aux_and_states():
     # =================
     n_site = hops.basis.system.param["NSTATES"]
     n_lop = hops.basis.system.param["N_L2"]
+    n_mode = hops.basis.system.param["N_HMODES"]
     n_tot = n_site * hops.basis.hierarchy.size
     n_tot2 = hops.basis.hierarchy.size
 
@@ -434,6 +417,7 @@ def test_matrix_updates_with_missing_aux_and_states():
     for i_lop in range(n_lop):
         l_sparse[i_lop].eliminate_zeros()
 
+
     # Determine removed indices
     # -------------------------
     auxiliary_list_2 = [
@@ -442,15 +426,27 @@ def test_matrix_updates_with_missing_aux_and_states():
         if i != 2 and i != 3
     ]
     auxiliary_list_2.sort(
-        key=lambda x: hops.basis.hierarchy._aux_index(x, absolute=True)
+        key=lambda x: hops.basis.hierarchy._aux_index(x)
     )
-    stable_aux = set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list)
+    stable_aux = list(set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list))
 
+    hops2 = HOPS(
+    sys_param,
+    noise_param=noise_param,
+    hierarchy_param=hier_param,
+    eom_param=eom_param,
+    integration_param=integrator_param,
+    )
+    hops2.initialize(psi_0)
+    hops2.basis.hierarchy.auxiliary_list = stable_aux
     state_list_2 = [
         hops.basis.system.state_list[i] for i in range(hops.n_state) if i > 0
     ]
+    # state_list_2 = [1]
     stable_state = state_list_2
+    list_ilop_rel_stable = np.arange(len(hops.basis.mode.list_absindex_L2))
 
+    
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
@@ -488,8 +484,10 @@ def test_matrix_updates_with_missing_aux_and_states():
     K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat2)
     Kp1_new = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, Pmat)
     Km1_new = _permute_aux_by_matrix(hops.basis.eom.K2_km1, Pmat)
-    Zp1_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_kp1[1], Pmat2)]
+    Zp1_new = [_permute_aux_by_matrix(hops.basis.eom.Z2_kp1[0], Pmat2),
+               _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[1], Pmat2)]
 
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
     # Now attempt to add states and auxiliaries back
     # ==============================================
     # Add indices
@@ -502,8 +500,8 @@ def test_matrix_updates_with_missing_aux_and_states():
     K0_new = _permute_aux_by_matrix(K0_new, Pmat2)
 
     Zp1_new2 = [
-        sparse.coo_matrix((70, 70), dtype=np.complex128),
         _permute_aux_by_matrix(Zp1_new[0], Pmat2),
+        _permute_aux_by_matrix(Zp1_new[1], Pmat2),
     ]
 
     # Add back cross interactions
@@ -519,15 +517,9 @@ def test_matrix_updates_with_missing_aux_and_states():
         Km1_row,
         Km1_col,
     ) = _add_crossterms(
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        hops.basis.system,
+        hops2.basis.system,
+        hops2.basis.hierarchy,
+        hops2.basis.mode,
         l_sparse,
         Kp1_data=[],
         Kp1_row=[],
@@ -550,72 +542,6 @@ def test_matrix_updates_with_missing_aux_and_states():
         Km1_data,
         Km1_row,
         Km1_col,
-    ) = _add_crossterms(
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        [
-            hops.basis.hierarchy.auxiliary_list[0],
-            hops.basis.hierarchy.auxiliary_list[1],
-            *hops.basis.hierarchy.auxiliary_list[4:],
-        ],
-        hops.basis.system,
-        l_sparse,
-        Kp1_data,
-        Kp1_row,
-        Kp1_col,
-        Zp1_data,
-        Zp1_row,
-        Zp1_col,
-        Km1_data,
-        Km1_row,
-        Km1_col,
-    )
-
-    (
-        Kp1_data,
-        Kp1_row,
-        Kp1_col,
-        Zp1_data,
-        Zp1_row,
-        Zp1_col,
-        Km1_data,
-        Km1_row,
-        Km1_col,
-    ) = _add_crossterms(
-        [
-            hops.basis.hierarchy.auxiliary_list[0],
-            hops.basis.hierarchy.auxiliary_list[1],
-            *hops.basis.hierarchy.auxiliary_list[4:],
-        ],
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        hops.basis.system,
-        l_sparse,
-        Kp1_data,
-        Kp1_row,
-        Kp1_col,
-        Zp1_data,
-        Zp1_row,
-        Zp1_col,
-        Km1_data,
-        Km1_row,
-        Km1_col,
-    )
-
-    (
-        Kp1_data,
-        Kp1_row,
-        Kp1_col,
-        Zp1_data,
-        Zp1_row,
-        Zp1_col,
-        Km1_data,
-        Km1_row,
-        Km1_col,
     ) = _add_crossterms_stable(
         aux_stable=[
             hops.basis.hierarchy.auxiliary_list[0],
@@ -624,6 +550,8 @@ def test_matrix_updates_with_missing_aux_and_states():
         ],
         list_add_state=[0],
         system=hops.basis.system,
+        mode = hops.basis.mode,
+        list_ilop_rel_stable=list_ilop_rel_stable,
         l_sparse=l_sparse,
         Kp1_data=Kp1_data,
         Kp1_row=Kp1_row,
@@ -639,11 +567,8 @@ def test_matrix_updates_with_missing_aux_and_states():
     # Add back self interactions
     # ---------------------------
     K0_data, K0_row, K0_col = _add_self_interactions(
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        hops.basis.system,
+        hops2.basis.system,
+        hops2.basis.hierarchy,
         K0_data=[],
         K0_row=[],
         K0_col=[],
@@ -676,7 +601,6 @@ def test_matrix_updates_with_missing_aux_and_states():
             (K0_data, (K0_row, K0_col)), shape=(n_tot2, n_tot2), dtype=np.complex128
         ).tocsc()
     )
-
     assert (Kp1.todense() == hops.basis.eom.K2_kp1.todense()).all()
     assert (Km1.todense() == hops.basis.eom.K2_km1.todense()).all()
     assert (Zp1[0].todense() == hops.basis.eom.Z2_kp1[0].todense()).all()
@@ -690,7 +614,7 @@ def test_update_super_remove_aux():
     # Prepare Constants
     # -----------------
     n_lop = hops.basis.system.param["N_L2"]
- 
+    n_mode = hops.basis.system.param["N_HMODES"]
     # Remove Auxiliaries
     # ------------------
     auxiliary_list_2 = [
@@ -699,9 +623,26 @@ def test_update_super_remove_aux():
         if i != 2 and i != 3
     ]
     auxiliary_list_2.sort(
-        key=lambda x: hops.basis.hierarchy._aux_index(x, absolute=True)
+        key=lambda x: hops.basis.hierarchy._aux_index(x)
     )
-    stable_aux = set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list)
+    stable_aux = list(set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list))
+    
+    hops2 = HOPS(
+    sys_param,
+    noise_param=noise_param,
+    hierarchy_param=hier_param,
+    eom_param=eom_param,
+    integration_param=integrator_param,
+    )
+    hops2.initialize(psi_0)
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
+    
+    hops2.basis.hierarchy.auxiliary_list = stable_aux
+    
+    hops2.basis.system.state_list = [0,1]
+    hops2.basis.system.state_list = [0,1]
+    hops2.basis.mode.list_absindex_mode = [0,1,2,3]
+    
     permute_aux_row = []
     permute_aux_col = []
     for aux in stable_aux:
@@ -733,34 +674,29 @@ def test_update_super_remove_aux():
         shape=(68, 70),
         dtype=np.complex128,
     ).tocsc()
-    K0_new = _permute_aux_by_matrix(hops.basis.eom.K2_k, Pmat2)
-    Kp1_new = _permute_aux_by_matrix(hops.basis.eom.K2_kp1, Pmat)
-    Km1_new = _permute_aux_by_matrix(hops.basis.eom.K2_km1, Pmat)
+    K0_new = _permute_aux_by_matrix(hops2.basis.eom.K2_k, Pmat2)
+    Kp1_new = _permute_aux_by_matrix(hops2.basis.eom.K2_kp1, Pmat)
+    Km1_new = _permute_aux_by_matrix(hops2.basis.eom.K2_km1, Pmat)
     Zp1_new = [[] for i in range(n_lop)]
     for i_lop in range(n_lop):
-        Zp1_new[i_lop] = _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[i_lop], Pmat2)
-
-        
+        Zp1_new[i_lop] = _permute_aux_by_matrix(hops2.basis.eom.Z2_kp1[i_lop], Pmat2)
         
     list_stable_aux_old_index = list(np.arange(68))
     list_stable_aux_new_index = list(set(np.arange(70)) - set([2,3]))
+
+    # NOTE: This test breaks because we are not updating the system,
+    # hierarchy, and mode objects prior to calling update_ksuper.
     
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
     
     K0, Kp1, Zp1, Km1 = update_ksuper(
         K0_new,
         Kp1_new,
         Zp1_new,
         Km1_new,
-        stable_aux,
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        hops.basis.system.state_list,
-        range(n_lop),
-        hops.basis.system,
-        hops.basis.hierarchy,
-        hops.basis.hierarchy.size * hops.basis.system.param["NSTATES"] - 4,
+        hops2.basis.system,
+        hops2.basis.hierarchy,
+        hops2.basis.mode,
         [permute_aux_col, permute_aux_row, list_stable_aux_old_index, list_stable_aux_new_index, 68],
     )
 
@@ -777,6 +713,7 @@ def test_update_super_remove_aux_and_state():
     # Prepare Constants
     # =================
     n_site = hops.basis.system.param["NSTATES"]
+    n_mode = hops.basis.system.param["N_HMODES"]
 
     # Remove indices
     # --------------
@@ -786,10 +723,25 @@ def test_update_super_remove_aux_and_state():
         if i != 2 and i != 3
     ]
     auxiliary_list_2.sort(
-        key=lambda x: hops.basis.hierarchy._aux_index(x, absolute=True)
+        key=lambda x: hops.basis.hierarchy._aux_index(x)
     )
-    stable_aux = set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list)
+    stable_aux = list(set(auxiliary_list_2) & set(hops.basis.hierarchy.auxiliary_list))
 
+    hops2 = HOPS(
+    sys_param,
+    noise_param=noise_param,
+    hierarchy_param=hier_param,
+    eom_param=eom_param,
+    integration_param=integrator_param,
+    )
+    hops2.initialize(psi_0)
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
+    
+    hops2.basis.hierarchy.auxiliary_list = stable_aux
+    
+    hops2.basis.system.state_list = [1]
+    hops2.basis.mode.list_absindex_mode = [2,3]
+    
     state_list_2 = [
         hops.basis.system.state_list[i] for i in range(hops.n_state) if i > 0
     ]
@@ -837,22 +789,21 @@ def test_update_super_remove_aux_and_state():
     list_stable_aux_old_index = list(np.arange(68))
     list_stable_aux_new_index = list(set(np.arange(70)) - set([2,3]))
 
-
+    # NOTE: This test breaks because we are not updating the system,
+    # hierarchy, and mode objects prior to calling update_ksuper.
+    
+    hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
+    hops2.basis.system.state_list = [0,1]
+    hops2.basis.mode.list_absindex_mode = [0,1,2,3]
+    
     K0, Kp1, Zp1, Km1 = update_ksuper(
         K0_new,
         Kp1_new,
         Zp1_new,
         Km1_new,
-        stable_aux,
-        [
-            hops.basis.hierarchy.auxiliary_list[2],
-            hops.basis.hierarchy.auxiliary_list[3],
-        ],
-        [hops.basis.system.state_list[1]],
-        [1],
-        hops.basis.system,
-        hops.basis.hierarchy,
-        hops.basis.hierarchy.size - 2,
+        hops2.basis.system,
+        hops2.basis.hierarchy,
+        hops2.basis.mode,
         [permute_aux_col, permute_aux_row, list_stable_aux_old_index, list_stable_aux_new_index, 68],
     )
 

@@ -1,7 +1,7 @@
 import numpy as np
-from pyhops.dynamics.bath_corr_functions import bcf_exp
-from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from pyhops.dynamics.eom_functions import (
+from mesohops.dynamics.bath_corr_functions import bcf_exp
+from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.dynamics.eom_functions import (
     operator_expectation,
     calc_delta_zmem,
     compress_zmem,
@@ -71,10 +71,12 @@ def test_operator_expectation():
     C2_cancellation = np.array([[1, 0],
                                 [0, -1]])
     C2 = C2_cancellation
-    assert operator_expectation(I2, psi, flag_gcorr=False) == 1.0
-    assert operator_expectation(I2, psi, flag_gcorr=True) == 4.0/5.0
-    assert operator_expectation(C2, psi, flag_gcorr=False) == 0.0
-    assert operator_expectation(C2, psi, flag_gcorr=True) == 0.0
+    exact_answers = [1.0, 4.0/5.0, 0, 0]
+    calculated_answers = [operator_expectation(I2, psi, flag_gcorr=False),
+                          operator_expectation(I2, psi, flag_gcorr=True),
+                          operator_expectation(C2, psi, flag_gcorr=False),
+                          operator_expectation(C2, psi, flag_gcorr=True)]
+    assert np.allclose(exact_answers, calculated_answers)
 
 
 def test_l_avg_calculation():
@@ -104,6 +106,7 @@ def test_calc_deltz_zmem():
         w_list,
         hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
         np.array(range(len(g_list))),
+        list(np.arange(len(lavg_list)))
     )
     assert len(d_zmem) == len(g_list)
     assert d_zmem[0] == 10.0
@@ -133,11 +136,12 @@ def test_compress_zmem():
         w_list,
         hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
         range(len(g_list)),
+        list(np.arange(len(lavg_list)))
     )
     z_compress = compress_zmem(
         z_mem,
         hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
-        hops.basis.system.list_absindex_mode,
+        hops.basis.list_absindex_mode,
     )
     assert len(z_compress) == 2
     assert z_compress[0] == 15.0

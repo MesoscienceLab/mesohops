@@ -12,22 +12,25 @@ def filter_aux_triangular(list_aux, list_boolean_by_mode, kmax, kdepth):
     than kdepth. This essentially truncates some modes at a lower
     order than the other modes.
 
-    PARAMETERS
+    Parameters
     ----------
     1. list_aux : list
-                  a list of auxiliary tuples
-    2. list_boolean_by_mode : list
-                              a list of booleans: True-Filter, False-No Filter
-    3. kmax : int
-              the largest value a filtered mode can have in an auxiliary
-    4. kdepth : int
-                the largest depth of an auxiliary at which a filtered mode can have a
-                non-zero value
+                  List of auxiliary tuples.
 
-    RETURNS
+    2. list_boolean_by_mode : list
+                              List of booleans: True-Filter, False-No Filter.
+
+    3. kmax : int
+              The largest value a filtered mode can have in an auxiliary.
+
+    4. kdepth : int
+                The largest depth of an auxiliary at which a filtered mode can have a
+                non-zero value.
+
+    Returns
     -------
     1. list_new_aux : list
-                      a filtered list of auxiliaries
+                      Filtered list of auxiliaries.
     """
     aux_list_orig = list(list_aux)
     list_aux = np.array([aux.todense() for aux in aux_list_orig])
@@ -42,22 +45,25 @@ def filter_aux_longedge(list_aux, list_boolean_by_mode, kmax, kdepth):
     """
     Beyond kdepth, only keep the edge terms upto kmax.
 
-    PARAMETERS
+    Parameters
     ----------
     1. list_aux : list
-                  list of auxiliaries
-    2. list_boolean_by_mode : list
-                              a list of booleans: True-Filter, False-No Filter
-    3. kmax : int
-              the maximum depth of the hierarchy
-    4. kdepth : int
-                the depth beyond which only edge members of hierarchy are kept for
-                filtered modes
+                  List of auxiliaries.
 
-    RETURNS
+    2. list_boolean_by_mode : list
+                              List of booleans: True-Filter, False-No Filter.
+
+    3. kmax : int
+              Maximum depth of the hierarchy.
+
+    4. kdepth : int
+                Depth beyond which only edge members of hierarchy are kept for
+                filtered modes.
+
+    Returns
     -------
     1. list_new_aux : list
-                      a filtered list of auxiliaries
+                      Filtered list of auxiliaries.
     """
     return [
         aux
@@ -70,22 +76,25 @@ def check_long_edge(aux_vec, list_boolean, kmax, kdepth):
     """
     Checks if an individual auxiliary should be filtered out by the longedge filter.
 
-    PARAMETERS
+    Parameters
     ----------
     1. aux : tuple
-             an auxiliary to check
+             Auxiliary to check.
+
     2. list_boolean : list
-                      the modes to filter True-filter, False-No filter
+                      The modes to filter True-filter, False-No filter.
+
     3. kmax : int
-              the maximum depth of the hierarchy
+              Maximum depth of the hierarchy.
+
     4. kdepth : int
-                the depth beyond which only edge members of hierarchy are kept for
-                filtered modes
+                Depth beyond which only edge members of hierarchy are kept for
+                filtered modes.
 
     RETURNS
     -------
     1. check_aux : bool
-                   True-keep aux, False-remove aux
+                   True-keep aux, False-remove aux.
     """
     aux = aux_vec.get_values_nonzero(np.arange(len(list_boolean))[list_boolean])
     return (
@@ -97,20 +106,20 @@ def check_long_edge(aux_vec, list_boolean, kmax, kdepth):
 
 def check_markovian(aux, list_boolean):
     """
-    This function checks whether a auxiliary is a an allowed markovian mode or a
-    non-markovian mode.
+    Checks whether an auxiliary is an allowed markovian mode or a non-markovian mode.
 
-    PARAMETERS
+    Parameters
     ----------
-    1. aux : AuxiliaryVector object
-    2. list_boolean : list
-                      a list of boolean values
-                      True: markovian mode, False: non-markovian mode
+    1. aux : instance(AuxiliaryVector)
 
-    RETURNS
+    2. list_boolean : list
+                      List of boolean values True: markovian mode, False:
+                      non-markovian mode.
+
+    Returns
     -------
     1. allowed : boolean
-                 True: non-markovian/ allowed markovian, False: disallowed markovian
+                 True: non-markovian/ allowed markovian, False: disallowed markovian.
     """
     flag_adaptive = True
     if np.sum(aux) == 0:
@@ -122,20 +131,21 @@ def check_markovian(aux, list_boolean):
 
 def filter_markovian(list_aux, list_boolean):
     """
-    This function filters a list of auxiliaries based on whether it is a non-markovian
+    Filters a list of auxiliaries based on whether it is a non-markovian
     auxiliary or an allowed markovian auxiliary.
 
     Parameters
     ----------
     1. list_aux : list
-                  list of unfiltered auxiliaries
+                  List of unfiltered auxiliaries.
+
     2. list_boolean : list
-                      a list of boolean values
+                      List of boolean values
                       True: markovian mode, False: non-markovian mode
 
     Returns
     -------
     list_aux : list
-               filtered auxiliary list
+               Filtered auxiliary list.
     """
     return [aux for aux in list_aux if check_markovian(aux, list_boolean)]

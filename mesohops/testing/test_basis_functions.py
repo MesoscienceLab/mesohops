@@ -1,4 +1,4 @@
-from pyhops.dynamics.basis_functions import determine_error_thresh
+from mesohops.dynamics.basis_functions import determine_error_thresh
 import numpy as np
 
 

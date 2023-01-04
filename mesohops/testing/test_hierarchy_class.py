@@ -1,7 +1,6 @@
 import numpy as np
-from pyhops.dynamics.hops_hierarchy import listobj_or_none
-from pyhops.dynamics.hops_hierarchy import HopsHierarchy as HHier
-from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxVec
+from mesohops.dynamics.hops_hierarchy import HopsHierarchy as HHier
+from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 
 
 __title__ = "test of hops hierarchy"
@@ -140,23 +139,6 @@ def test_filer_aux_list_longedge():
     assert HH.param["STATIC_FILTERS"] == [("LongEdge", [[False, True], [2, 1]])]
 
 
-def test_aux_index_absolute():
-    """
-    Tests the case where _aux_index returns the absolute index of a
-    specific auxiliary member.
-    """
-
-    hierarchy_param = {"MAXHIER": 4}
-    system_param = {"N_HMODES": 4}
-    HH = HHier(hierarchy_param, system_param)
-    abs_index = HH._aux_index(
-        AuxVec([(0, 1), (2, 1)], 4), True
-    )  # True = absolute index
-    # known result based on alpha numeric ordering
-    known_index = 7
-    assert abs_index == known_index
-
-
 def test_aux_index_relative():
     """
     Tests the case where _aux_index returns the relative index of a
@@ -180,7 +162,7 @@ def test_aux_index_relative():
         AuxVec([(0, 1), (2, 1)], 4),
         AuxVec([(1, 1), (3, 1)], 4),
     ]
-    relative_index = HH._aux_index(AuxVec([(0, 1), (2, 1)], 4), False)
+    relative_index = HH._aux_index(AuxVec([(0, 1), (2, 1)], 4))
     # known result based on alpha numerical ordering
     known_index = 2
     assert relative_index == known_index
@@ -195,12 +177,12 @@ def test_aux_index_relative():
         test_aux,
         AuxVec([(1, 1), (3, 1)], 4),
     ]
-    relative_index = HH._aux_index(test_aux, False)
+    relative_index = HH._aux_index(test_aux)
     assert relative_index == test_aux._index
 
     # Show that if the index is manually set, _aux_index returns the value manually set
     test_aux._index = 10
-    assert HH._aux_index(test_aux, False) == 10
+    assert HH._aux_index(test_aux) == 10
 
 
 def test_const_aux_edge():
@@ -415,7 +397,7 @@ def test_define_markovian_and_LE_filtered_triangular_hierarchy():
     HH = HHier(hierarchy_param, system_param)
     prefiltered_list_aux = HH.filter_aux_list(
         HH.define_markovian_and_LE_filtered_triangular_hierarchy(4,
-             4, [False, True, True, True], [False, False, True, True], 3, 1))
+             4, [False, True, True, True], [False, False, True, True], 1))
     unfiltered_list_aux = HH.define_triangular_hierarchy(4, 4)
     postfiltered_list_aux = HH.filter_aux_list(unfiltered_list_aux)
     assert set(prefiltered_list_aux) == set(postfiltered_list_aux)
@@ -424,7 +406,7 @@ def test_define_markovian_and_LE_filtered_triangular_hierarchy():
     # Case: number of modes greater than depth
     prefiltered_list_aux = HH.filter_aux_list(
         HH.define_markovian_and_LE_filtered_triangular_hierarchy(4,
-             3, [False, True, True, True], [False, False, True, True], 3, 1))
+             3, [False, True, True, True], [False, False, True, True], 1))
     unfiltered_list_aux = HH.define_triangular_hierarchy(4, 3)
     postfiltered_list_aux = HH.filter_aux_list(unfiltered_list_aux)
     assert set(prefiltered_list_aux) == set(postfiltered_list_aux)
@@ -433,7 +415,7 @@ def test_define_markovian_and_LE_filtered_triangular_hierarchy():
     # Case: number of modes less than depth
     prefiltered_list_aux = HH.filter_aux_list(
         HH.define_markovian_and_LE_filtered_triangular_hierarchy(4,
-             5, [False, True, True, True], [False, False, True, True], 3, 1))
+             5, [False, True, True, True], [False, False, True, True], 1))
     unfiltered_list_aux = HH.define_triangular_hierarchy(4, 5)
     postfiltered_list_aux = HH.filter_aux_list(unfiltered_list_aux)
     assert set(prefiltered_list_aux) == set(postfiltered_list_aux)
@@ -512,31 +494,3 @@ def test_add_connections():
     assert vector_030._dict_aux_p1 == {}
     assert vector_003._dict_aux_m1 == {2:vector_002}
     assert vector_003._dict_aux_p1 == {}
-
-
-def test_listobj_or_none():
-    """
-    Tests that listobj_or_none returns either the object at the correct hash
-    location or None.
-    """
-
-    vector_1000 = AuxVec([(0,1)], 4)
-    vector_0100 = AuxVec([(1,1)], 4)
-    vector_0010 = AuxVec([(2,1)], 4)
-    vector_0010_2 = AuxVec([(2,1)], 4)
-
-    list_vectors = [vector_1000, vector_0100, vector_0010, vector_0010_2]
-    list_hashes = [hash(vector) for vector in list_vectors]
-
-    # Test the return None clause
-    assert listobj_or_none(None, list_vectors, list_hashes) is None
-    assert listobj_or_none(1439, list_vectors, list_hashes) is None
-    assert listobj_or_none("Oh no! A string!", list_vectors, list_hashes) is None
-    # Test that the function can identify a vector by hash
-    assert listobj_or_none(list_hashes[0], list_vectors, list_hashes) is vector_1000
-    # Test that it is not just returning the first object
-    assert listobj_or_none(list_hashes[1], list_vectors, list_hashes) is vector_0100
-    # Test that the indexing will return the first object with the hash of interest
-    # if more than 1 exists
-    assert listobj_or_none(list_hashes[2], list_vectors, list_hashes) is vector_0010
-    assert listobj_or_none(list_hashes[3], list_vectors, list_hashes) is vector_0010

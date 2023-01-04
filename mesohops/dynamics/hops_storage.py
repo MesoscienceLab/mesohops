@@ -1,7 +1,7 @@
 import copy
 import numpy as np
-from pyhops.dynamics.storage_functions import storage_default_func as default_func
-from pyhops.util.exceptions import UnsupportedRequest
+from mesohops.dynamics.storage_functions import storage_default_func as default_func
+from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Storage Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
@@ -10,17 +10,17 @@ __version__ = "1.2"
 
 class HopsStorage:
     """
-    This is an object that manages storing information for a
-    HOPS trajectory.
+    This is an object that manages storing information for a HOPS trajectory.
     """
     def __init__(self, adaptive, storage_dic):
         """
-        INPUTS:
-        -------
+        Inputs
+        ------
         1. adaptive : bool
-                      a boolean to describe is the calculation is adaptive or not
+                      Boolean to describe is the calculation is adaptive or not.
+
         2. storage_dic : dict
-                         a dictionary of storage parameters
+                         Dictionary of storage parameters.
         """
         self._adaptive = False
         self._n_dim = 0
@@ -70,8 +70,6 @@ class HopsStorage:
 
         if self._adaptive:
             self.storage_dic.setdefault('aux_new', True)
-            self.storage_dic.setdefault('aux_stable', True)
-            self.storage_dic.setdefault('aux_bound', True)
             self.storage_dic.setdefault('state_list', True)
             self.storage_dic.setdefault('list_nhier', True)
             self.storage_dic.setdefault('list_nstate', True)
@@ -91,27 +89,25 @@ class HopsStorage:
 
     def store_step(self, **kwargs):
         """
-         This is the function that inserts data into the HopsStorage class at each
-         time point of the simulation.
+        Inserts data into the HopsStorage class at eachtime point of the simulation.
 
-         PARAMETERS
-         ----------
-         1. kwargs : any
-                     The following parameters are the default key word arguments that
-                     are currently being passed
-                     1. phi_new : np.array
-                                  the updated full hierarchy
-                     2. aux_new : list
-                                  a list of list defining the auxiliaries in the hierarchy basis
-                                  [aux_stable,aux_new,aux_bound]
-                     3. state_list : list
-                                    the list of current states in the system basis
-                     4. t_new : float
-                                the new time point (t+tau)
-                     5. z_mem_new : list
-                                    a list of memory values
+        Parameters
+        ----------
+        1. kwargs : any
+                    The following parameters are the default key word arguments that
+                    are currently being passed
+                    1. phi_new : np.array
+                                 the updated full hierarchy
+                    2. aux_new : list
+                                 a list of the current auxiliaries in the hierarchy basis
+                    3. state_list : list
+                                   the list of current states in the system basis
+                    4. t_new : float
+                               the new time point (t+tau)
+                    5. z_mem_new : list
+                                   a list of memory values
 
-         RETURNS
+         Returns
          -------
          None
          """

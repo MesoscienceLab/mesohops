@@ -1,5 +1,5 @@
-from pyhops.dynamics.noise_fft import FFTFilterNoise
-from pyhops.dynamics.noise_zero import ZeroNoise
+from mesohops.dynamics.noise_fft import FFTFilterNoise
+from mesohops.dynamics.noise_zero import ZeroNoise
 
 __title__ = "preparation functions"
 __author__ = "D. I. G. Bennett"
@@ -8,22 +8,23 @@ __version__ = "1.2"
 
 def prepare_noise(noise_param, system_param, flag=1):
     """
-    This is a function that will return the proper noise class given the user
-    inputs.
+    Return the proper noise class given the user inputs.
 
-    PARAMETERS
+    Parameters
     ----------
     1. noise_param : dict
-                     dictionary of noise parameter
-    2. system_param : dict
-                      dictionary of system parameters
-    3. flag : int
-              1-NOISE1 parameters, 2-NOISE2 parameters
+                     Dictionary of noise parameter.
 
-    RETURNS
+    2. system_param : dict
+                      Dictionary of system parameters.
+
+    3. flag : int
+              1-NOISE1 parameters, 2-NOISE2 parameters.
+
+    Returns
     -------
-    1. noise : HopsNoise object
-               an instantiation of HopsNoise based on user input
+    1. noise : instance(HopsNoise)
+
     """
     # DETERMINE CORRELATION PARAMETERS
     if flag == 1:

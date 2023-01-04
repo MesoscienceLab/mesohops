@@ -1,6 +1,6 @@
 import numpy as np
-import pyhops.dynamics.hierarchy_functions as HF
-from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxVec
+import mesohops.dynamics.hierarchy_functions as HF
+from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 
 __title__ = "Test of hierarchyFunctions"
 __author__ = "D. I. G. Bennett"

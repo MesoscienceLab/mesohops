@@ -1,6 +1,6 @@
 import numpy as np
-from pyhops.dynamics.bath_corr_functions import bcf_exp
-from pyhops.dynamics.hops_noise import HopsNoise
+from mesohops.dynamics.bath_corr_functions import bcf_exp
+from mesohops.dynamics.hops_noise import HopsNoise
 
 __title__ = "Test of hops_noise"
 __author__ = "Jacob K. Lynd"

@@ -1,8 +1,8 @@
 import numpy as np
 from scipy import sparse
-from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from pyhops.util.physical_constants import hbar, kB
-from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.util.physical_constants import hbar, kB
+from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 
 
 def const_gw_sysbath(nsite, e_lambda, gamma, temp, gamma_mark):
@@ -187,9 +187,7 @@ def test_adap_hier():
 
         # Note: Use this error when delta is multiplied by norm of phi
         # error_dnorm_comp.append((np.linalg.norm(D1_comp - D1_full_adap)/ np.linalg.norm(hops2.phi)))
-
-    for error in error_dnorm_comp:
-        assert error <= delta
+    assert np.all(np.array(error_dnorm_comp) <= delta)
 
 
 def test_adap_state():

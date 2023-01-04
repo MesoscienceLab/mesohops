@@ -17,7 +17,7 @@ class HopsSystem(object):
 
     def __init__(self, system_param):
         """
-        INPUTS
+        Inputs
         ------
         1. system_param : dict
                           A dictionary with the system and system-bath coupling
@@ -81,7 +81,7 @@ class HopsSystem(object):
             s. 'SPARSE_HAMILTONIAN' : sp.sparse.csc_martix
                                       the sparse representation of the Hamiltonian
 
-        RETURNS
+        Returns
         -------
         None
 
@@ -92,22 +92,24 @@ class HopsSystem(object):
         """
         self.param = self._initialize_system_dict(system_param)
         self.__ndim = self.param["NSTATES"]
+        self.__previous_state_list = None
+        self.__state_list = []
 
     def _initialize_system_dict(self, system_param):
         """
         This function is responsible for extending the user input to the
         complete set of parameters defined above.
 
-        PARAMETERS
+        Parameters
         ----------
         1. system_param : dict
-                          A dictionary with the system and system-bath coupling
+                          Dictionary with the system and system-bath coupling
                           parameters defined.
 
-        RETURNS
+        Returns
         -------
         1. param_dict : dict
-                        a dictionary containing the user input and the derived parameters
+                        Dictionary containing the user input and the derived parameters
         """
         param_dict = copy.deepcopy(system_param)
         param_dict["NSTATES"] = len(system_param["HAMILTONIAN"][0])
@@ -183,18 +185,18 @@ class HopsSystem(object):
 
     def initialize(self, flag_adaptive, psi_0):
         """
-        This function creates a state list depending on whether the calculation
-        is adaptive or not
+        Creates a state list depending on whether the calculation is adaptive or not.
 
-        PARAMETERS
+        Parameters
         ----------
         1. flag_adaptive : boolean
-                           a boolean that defines the adaptivity
-                           True: Adaptive, False: Static
-        2. psi_0 : np.array
-                   the initial user inputted wave function
+                           Boolean that defines the adaptivity
+                           True: Adaptive, False: Static.
 
-        RETURNS
+        2. psi_0 : np.array
+                   Initial user inputted wave function.
+
+        Returns
         -------
         None
         """
@@ -208,17 +210,17 @@ class HopsSystem(object):
     @staticmethod
     def _array_to_tuple(array):
         """
-        This function converts an inputted array to a tuple
+        Converts an inputted array to a tuple.
 
-        PARAMETERS
+        Parameters
         ----------
         1. array : np.array
-                   a numpy array
+                   Numpy array.
 
-        RETURNS
+        Returns
         -------
         1. tuple : tuple
-                   array in tuple form
+                   Array in tuple form.
         """
         if sp.sparse.issparse(array):
             if array.getnnz() > 0:
@@ -234,32 +236,21 @@ class HopsSystem(object):
     @staticmethod
     def _get_states_from_L2(lop):
         """
-        This function fetches the states that the L operators interacts with
+        Fetches the states that the L operators interacts with.
 
-        PARAMETERS
+        Parameters
         ----------
         1. lop : array
-                 an L2 operator
+                 L2 operator.
 
-        RETURNS
+        Returns
         -------
         1. tuple : tuple
-                   a tuple of states that correspond the the specific L operator
+                   Tuple of states that correspond to the specific L operator.
         """
 
-        try:
-            tmp = np.abs(lop) > 0
-            i_x, i_y = np.where(tmp)
-            i_test = []
-            i_test.extend(i_x)
-            i_test.extend(i_y)
-        except:
-            sparse_lop = sp.sparse.find(np.abs(lop))
-            i_test = []
-            i_test.append(sparse_lop[0][0])
-            i_test.append(sparse_lop[1][0])
-
-        return tuple(set(i_test))
+        i_x, i_y = np.nonzero(lop)
+        return tuple(set(i_x) | set(i_y))
 
     @property
     def size(self):
@@ -270,139 +261,105 @@ class HopsSystem(object):
         return self.__state_list
 
     @state_list.setter
-    def state_list(self, state_list):
-        # Update Local Indexing
-        # ------------------------
-        # state_list is the indexing system for states (takes i_rel --> i_abs)
-        # list_absindex_L2 is the indexing system for L2 (takes i_rel --> i_abs)
-        # list_absindex_mode is the indexing system for hierarchy modes (takes i_rel --> i_abs)
-        state_list.sort()
-        self.__state_list = np.array(state_list)
-        self._list_absindex_L2 = np.array(
-            [
-                i_lop
-                for i_lop in range(self.param["N_L2"])
-                if self.param["LIST_STATE_INDICES_BY_INDEX_L2"][i_lop][0]
-                in self.state_list
-            ]
+    def state_list(self, new_state_list):
+        # Construct information about pevious timestep
+        # --------------------------------------------
+        self.__previous_state_list = self.__state_list
+        self.__list_add_state = list(set(new_state_list) - set(self.__previous_state_list ))
+        self.__list_add_state.sort()
+        self.__list_stable_state = list(
+            set(self.__previous_state_list ).intersection(set(new_state_list))
         )
-        self._list_absindex_mode = np.array(
-            [
-                i_mod
-                for i_mod in range(self.param["N_HMODES"])
-                if self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod][0]
-                in self.state_list
-            ]
-        )
+        self.__list_stable_state.sort()
 
-        # Update Local Properties
-        # -----------------------
-        # The following variables are in the relative basis
-        self._hamiltonian = self.param["HAMILTONIAN"][
-            np.ix_(self.state_list, self.state_list)
-        ]
-        self._n_hmodes = len(self._list_absindex_mode)
-        self._g = np.array(self.param["G"])[self._list_absindex_mode]
-        self._w = np.array(self.param["W"])[self._list_absindex_mode]
-        self._n_l2 = len(self._list_absindex_L2)
-        self._list_L2_coo = np.array(
-            [
-                self.reduce_sparse_matrix(self.param["LIST_L2_COO"][k], self.state_list)
-                for k in self._list_absindex_L2
-            ]
-        )
-        self._list_L2_csc = [self._list_L2_coo[i].tocsc() for i in range(self._n_l2)]
-        self._list_index_L2_by_hmode = [
-            list(self._list_absindex_L2).index(
-                self.param["LIST_INDEX_L2_BY_HMODE"][imod]
+        if set(new_state_list) != set(self.__previous_state_list):
+            # Prepare New State List
+            # ----------------------
+            new_state_list.sort()
+            self.__state_list = np.array(new_state_list)
+
+            # Update Local Indexing
+            # ----------------------
+            # state_list is the indexing system for states (takes i_rel --> i_abs)
+            # list_absindex_L2_active is the indexing system for L2 (takes i_rel --> i_abs)
+            # list_absindex_state_modes is the indexing system for hierarchy modes (takes i_rel --> i_abs)
+            self.__list_absindex_state_modes = np.array(
+                [
+                    i_mod
+                    for i_mod in range(self.param["N_HMODES"])
+                    if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod],
+                                  self.state_list)) != 0
+                ]
             )
-            for imod in self._list_absindex_mode
-        ]
-        # ASSUMING: L = L^*
-        self._list_state_indices_by_hmode = np.array(
-            [
-                tuple(set(sp_mat.row))
-                for sp_mat in self._list_L2_coo[self._list_index_L2_by_hmode]
+
+            self.__list_absindex_L2_active = np.array(
+                [
+                    i_lop
+                    for i_lop in range(self.param["N_L2"])
+                    if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_INDEX_L2"][i_lop],
+                                  self.state_list)) != 0
+                ]
+            )
+
+            # Update Local Properties
+            # -----------------------
+            self._hamiltonian = self.param["HAMILTONIAN"][
+                np.ix_(self.__state_list, self.__state_list)
             ]
-        )
-        # ASSUMING: L = L^*
-        self._list_state_indices_by_index_L2 = np.array(
-            [
-                tuple(set(sp_mat.row))
-                for sp_mat in self._list_L2_coo
-            ]
-        )
+
+    @property
+    def previous_state_list(self):
+        return self.__previous_state_list
+
+    @property
+    def list_stable_state(self):
+        return self.__list_stable_state
+
+    @property
+    def list_add_state(self):
+        return self.__list_add_state
 
     @property
     def hamiltonian(self):
         return self._hamiltonian
 
     @property
-    def n_hmodes(self):
-        return self._n_hmodes
+    def list_absindex_state_modes(self):
+        return self.__list_absindex_state_modes
 
     @property
-    def g(self):
-        return self._g
-
-    @property
-    def w(self):
-        return self._w
-
-    @property
-    def n_l2(self):
-        return self._n_l2
-
-    @property
-    def list_state_indices_by_hmode(self):
-        return self._list_state_indices_by_hmode
-
-    @property
-    def list_state_indices_by_index_L2(self):
-        return self._list_state_indices_by_index_L2
-
-    @property
-    def list_L2_coo(self):
-        return self._list_L2_coo
-    @property
-    def list_L2_csc(self):
-        return self._list_L2_csc
-    @property
-    def list_index_L2_by_hmode(self):
-        return self._list_index_L2_by_hmode
-
-    @property
-    def list_absindex_L2(self):
-        return self._list_absindex_L2
-
-    @property
-    def list_absindex_mode(self):
-        return self._list_absindex_mode
+    def list_absindex_L2_active(self):
+        return self.__list_absindex_L2_active
 
     @staticmethod
     def reduce_sparse_matrix(coo_mat, state_list):
         """
-        This function takes in a sparse matrix and list which represents the absolute
+        Takes in a sparse matrix and list which represents the absolute
         state to a new relative state represented in a sparse matrix
 
-        NOTE: This function assumes that all states associated with the non-zero
-        elements of the sparse matrix are present in the state list!
-
-        PARAMETERS
+        Parameters
         ----------
         1. coo_mat : scipy sparse matrix
-                     a sparse matrix
-        2. state_list : list
-                       a list of relative index
+                     Sparse matrix.
 
-        RETURNS
+        2. state_list : list
+                       List of relative index.
+
+        Returns
         -------
         1. sparse : np.array
-                    sparse matrix in relative basis
+                    Sparse matrix in relative basis.
         """
-        coo_row = [list(state_list).index(i) for i in coo_mat.row]
-        coo_col = [list(state_list).index(i) for i in coo_mat.col]
-        coo_data = coo_mat.data
-        return sp.sparse.coo_matrix(
-            (coo_data, (coo_row, coo_col)), shape=(len(state_list), len(state_list))
-        )
+        coo_tuple = np.array([(i, j, data) for (i,j,data) in zip(coo_mat.row, coo_mat.col, coo_mat.data)
+                               if ((i in state_list) and (j in state_list))])
+        if len(coo_tuple) == 0:
+            return sp.sparse.coo_matrix((len(state_list), len(state_list)))
+        else:
+            coo_tuple = np.atleast_2d(coo_tuple)
+            coo_row = [list(state_list).index(i) for i in coo_tuple[:,0]]
+            coo_col = [list(state_list).index(i) for i in coo_tuple[:,1]]
+            coo_data = coo_tuple[:,2]
+
+            return sp.sparse.coo_matrix(
+                (coo_data, (coo_row, coo_col)), shape=(len(state_list), len(state_list))
+            )

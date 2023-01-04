@@ -1,9 +1,9 @@
 import pytest
 import numpy as np
-from pyhops.dynamics.bath_corr_functions import bcf_exp
-from pyhops.dynamics.noise_fft import FFTFilterNoise
-from pyhops.util.exceptions import UnsupportedRequest, LockedException
-from pyhops.util.physical_constants import hbar
+from mesohops.dynamics.bath_corr_functions import bcf_exp
+from mesohops.dynamics.noise_fft import FFTFilterNoise
+from mesohops.util.exceptions import UnsupportedRequest, LockedException
+from mesohops.util.physical_constants import hbar
 
 
 __title__ = "Test of noise_fft"
@@ -197,7 +197,7 @@ def test_prepare_rand():
     g_rands = random_numbers[:, np.array(g_index)]
     phi_rands = random_numbers[:, np.array(phi_index)]
     test_prepared_random = np.complex64(
-        np.sqrt(-np.log(g_rands)) * np.exp(2.0j * np.pi * phi_rands))
+        np.sqrt(-2*np.log(g_rands)) * np.exp(2.0j * np.pi * phi_rands))
     assert np.allclose(test_prepared_random, test_rand_int_seed)
 
 

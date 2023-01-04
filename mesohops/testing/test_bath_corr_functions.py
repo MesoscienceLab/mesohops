@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from pyhops.dynamics.bath_corr_functions import *
-from pyhops.util.physical_constants import kB, hbar
+from mesohops.dynamics.bath_corr_functions import *
+from mesohops.util.physical_constants import kB, hbar
 
 def test_bcf_convert_to_sdl():
     """

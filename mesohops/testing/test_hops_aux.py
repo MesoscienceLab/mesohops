@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from pyhops.dynamics.hops_aux import AuxiliaryVector
-from pyhops.util.exceptions import AuxError
+from mesohops.dynamics.hops_aux import AuxiliaryVector
+from mesohops.util.exceptions import AuxError
 
 
 def test_auxvec_ordering():
@@ -128,38 +128,6 @@ def test_get_values_nonzero():
     values = aux_101010.get_values_nonzero([2, 3, 4, 5])
     known_values = np.array([1, 1])
     assert np.array_equal(values, known_values)
-
-
-def test_hash_from_estep():
-    """
-    This function test that the returns the hash of a new Auxiliary Vector
-    with the desired step in the given mode is the correct hash
-    """
-    # Define constants
-    aux_2000 = AuxiliaryVector([(0, 2)], 4)
-    aux_1001 = AuxiliaryVector([(0, 1), (3, 1)], 4)
-    aux_1011 = AuxiliaryVector([(0, 1), (2, 1), (3, 1)], 4)
-    aux_1000 = AuxiliaryVector([(0, 1)], 4)
-    aux_0000 = AuxiliaryVector([], 4)
-    hash_m1 = hash(((0, -1),))
-
-    # test when step = 0
-    assert aux_1000.hash == aux_1000.hash_from_e_step(3, 0)
-    assert aux_0000.hash == aux_0000.hash_from_e_step(0, 0)
-    assert aux_1011.hash == aux_1011.hash_from_e_step(2, 0)
-
-    # test when step = 1
-    assert aux_1001.hash == aux_1000.hash_from_e_step(3, 1)
-    assert aux_2000.hash == aux_1000.hash_from_e_step(0, 1)
-    assert aux_1000.hash == aux_0000.hash_from_e_step(0, 1)
-    assert aux_1011.hash == aux_1001.hash_from_e_step(2, 1)
-
-    # test when step = -1
-    assert hash_m1 == aux_0000.hash_from_e_step(0, -1)
-    assert aux_0000.hash == aux_1000.hash_from_e_step(0, -1)
-    assert aux_1000.hash == aux_2000.hash_from_e_step(0, -1)
-    assert aux_1000.hash == aux_1001.hash_from_e_step(3, -1)
-    assert aux_1001.hash == aux_1011.hash_from_e_step(2, -1)
 
 
 def test_e_step():
@@ -362,3 +330,272 @@ def test_difference_by_mode():
     # Test when the two HopsAux objects don't belong to the same hierarchy
     with pytest.raises(AssertionError):
         aux_10130.difference_by_mode(aux_1013)
+
+
+def test_construct_identity_str():
+    aux = AuxiliaryVector([], 4)
+    aux_01 = AuxiliaryVector([(0, 1), (1, 1)], 2)
+    aux_1012 = AuxiliaryVector([(0, 1), (2, 1), (3, 2)], 4)
+    aux_3012 = AuxiliaryVector([(0, 3), (2, 1), (3, 2)], 4)
+    aux_2012 = AuxiliaryVector([(0, 2), (2, 1), (3, 2)], 4)
+    aux_1112 = AuxiliaryVector([(0, 1), (1, 1), (2, 1), (3, 2)], 4)
+    aux_1022 = AuxiliaryVector([(0, 1), (2, 2), (3, 2)], 4)
+    aux_1013 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 4)
+    aux_10130 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 5)
+
+    identity_str = aux.identity_string
+    identity_str_01 = aux_01.identity_string
+    identity_str_1012 = aux_1012.identity_string
+    identity_str_3012 = aux_3012.identity_string
+    identity_str_2012 = aux_2012.identity_string
+    identity_str_1112 = aux_1112.identity_string
+    identity_str_1022 = aux_1022.identity_string
+    identity_str_1013 = aux_1013.identity_string
+    identity_str_10130 = aux_10130.identity_string
+
+    assert identity_str == ''
+    assert identity_str_01 == '01'
+    assert identity_str_1012 == '0233'
+    assert identity_str_3012 == '000233'
+    assert identity_str_2012 == '00233'
+    assert identity_str_1112 == '01233'
+    assert identity_str_1022 == '02233'
+    assert identity_str_1013 == '02333'
+    assert identity_str_10130 == '02333'
+
+    aux = AuxiliaryVector([], 400)
+    aux_01 = AuxiliaryVector([(0, 1), (1, 1)], 200)
+    aux_1012 = AuxiliaryVector([(0, 1), (2, 1), (300, 2)], 400)
+    aux_3012 = AuxiliaryVector([(0, 3), (3, 2), (200, 1)], 400)
+    aux_2012 = AuxiliaryVector([(0, 2), (2, 1), (3, 2)], 400)
+    aux_1112 = AuxiliaryVector([(0, 1), (1, 1), (2, 1), (3, 2)], 400)
+    aux_1022 = AuxiliaryVector([(0, 1), (2, 2), (300, 2)], 400)
+    aux_1013 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 400)
+    aux_10130 = AuxiliaryVector([(0, 1), (3, 3), (20, 1)], 500)
+
+    identity_str = aux.identity_string
+    identity_str_01 = aux_01.identity_string
+    identity_str_1012 = aux_1012.identity_string
+    identity_str_3012 = aux_3012.identity_string
+    identity_str_2012 = aux_2012.identity_string
+    identity_str_1112 = aux_1112.identity_string
+    identity_str_1022 = aux_1022.identity_string
+    identity_str_1013 = aux_1013.identity_string
+    identity_str_10130 = aux_10130.identity_string
+
+    assert identity_str == ''
+    assert identity_str_01 == '000001'
+    assert identity_str_1012 == '000002300300'
+    assert identity_str_3012 == '000000000003003200'
+    assert identity_str_2012 == '000000002003003'
+    assert identity_str_1112 == '000001002003003'
+    assert identity_str_1022 == '000002002300300'
+    assert identity_str_1013 == '000002003003003'
+    assert identity_str_10130 == '000003003003020'
+    
+
+def test_get_list_identity_string_up():
+    aux = AuxiliaryVector([], 4)
+    aux_01 = AuxiliaryVector([(0, 1), (1, 1)], 2)
+    aux_0233 = AuxiliaryVector([(0, 1), (2, 1), (3, 2)], 4)
+    aux_000233 = AuxiliaryVector([(0, 3), (2, 1), (3, 2)], 4)
+    aux_00233 = AuxiliaryVector([(0, 2), (2, 1), (3, 2)], 4)
+    aux_01233 = AuxiliaryVector([(0, 1), (1, 1), (2, 1), (3, 2)], 4)
+    aux_02233 = AuxiliaryVector([(0, 1), (2, 2), (3, 2)], 4)
+    aux_02333 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 4)
+    aux_02333_2 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 5)
+
+    # First test function using all modes
+
+    identity_str_up = aux.get_list_identity_string_up([0, 1])
+    identity_str_up_01 = aux_01.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_0233 = aux_0233.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_000233 = aux_000233.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_00233 = aux_00233.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_01233 = aux_01233.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_02233 = aux_02233.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_02333 = aux_02333.get_list_identity_string_up([0, 1, 2, 3])
+    identity_str_up_02333_2 = aux_02333_2.get_list_identity_string_up([0, 1, 2, 3, 4])
+
+    assert np.all(identity_str_up[0] == ['0', '1'])
+    assert np.all(identity_str_up[1] == [0, 0])
+
+    assert np.all(identity_str_up_01[0] == ['001', '011', '012', '013'])
+    assert np.all(identity_str_up_01[1] == [1, 1, 0, 0])
+
+    assert np.all(identity_str_up_0233[0] == ['00233', '01233', '02233', '02333'])
+    assert np.all(identity_str_up_0233[1] == [1, 0, 1, 2])
+
+    assert np.all(identity_str_up_000233[0] == ['0000233', '0001233', '0002233', '0002333'])
+    assert np.all(identity_str_up_000233[1] == [3, 0, 1, 2])
+
+    assert np.all(identity_str_up_00233[0] == ['000233', '001233', '002233', '002333'])
+    assert np.all(identity_str_up_00233[1] == [2, 0, 1, 2])
+
+    assert np.all(identity_str_up_01233[0] == ['001233', '011233', '012233', '012333'])
+    assert np.all(identity_str_up_01233[1] == [1, 1, 1, 2])
+
+    assert np.all(identity_str_up_02233[0] == ['002233', '012233', '022233', '022333'])
+    assert np.all(identity_str_up_02233[1] == [1, 0, 2, 2])
+
+    assert np.all(identity_str_up_02333[0] == ['002333', '012333', '022333', '023333'])
+    assert np.all(identity_str_up_02333[1] == [1, 0, 1, 3])
+
+    assert np.all(
+        identity_str_up_02333_2[0] == ['002333', '012333', '022333', '023333', '023334'])
+    assert np.all(identity_str_up_02333_2[1] == [1, 0, 1, 3, 0])
+
+    # Now test function using some or only unoccupied modes
+
+    identity_str_up = aux.get_list_identity_string_up([1])
+    identity_str_up_01 = aux_01.get_list_identity_string_up([1, 2])
+    identity_str_up_0233 = aux_0233.get_list_identity_string_up([1])
+    identity_str_up_000233 = aux_000233.get_list_identity_string_up([1, 2, 3])
+    identity_str_up_00233 = aux_00233.get_list_identity_string_up([2])
+    identity_str_up_01233 = aux_01233.get_list_identity_string_up([0, 1])
+    identity_str_up_02233 = aux_02233.get_list_identity_string_up([0, 1])
+    identity_str_up_02333 = aux_02333.get_list_identity_string_up([4])
+    identity_str_up_02333_2 = aux_02333_2.get_list_identity_string_up([5, 6])
+
+    assert np.all(identity_str_up[0] == ['1'])
+    assert np.all(identity_str_up[1] == [0])
+
+    assert np.all(identity_str_up_01[0] == ['011', '012'])
+    assert np.all(identity_str_up_01[1] == [1, 0])
+
+    assert np.all(identity_str_up_0233[0] == ['01233'])
+    assert np.all(identity_str_up_0233[1] == [0])
+
+    assert np.all(identity_str_up_000233[0] == ['0001233', '0002233', '0002333'])
+    assert np.all(identity_str_up_000233[1] == [0, 1, 2])
+
+    assert np.all(identity_str_up_00233[0] == ['002233'])
+    assert np.all(identity_str_up_00233[1] == [1])
+
+    assert np.all(identity_str_up_01233[0] == ['001233', '011233'])
+    assert np.all(identity_str_up_01233[1] == [1, 1])
+
+    assert np.all(identity_str_up_02233[0] == ['002233', '012233'])
+    assert np.all(identity_str_up_02233[1] == [1, 0])
+
+    assert np.all(identity_str_up_02333[0] == ['023334'])
+    assert np.all(identity_str_up_02333[1] == [0])
+
+    assert np.all(identity_str_up_02333_2[0] == ['023335', '023336'])
+    assert np.all(identity_str_up_02333_2[1] == [0, 0])
+
+
+def test_get_list_identity_string_down():
+    aux = AuxiliaryVector([], 4)
+    aux_01 = AuxiliaryVector([(0, 1), (1, 1)], 2)
+    aux_1012 = AuxiliaryVector([(0, 1), (2, 1), (3, 2)], 4)
+    aux_3012 = AuxiliaryVector([(0, 3), (2, 1), (3, 2)], 4)
+    aux_2012 = AuxiliaryVector([(0, 2), (2, 1), (3, 2)], 4)
+    aux_1112 = AuxiliaryVector([(0, 1), (1, 1), (2, 1), (3, 2)], 4)
+    aux_1022 = AuxiliaryVector([(0, 1), (2, 2), (3, 2)], 4)
+    aux_1013 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 4)
+    aux_10130 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 5)
+
+
+    identity_str_down_01 = aux_01.get_list_identity_string_down()
+    identity_str_down_1012 = aux_1012.get_list_identity_string_down()
+    identity_str_down_3012 = aux_3012.get_list_identity_string_down()
+    identity_str_down_2012 = aux_2012.get_list_identity_string_down()
+    identity_str_down_1112 = aux_1112.get_list_identity_string_down()
+    identity_str_down_1022 = aux_1022.get_list_identity_string_down()
+    identity_str_down_1013 = aux_1013.get_list_identity_string_down()
+    identity_str_down_10130 = aux_10130.get_list_identity_string_down()
+
+
+    assert np.all(identity_str_down_01[0] == ['1', '0'])
+    assert np.all(identity_str_down_01[1] == [1, 1])
+    assert np.all(identity_str_down_01[2] == [0, 1])
+
+    assert np.all(identity_str_down_1012[0] == ['233', '033', '023'])
+    assert np.all(identity_str_down_1012[1] == [1, 1, 2])
+    assert np.all(identity_str_down_1012[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_3012[0] == ['00233', '00033', '00023'])
+    assert np.all(identity_str_down_3012[1] == [3, 1, 2])
+    assert np.all(identity_str_down_3012[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_2012[0] == ['0233', '0033', '0023'])
+    assert np.all(identity_str_down_2012[1] == [2, 1, 2])
+    assert np.all(identity_str_down_2012[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_1112[0] == ['1233', '0233', '0133', '0123'])
+    assert np.all(identity_str_down_1112[1] == [1, 1, 1, 2])
+    assert np.all(identity_str_down_1112[2] == [0, 1, 2, 3])
+
+    assert np.all(identity_str_down_1022[0] == ['2233', '0233', '0223'])
+    assert np.all(identity_str_down_1022[1] == [1, 2, 2])
+    assert np.all(identity_str_down_1022[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_1013[0] == ['2333', '0333', '0233'])
+    assert np.all(identity_str_down_1013[1] == [1, 1, 3])
+    assert np.all(identity_str_down_1013[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_10130[0] == ['2333', '0333', '0233'])
+    assert np.all(identity_str_down_10130[1] == [1, 1, 3])
+    assert np.all(identity_str_down_10130[2] == [0, 2, 3])
+
+    aux = AuxiliaryVector([], 400)
+    aux_000001 = AuxiliaryVector([(0, 1), (1, 1)], 200)
+    aux_000002300300 = AuxiliaryVector([(0, 1), (2, 1), (300, 2)], 400)
+    aux_000000000003003200 = AuxiliaryVector([(0, 3), (3, 2), (200, 1)], 400)
+    aux_000000002003003 = AuxiliaryVector([(0, 2), (2, 1), (3, 2)], 400)
+    aux_000001002003003 = AuxiliaryVector([(0, 1), (1, 1), (2, 1), (3, 2)], 400)
+    aux_000002002300300 = AuxiliaryVector([(0, 1), (2, 2), (300, 2)], 400)
+    aux_000002003003003 = AuxiliaryVector([(0, 1), (2, 1), (3, 3)], 400)
+    aux_0003030320 = AuxiliaryVector([(0, 1), (3, 3), (20, 1)], 50)
+
+
+    identity_str_down_000001 = aux_000001.get_list_identity_string_down()
+    identity_str_down_000002300300 = aux_000002300300.get_list_identity_string_down()
+    identity_str_down_000000000003003200 = aux_000000000003003200.get_list_identity_string_down()
+    identity_str_down_000000002003003 = aux_000000002003003.get_list_identity_string_down()
+    identity_str_down_000001002003003 = aux_000001002003003.get_list_identity_string_down()
+    identity_str_down_000002002300300 = aux_000002002300300.get_list_identity_string_down()
+    identity_str_down_000002003003003 = aux_000002003003003.get_list_identity_string_down()
+    identity_str_down_0003030320 = aux_0003030320.get_list_identity_string_down()
+
+
+
+    assert np.all(identity_str_down_000001[0] == ['001', '000'])
+    assert np.all(identity_str_down_000001[1] == [1, 1])
+    assert np.all(identity_str_down_000001[2] == [0, 1])
+
+    assert np.all(
+        identity_str_down_000002300300[0] == ['002300300', '000300300', '000002300'])
+    assert np.all(identity_str_down_000002300300[1] == [1, 1, 2])
+    assert np.all(identity_str_down_000002300300[2] == [0, 2, 300])
+
+    assert np.all(
+        identity_str_down_000000000003003200[0] == ['000000003003200', '000000000003200',
+                                                '000000000003003'])
+    assert np.all(identity_str_down_000000000003003200[1] == [3, 2, 1])
+    assert np.all(identity_str_down_000000000003003200[2] == [0, 3, 200])
+
+    assert np.all(identity_str_down_000000002003003[0] == ['000002003003', '000000003003',
+                                                       '000000002003'])
+    assert np.all(identity_str_down_000000002003003[1] == [2, 1, 2])
+    assert np.all(identity_str_down_000000002003003[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_000001002003003[0] == ['001002003003', '000002003003',
+                                                       '000001003003', '000001002003'])
+    assert np.all(identity_str_down_000001002003003[1] == [1, 1, 1, 2])
+    assert np.all(identity_str_down_000001002003003[2] == [0, 1, 2, 3])
+
+    assert np.all(identity_str_down_000002002300300[0] == ['002002300300', '000002300300',
+                                                       '000002002300'])
+    assert np.all(identity_str_down_000002002300300[1] == [1, 2, 2])
+    assert np.all(identity_str_down_000002002300300[2] == [0, 2, 300])
+
+    assert np.all(identity_str_down_000002003003003[0] == ['002003003003', '000003003003',
+                                                       '000002003003'])
+    assert np.all(identity_str_down_000002003003003[1] == [1, 1, 3])
+    assert np.all(identity_str_down_000002003003003[2] == [0, 2, 3])
+
+    assert np.all(identity_str_down_0003030320[0] == ['03030320', '00030320', '00030303'])
+    assert np.all(identity_str_down_0003030320[1] == [1, 3, 1])
+    assert np.all(identity_str_down_0003030320[2] == [0, 3, 20])

@@ -1,12 +1,12 @@
 import numpy as np
 import scipy as sp
-from pyhops.dynamics.hops_aux import AuxiliaryVector as AuxVec
-from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from pyhops.dynamics.hops_storage import HopsStorage
-from pyhops.dynamics.noise_fft import FFTFilterNoise as FFTFN
-from pyhops.dynamics.noise_zero import ZeroNoise
-from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
-from pyhops.util.physical_constants import precision  # constant
+from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
+from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.dynamics.hops_storage import HopsStorage
+from mesohops.dynamics.noise_fft import FFTFilterNoise as FFTFN
+from mesohops.dynamics.noise_zero import ZeroNoise
+from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
 __author__ = "D. I. G. Bennett"
@@ -375,7 +375,7 @@ def test_inchworm_aux():
     aux_list = hops_inchworm.auxiliary_list
     known_aux_list = map_to_auxvec([(0, 0, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1)])
     assert set(aux_list) == set(known_aux_list)
-    z_step = hops_inchworm._prepare_zstep(2.0, hops_inchworm.z_mem) #hops_inchworm.storage.z_mem
+    z_step = hops_inchworm._prepare_zstep(hops_inchworm.z_mem)  #hops_inchworm.storage.z_mem
     (state_update, aux_update) = hops_inchworm.basis.define_basis(
         hops_inchworm.phi, 2.0, z_step
     )
@@ -385,7 +385,7 @@ def test_inchworm_aux():
     state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
-    aux_new = aux_update[0]
+    aux_new = aux_update
     known = map_to_auxvec(
         [
             (0, 0, 0, 0),
@@ -403,33 +403,13 @@ def test_inchworm_aux():
         ]
     )
     assert set(aux_new) == set(known)
-
-    state_aux = aux_update[1]
-    known = map_to_auxvec([(0, 0, 0, 1), (0, 0, 0, 0), (0, 0, 1, 0)])
-    assert set(state_aux) == set(known)
-
-    add_aux = aux_update[2]
-    known = map_to_auxvec(
-        [
-            (0, 0, 0, 2),
-            (0, 0, 1, 1),
-            (0, 0, 2, 0),
-            (0, 1, 0, 0),
-            (0, 1, 0, 1),
-            (0, 1, 1, 0),
-            (1, 0, 0, 0),
-            (1, 0, 0, 1),
-            (1, 0, 1, 0),
-        ]
-    )
-    assert set(known) == set(add_aux)
 
     # Second inchworm
     # ----------------------------------------------------------------------------------
     state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
-    aux_new = aux_update[0]
+    aux_new = aux_update
     known = map_to_auxvec(
         [
             (0, 0, 0, 0),
@@ -470,58 +450,13 @@ def test_inchworm_aux():
         ]
     )
     assert set(aux_new) == set(known)
-
-    stable_aux = aux_update[1]
-    known = map_to_auxvec(
-        [
-            (0, 0, 0, 0),
-            (0, 0, 0, 1),
-            (0, 0, 0, 2),
-            (0, 0, 1, 0),
-            (0, 0, 1, 1),
-            (0, 0, 2, 0),
-            (0, 1, 0, 0),
-            (0, 1, 0, 1),
-            (0, 1, 1, 0),
-            (1, 0, 0, 0),
-            (1, 0, 0, 1),
-            (1, 0, 1, 0),
-        ]
-    )
-    assert set(stable_aux) == set(known)
-
-    add_aux = aux_update[2]
-    known = map_to_auxvec(
-        [
-            (0, 0, 0, 3),
-            (0, 0, 1, 2),
-            (0, 0, 2, 1),
-            (0, 0, 3, 0),
-            (0, 1, 0, 2),
-            (0, 1, 1, 1),
-            (0, 1, 2, 0),
-            (0, 2, 0, 0),
-            (0, 2, 0, 1),
-            (0, 2, 1, 0),
-            (1, 0, 0, 2),
-            (1, 0, 1, 1),
-            (1, 0, 2, 0),
-            (1, 1, 0, 0),
-            (1, 1, 0, 1),
-            (1, 1, 1, 0),
-            (2, 0, 0, 0),
-            (2, 0, 0, 1),
-            (2, 0, 1, 0),
-        ]
-    )
-    assert set(known) == set(add_aux)
 
     # Third inchworm
     # ----------------------------------------------------------------------------------
     state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
-    aux_new = aux_update[0]
+    aux_new = aux_update
     known = map_to_auxvec(
         [
             (0, 0, 0, 0),
@@ -592,86 +527,6 @@ def test_inchworm_aux():
         ]
     )
     assert set(aux_new) == set(known)
-
-    stable_aux = aux_update[1]
-    known = map_to_auxvec(
-        [
-            (0, 0, 0, 0),
-            (0, 0, 0, 1),
-            (0, 0, 0, 2),
-            (0, 0, 0, 3),
-            (0, 0, 1, 0),
-            (0, 0, 1, 1),
-            (0, 0, 1, 2),
-            (0, 0, 2, 0),
-            (0, 0, 2, 1),
-            (0, 0, 3, 0),
-            (0, 1, 0, 0),
-            (0, 1, 0, 1),
-            (0, 1, 0, 2),
-            (0, 1, 1, 0),
-            (0, 1, 1, 1),
-            (0, 1, 2, 0),
-            (0, 2, 0, 0),
-            (0, 2, 0, 1),
-            (0, 2, 1, 0),
-            (1, 0, 0, 0),
-            (1, 0, 0, 1),
-            (1, 0, 0, 2),
-            (1, 0, 1, 0),
-            (1, 0, 1, 1),
-            (1, 0, 2, 0),
-            (1, 1, 0, 0),
-            (1, 1, 0, 1),
-            (1, 1, 1, 0),
-            (2, 0, 0, 0),
-            (2, 0, 0, 1),
-            (2, 0, 1, 0),
-        ]
-    )
-    assert set(stable_aux) == set(known)
-
-    add_aux = aux_update[2]
-    known = map_to_auxvec(
-        [
-            (0, 0, 0, 4),
-            (0, 0, 1, 3),
-            (0, 0, 2, 2),
-            (0, 0, 3, 1),
-            (0, 0, 4, 0),
-            (0, 1, 0, 3),
-            (0, 1, 1, 2),
-            (0, 1, 2, 1),
-            (0, 1, 3, 0),
-            (0, 2, 0, 2),
-            (0, 2, 1, 1),
-            (0, 2, 2, 0),
-            (0, 3, 0, 0),
-            (0, 3, 0, 1),
-            (0, 3, 1, 0),
-            (1, 0, 0, 3),
-            (1, 0, 1, 2),
-            (1, 0, 2, 1),
-            (1, 0, 3, 0),
-            (1, 1, 0, 2),
-            (1, 1, 1, 1),
-            (1, 1, 2, 0),
-            (1, 2, 0, 0),
-            (1, 2, 0, 1),
-            (1, 2, 1, 0),
-            (2, 0, 0, 2),
-            (2, 0, 1, 1),
-            (2, 1, 0, 0),
-            (2, 1, 0, 1),
-            (2, 1, 1, 0),
-            (3, 0, 0, 0),
-            (3, 0, 1, 0),
-            (3, 0, 0, 1),
-            (2, 0, 2, 0),
-        ]
-    )
-    assert set(known) == set(add_aux)
-
 
 def test_inchworm_state():
     """
@@ -757,7 +612,7 @@ def test_inchworm_state():
     known_state_list = [1, 2, 3]
     assert tuple(state_list) == tuple(known_state_list)
 
-    z_step = hops_inchworm._prepare_zstep(2.0, hops_inchworm.z_mem) #hops_inchworm.storage.z_mem
+    z_step = hops_inchworm._prepare_zstep(hops_inchworm.z_mem)  #hops_inchworm.storage.z_mem
     (state_update, aux_update) = hops_inchworm.basis.define_basis(
         hops_inchworm.phi, 2.0, z_step
     )
@@ -767,51 +622,28 @@ def test_inchworm_state():
     state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
-    state_new = state_update[0]
+    state_new = state_update
     known = [0, 1, 2, 3, 4]
     assert np.array_equal(state_new, known)
-
-    state_stable = state_update[1]
-    known = [1, 2, 3]
-    assert np.array_equal(state_stable, known)
-
-    add_state = state_update[2]
-    known = [0, 4]
-    assert np.array_equal(add_state, known)
 
     # Second inchworm step
     # ----------------------------------------------------------------------------------
     state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
-    state_new = state_update[0]
+    state_new = state_update
     known = [0, 1, 2, 3, 4, 5]
     assert np.array_equal(state_new, known)
-
-    state_stable = state_update[1]
-    known = [0, 1, 2, 3, 4]
-    assert np.array_equal(state_stable, known)
-
-    add_state = state_update[2]
-    known = [5]
-    assert np.array_equal(add_state, known)
 
     # Third inchworm step
     # ----------------------------------------------------------------------------------
     state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
-    state_new = state_update[0]
+    state_new = state_update
     known = [0, 1, 2, 3, 4, 5, 6]
     assert np.array_equal(state_new, known)
 
-    state_stable = state_update[1]
-    known = [0, 1, 2, 3, 4, 5]
-    assert np.array_equal(state_stable, known)
-
-    add_state = state_update[2]
-    known = [6]
-    assert np.array_equal(add_state, known)
 
 
 def test_prepare_zstep():
@@ -819,7 +651,7 @@ def test_prepare_zstep():
     test for preparing the noise terms for the next time step
     """
     noise_param = {
-        "SEED": np.array([[1,1,2,2,3,3,4,4,5,5],[6,6,7,7,8,8,9,9,10,10]]),
+        "SEED": np.array([[1,1,2,2,3,3,4,4,5,5],[6,6,7,7,8,8,9,9,10,10]])*np.sqrt(2),
         "MODEL": "FFT_FILTER",
         "TLEN": 5.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
@@ -835,9 +667,10 @@ def test_prepare_zstep():
     hops.initialize(psi_0)
     z_mem_init = np.array([1,1,1,1])
     tau = 2
-    zran1, zrand2,z_mem = hops._prepare_zstep(tau,z_mem_init)
-    known_zran1 = np.array([[36.341675, 97.45899]],dtype=np.float32)
-
+    hops.noise1._noise = np.array([[1, 2, 3, 4, 5, 6],
+                                   [7, 8, 9, 10, 11, 12]])
+    zran1, zrand2,z_mem = hops._prepare_zstep(z_mem_init)
+    known_zran1 = np.array([1, 7])
     assert np.allclose(zran1,known_zran1)
     assert np.allclose(zrand2,np.zeros(2))
     assert np.array_equal(z_mem_init,z_mem)

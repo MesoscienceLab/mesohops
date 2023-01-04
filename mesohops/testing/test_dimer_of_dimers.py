@@ -2,9 +2,9 @@ import os
 import numpy as np
 import scipy as sp
 from scipy import sparse
-from pyhops.dynamics.hops_trajectory import HopsTrajectory as HOPS
-from pyhops.dynamics.eom_hops_ksuper import _permute_aux_by_matrix
-from pyhops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.dynamics.eom_hops_ksuper import _permute_aux_by_matrix
+from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 
 __title__ = "Test of eom_integrator_rk_nonlin_norm"
 __author__ = "D. I. G. Bennett"
@@ -303,7 +303,7 @@ def test_hops_adaptive_dynamics_partial():
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
         _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
-        for index_l2 in hops_ah.basis.system.list_absindex_L2
+        for index_l2 in hops_ah.basis.mode.list_absindex_L2
     ]
 
     # Compare reduced hops to adhops super operators
@@ -343,7 +343,7 @@ def test_hops_adaptive_dynamics_partial():
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
         _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
-        for index_l2 in hops_ah.basis.system.list_absindex_L2
+        for index_l2 in hops_ah.basis.mode.list_absindex_L2
     ]
 
     # Compare reduced hops to adhops super operators
@@ -357,7 +357,7 @@ def test_hops_adaptive_dynamics_partial():
             for (Z2_kp1_hops, Z2_kp1_adhops) in zip(Zp1, hops_ah.basis.eom.Z2_kp1)
         ]
     )
-    
+
     # Test adaptive system and adaptive hierarchy
     # ===========================================
     hops_ah = HOPS(
@@ -383,7 +383,7 @@ def test_hops_adaptive_dynamics_partial():
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
         _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
-        for index_l2 in hops_ah.basis.system.list_absindex_L2
+        for index_l2 in hops_ah.basis.mode.list_absindex_L2
     ]
 
     # Compare reduced hops to adhops super operators
@@ -397,4 +397,5 @@ def test_hops_adaptive_dynamics_partial():
             for (Z2_kp1_hops, Z2_kp1_adhops) in zip(Zp1, hops_ah.basis.eom.Z2_kp1)
         ]
     )
+
 
