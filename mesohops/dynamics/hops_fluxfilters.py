@@ -189,11 +189,11 @@ class HopsFluxFilters:
         """
         F2_filter = np.zeros([self.n_hmodes, self.n_hier])
         for aux in list_aux_bound:
-            ident_strings_up, hash_values, mode_connects = \
-                aux.get_list_identity_string_up(self.mode.list_absindex_mode)
-            for (rel_ind, my_ident_str) in enumerate(ident_strings_up):
-                if (hash(my_ident_str) in self.hierarchy.aux_by_hash.keys()):
-                    aux_up = self.hierarchy.aux_by_hash[hash(my_ident_str)]
+            hashes_up, hash_values, mode_connects = \
+                aux.get_list_hash_up(self.mode.list_absindex_mode)
+            for (rel_ind, my_hash) in enumerate(hashes_up):
+                if (my_hash in self.hierarchy.aux_by_hash.keys()):
+                    aux_up = self.hierarchy.aux_by_hash[my_hash]
                     F2_filter[rel_ind, aux_up._index] = 1
         return F2_filter
 
@@ -216,10 +216,10 @@ class HopsFluxFilters:
         """
         F2_filter = np.zeros([self.n_hmodes, self.n_hier])
         for aux in list_aux_bound:
-            ident_strings_down, hash_values, mode_connects = aux.get_list_identity_string_down()
-            for (rel_ind, my_ident_str) in enumerate(ident_strings_down):
-                if (hash(my_ident_str) in self.hierarchy.aux_by_hash.keys()):
-                    aux_down = self.hierarchy.aux_by_hash[hash(my_ident_str)]
+            hashes_down, hash_values, mode_connects = aux.get_list_hash_down()
+            for (rel_ind, my_hash) in enumerate(hashes_down):
+                if (my_hash in self.hierarchy.aux_by_hash.keys()):
+                    aux_down = self.hierarchy.aux_by_hash[my_hash]
                     F2_filter[list(self.mode.list_absindex_mode).index(mode_connects[
                                                                   rel_ind]), aux_down._index] = 1
         return F2_filter
@@ -264,7 +264,7 @@ class HopsFluxFilters:
             # wave functions along Markovian modes
             # ---------------------------------------------
             aux0 = self.hierarchy.auxiliary_list[0]
-            mark_aux1 = np.array([self.hierarchy.auxiliary_list.index(aux0.dict_aux_p1[mode]) for mode in aux0.dict_aux_p1.keys()
+            mark_aux1 = np.array([aux0.dict_aux_p1[mode]._index for mode in aux0.dict_aux_p1.keys()
                                   if mode in self.mode.list_absindex_mode[np.where(
                     array_mark_mode)[0]]])
             if len(mark_aux1) > 0:

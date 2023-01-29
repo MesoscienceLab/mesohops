@@ -201,7 +201,7 @@ def test_const_aux_edge():
 
 
 # a function created to be used to test define_triangular_hierarchy
-def map_to_auxvec(list_aux):
+def map_to_auxvec(list_aux, n_hmodes):
     """
     Helper function that maps a list of auxiliary indexing vectors to a list of
     AuxVec objects with those indexing vectors.
@@ -222,7 +222,7 @@ def map_to_auxvec(list_aux):
     for aux_values in list_aux:
         aux_key = np.where(aux_values)[0]
         list_aux_vec.append(
-            AuxVec([tuple([key, aux_values[key]]) for key in aux_key], 4)
+            AuxVec([tuple([key, aux_values[key]]) for key in aux_key], n_hmodes)
         )
     return list_aux_vec
 
@@ -300,7 +300,7 @@ aux_list_4_4 = map_to_auxvec(
         [2, 2, 0, 0],
         [3, 1, 0, 0],
         [4, 0, 0, 0],
-    ]
+    ], 4
 )
 
 aux_list_2_4 = map_to_auxvec(
@@ -320,7 +320,7 @@ aux_list_2_4 = map_to_auxvec(
         [2, 2],
         [1, 3],
         [0, 4],
-    ]
+    ], 2
 )
 
 

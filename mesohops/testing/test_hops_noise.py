@@ -3,7 +3,7 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp
 from mesohops.dynamics.hops_noise import HopsNoise
 
 __title__ = "Test of hops_noise"
-__author__ = "Jacob K. Lynd"
+__author__ = "J. K. Lynd"
 __version__ = "1.2"
 __date__ = "July 7 2021"
 
@@ -94,8 +94,7 @@ def test_initialize():
     # Test that the keys overlap excepting T_AXIS (added by HopsNoise) and
     # STORE_RAW_NOISE (added by FFTFilterNoise)
     assert set(list(noise_param.keys()) + list(noise_corr_working.keys()) + [
-        'T_AXIS']) == set(
-        test_noise.param.keys())
+        'T_AXIS', 'RAND_MODEL', 'STORE_RAW_NOISE']) == set(test_noise.param.keys())
 
 
 def test_get_noise():

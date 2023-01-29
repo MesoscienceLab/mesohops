@@ -3,7 +3,7 @@ from mesohops.util.physical_constants import precision
 
 
 __title__ = "EOM Functions"
-__author__ = "D. I. G. Bennett"
+__author__ = "D. I. G. Bennett, J. K. Lynd"
 __version__ = "1.2"
 
 
@@ -191,3 +191,99 @@ def calc_norm_corr(
         delta += (np.conj(phi_0) @ phi_1) * list_avg_L2[l_ind]
 
     return np.real(delta)
+
+def calc_LT_corr(
+    list_LT_coeff, list_L2, list_avg_L2, physical = False
+):
+    """
+    This function computes the low-temperature correction factor associated with each
+    member of the hierarchy in the nonlinear equation of motion. The factor is given by
+    the sum over the low-temperature correction coefficients and associated
+    L-operators c_n and L_n:
+    \sum_n (2<L_n>Re[c_n] - L_nc_n)L_n
+    Where c_n is the nth low-temperature correction factor, and L_n is the nth
+    L-operator associated with that factor.
+
+    PARAMETERS
+    ----------
+    1. list_LT_coeff : list
+                       relative list of low-temperature coefficients
+    2. list_L2 : list
+                 relative list of active L operators
+    3. list_avg_L2 : list
+                     relative list of the expectation values of the active L operators
+    4. physical : boolean
+                  Determines if this correction is to be applied to the physical
+                  wavefunction or elsewhere
+    RETURNS
+    -------
+    1. C2_corr : np.array
+                 the low-temperature correction self-derivative term
+    """
+    # Adds the terminated flux from above to the physical wavefunction
+    if physical:
+        return np.sum(np.array([(list_LT_coeff[n]*list_avg_L2[n]*np.eye(
+        list_L2[n].shape[0]) - list_LT_coeff[n]*list_L2[n])@list_L2[n] for n in
+                            range(len(list_LT_coeff))]), axis=0)
+    # Adds the delta-approximated noise memory drift to all members of the hierarchy
+    else:
+        return np.sum(np.array([(np.conj(list_LT_coeff[n])*list_avg_L2[n]*np.eye(
+        list_L2[n].shape[0]))@list_L2[n] for n in range(len(list_LT_coeff))]), axis=0)
+
+def calc_LT_corr_to_norm_corr(
+    list_LT_coeff, list_avg_L2, list_avg_L2_sq
+):
+    """
+    This function computes the low-temperature correction to the normalization factor in
+    the normalized nonlinear equation of motion. The correction is given by the sum
+    over the low-temperature correction coefficients and associated L-operators c_n
+    and L_n:
+    \sum_n Re[c_n](2<L_n>^2 - <L_n^2>)
+    Where c_n is the nth low-temperature correction factor, and L_n is the nth
+    L-operator associated with that factor.
+
+    PARAMETERS
+    ----------
+    1. list_LT_coeff : list
+                       relative list of low-temperature coefficients
+    2. list_avg_L2 : list
+                     relative list of the expectation values of the L operators
+    3. list_avg_L2_sq : list
+                        relative list of the expectation values of the squared L
+                       operators
+    RETURNS
+    -------
+    1. delta_corr : float
+                    the low-temperature correction to the normalization correction
+                    factor
+    """
+    return np.sum(np.array([
+    np.real(list_LT_coeff[j])*(2*list_avg_L2[j]**2 - list_avg_L2_sq[j])
+        for j in range(len(list_LT_coeff))]))
+
+def calc_LT_corr_linear(
+    list_LT_coeff, list_L2
+):
+    """
+    This function computes the low-temperature correction factor associated with each
+    member of the hierarchy in the linear equation of motion. The factor is given by
+    the sum over the low-temperature correction coefficients and associated
+    L-operators c_n and L_n:
+    -\sum_n c_nL_n^2
+    Where c_n is the nth low-temperature correction factor, and L_n is the nth
+    L-operator associated with that factor.
+    NOTE: this correction should only be applied to the physical wavefunction.
+
+    PARAMETERS
+    ----------
+    1. list_LT_coeff : list
+                       relative list of low-temperature coefficients
+    2. list_L2 : list
+                 relative list of L operators
+    RETURNS
+    -------
+    1. C2_corr : np.array
+                 the low-temperature correction self-derivative term
+    """
+    return -1*np.sum(np.array([(list_LT_coeff[n])*list_L2[n]@list_L2[n] for n in
+                            range(len(list_LT_coeff))]),axis=0)

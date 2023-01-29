@@ -1,6 +1,6 @@
 import numpy as np
 from mesohops.dynamics.bath_corr_functions import bcf_exp
-from mesohops.dynamics.noise_fft import FFTFilterNoise
+from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.dynamics.noise_trajectories import NumericNoiseTrajectory
 
 __title__ = "Test of noise_trajectories"
@@ -53,7 +53,7 @@ noise_corr = {
 
 t_axis = np.arange(0, 1001.0, 1.0)
 
-noise_obj = FFTFilterNoise(noise_param, noise_corr)
+noise_obj = HopsNoise(noise_param, noise_corr)
 noise_obj.prepare_noise()
 test_noise = noise_obj.get_noise(t_axis)
 

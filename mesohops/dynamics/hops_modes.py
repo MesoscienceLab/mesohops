@@ -15,9 +15,6 @@ class HopsModes:
         self.__list_absindex_mode = []
         self._list_absindex_L2 = []
 
-    @property
-    def list_state_indices_by_hmode(self):
-        return self._list_state_indices_by_hmode
 
     @property
     def list_index_L2_by_hmode(self):
@@ -28,10 +25,6 @@ class HopsModes:
         return np.size(self.list_absindex_mode)
 
     @property
-    def list_state_indices_by_index_L2(self):
-        return self._list_state_indices_by_index_L2
-
-    @property
     def list_L2_coo(self):
         return self._list_L2_coo
 
@@ -39,6 +32,9 @@ class HopsModes:
     def list_L2_csc(self):
         return self._list_L2_csc
 
+    @property
+    def list_L2_diag(self):
+        return self._list_L2_diag
     @property
     def n_l2(self):
         return self._n_l2
@@ -58,6 +54,7 @@ class HopsModes:
     @property
     def list_index_mode_active(self):
         return self._list_index_mode_active
+
     @property
     def g(self):
         return self._g
@@ -65,6 +62,10 @@ class HopsModes:
     @property
     def w(self):
         return self._w
+
+    @property
+    def lt_corr_param(self):
+        return self.system._lt_corr_param
 
     @property
     def list_absindex_mode(self):
@@ -104,7 +105,7 @@ class HopsModes:
 
         self._g = np.array(self.system.param["G"])[self.__list_absindex_mode]
         self._w = np.array(self.system.param["W"])[self.__list_absindex_mode]
-
+        
         self._list_L2_coo = np.array(
             [
                 self.system.reduce_sparse_matrix(self.system.param["LIST_L2_COO"][k],
@@ -113,19 +114,8 @@ class HopsModes:
             ]
         )
 
-        # ASSUMING: L = L^*
-        self._list_state_indices_by_hmode = np.array(
-            [tuple(set(sp_mat.row)) for sp_mat in
-                self.list_L2_coo[self._list_index_L2_by_hmode]])
-
         self._n_l2 = len(self._list_absindex_L2)
-
-        self._list_L2_csc = [self._list_L2_coo[i].tocsc() for i in range(self._n_l2)]
-
-        # ASSUMING: L = L^*
-        self._list_state_indices_by_index_L2 = np.array(
-            [
-                tuple(set(sp_mat.row))
-                for sp_mat in self._list_L2_coo
-            ]
-        )
+        self._list_L2_csc = [self._list_L2_coo[i].tocsr() for i in range(self._n_l2)]
+        self._list_L2_diag = [self._list_L2_coo[i].diagonal() for i in range(self._n_l2)] #only works for diagonal L operators
+        
+        

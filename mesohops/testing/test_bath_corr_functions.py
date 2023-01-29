@@ -34,12 +34,12 @@ def test_bcf_convert_dl_to_exp_with_Matsubara():
     assert bcf_convert_dl_to_exp_with_Matsubara(e_lambda, gamma, temp, 0) == \
            list(bcf_convert_sdl_to_exp(e_lambda, gamma, 0, temp))
     # Tests that the function returns a list with 2 entries per mode
-    kmats_1000 = bcf_convert_dl_to_exp_with_Matsubara(e_lambda, gamma, temp, 1000)
-    assert len(kmats_1000) == 2002
+    kmats_10000 = bcf_convert_dl_to_exp_with_Matsubara(e_lambda, gamma, temp, 10000)
+    assert len(kmats_10000) == 20002
     # Test that Matsubara modes are correct
-    for n in range(3,len(kmats_1000),2):
-        assert kmats_1000[n] == mats_const*(n-1)/2
-    # Test that 1000 Matsubara modes properly returns the correct hyperbolic
+    for n in range(3,len(kmats_10000),2):
+        assert kmats_10000[n] == mats_const*(n-1)/2
+    # Test that 10000 Matsubara modes properly returns the correct hyperbolic
     # cotangent real portion of the low-temperature mode's constant prefactor
-    np.testing.assert_allclose(np.real(kmats_1000[0]), e_lambda*gamma/np.tanh(
-        gamma/kB/temp/2), atol=100, rtol=1e-4)
+    np.testing.assert_allclose(np.real(kmats_10000[0]), e_lambda*gamma/np.tan(
+        gamma/kB/temp/2))

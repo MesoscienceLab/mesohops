@@ -1,8 +1,7 @@
-from mesohops.dynamics.noise_fft import FFTFilterNoise
-from mesohops.dynamics.noise_zero import ZeroNoise
+from mesohops.dynamics.hops_noise import HopsNoise
 
 __title__ = "preparation functions"
-__author__ = "D. I. G. Bennett"
+__author__ = "D. I. G. Bennett, J. K. Lynd"
 __version__ = "1.2"
 
 
@@ -46,9 +45,7 @@ def prepare_noise(noise_param, system_param, flag=1):
 
     # Instantiate a HopsNoise subclass
     # --------------------------------
-    if noise_param["MODEL"] == "FFT_FILTER":
-        return FFTFilterNoise(noise_param, noise_corr)
-    elif noise_param["MODEL"] == "ZERO":
-        return ZeroNoise(noise_param, noise_corr)
+    if noise_param["MODEL"] == "FFT_FILTER" or noise_param["MODEL"] == "ZERO":
+        return HopsNoise(noise_param, noise_corr)
     else:
         raise Exception("MODEL of NoiseDict is not known!")

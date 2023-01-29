@@ -18,6 +18,8 @@ noise_param = {
     "MODEL": "FFT_FILTER",
     "TLEN": 25000.0,  # Units: fs
     "TAU": 1.0,  # Units: fs
+    "STORE_RAW_NOISE" : True,
+    "RAND_MODEL" : "BOX_MULLER"
 }
 
 nsite = 4
@@ -208,7 +210,8 @@ def test_eta():
     """
     eta_desk = np.load(path_data + "/eta.npy")
     alpha_lap = hops.noise1._corr_func_by_lop_taxis(hops.noise1.param["T_AXIS"])
-    z_correlated = hops.noise1._construct_correlated_noise(alpha_lap, hops.noise1._prepare_rand())[0,:]
+    z_correlated = hops.noise1._construct_correlated_noise(alpha_lap,
+                                            hops.noise1.param["Z_UNCORRELATED"])[0, :]
     np.testing.assert_allclose(z_correlated, eta_desk, rtol=1E-3)
 
 
@@ -224,7 +227,7 @@ def test_hops_dynamics():
         + "dimer_of_dimers/traj_dimer_of_dimers.npy"
     )
     traj_dod = np.load(path)
-    np.testing.assert_allclose(hops.storage.data['psi_traj'][25], traj_dod[25], rtol=1E-3)
+    np.testing.assert_allclose(hops.storage.data['psi_traj'][25], traj_dod[25], rtol=1E-5)
 
 
 def test_hops_adaptive_dynamics_full():
@@ -317,7 +320,7 @@ def test_hops_adaptive_dynamics_partial():
             for (Z2_kp1_hops, Z2_kp1_adhops) in zip(Zp1, hops_ah.basis.eom.Z2_kp1)
         ]
     )
-    
+
     # Test adaptive system
     # ====================
     hops_ah = HOPS(

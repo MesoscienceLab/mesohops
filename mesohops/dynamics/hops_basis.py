@@ -567,7 +567,7 @@ class HopsBasis:
             nonzero_modes_up = E2_flux_up[:,i_aux].nonzero()[0]
             if(len(nonzero_modes_up) > 0):
                 #Get the hash_string values for boundary auxiliaries up along modes with nonzero flux
-                hashes_up, value_connects,mode_connects = aux.get_list_identity_string_up(self.list_absindex_mode[nonzero_modes_up])
+                hashes_up, value_connects,mode_connects = aux.get_list_hash_up(self.list_absindex_mode[nonzero_modes_up])
                 for (hash_ind,my_hash) in enumerate(hashes_up):
                     #For each hash_string up, add the flux error to its entry in the boundary_aux_dict dictionary.
                     #We assume that the filter is constructed correctly and that these are all indeed boundary auxiliaries.
@@ -582,7 +582,7 @@ class HopsBasis:
             # Flux Down Error
             nonzero_modes_down = self.list_absindex_mode[E2_flux_down[:,i_aux].nonzero()[0]]
             if(len(nonzero_modes_down) > 0):
-                hashes_down, value_connects, mode_connects = aux.get_list_identity_string_down()
+                hashes_down, value_connects, mode_connects = aux.get_list_hash_down()
                 for (hash_ind,my_hash) in enumerate(hashes_down):
                     
                     try: 
@@ -711,12 +711,16 @@ class HopsBasis:
 
     @property
     def M2_mode_from_state(self):
-        M2_mode_from_state = np.zeros([self.n_hmodes, self.n_state])
-        for (index_mode, list_states) in enumerate(
-                self.mode.list_state_indices_by_hmode):
-            if len(list_states) > 0:
-                M2_mode_from_state[index_mode, np.array(list_states)] = 1
-        return M2_mode_from_state
+        Row = []
+        Col = []
+        Data = []
+        for mode in range(self.n_hmodes):
+            Row += [mode] * len(self.mode.list_L2_coo[self.mode.list_index_L2_by_hmode[mode]].row)
+            Col += list(self.mode.list_L2_coo[self.mode.list_index_L2_by_hmode[mode]].col)
+            Data += list(self.mode.list_L2_coo[self.mode.list_index_L2_by_hmode[mode]].data)
+        return sparse.csc_matrix(
+	          (Data, (Row, Col,),),shape=(self.n_hmodes,self.n_state),
+        )
 
     @property
     def K2_aux_by_mode(self):

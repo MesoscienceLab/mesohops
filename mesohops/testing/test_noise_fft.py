@@ -1,12 +1,12 @@
 import pytest
 import numpy as np
 from mesohops.dynamics.bath_corr_functions import bcf_exp
-from mesohops.dynamics.noise_fft import FFTFilterNoise
+from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.util.exceptions import UnsupportedRequest, LockedException
 from mesohops.util.physical_constants import hbar
 
 
-__title__ = "Test of noise_fft"
+__title__ = "Test of FFT_FILTER noise model"
 __author__ = "J. K. Lynd"
 __version__ = "1.2"
 __date__ = "July 7 2021"
@@ -14,8 +14,8 @@ __date__ = "July 7 2021"
 
 
 
-# Test Noise Model
-# ----------------
+# Test FFT_FILTER Noise Model of the HopsNoise object.
+# ----------------------------------------------------
 noise_param = {
     "SEED": 0,
     "MODEL": "FFT_FILTER",
@@ -45,9 +45,9 @@ sys_param["LIND_DICT"] = {0: loperator[0, :, :], 1: loperator[1, :, :]}
 
 def test_noiseModel():
     """
-    Tests that FFTFilterNoise produces reproducible noise trajectories when seeded,
-    each seed produces a unique noise trajectories, and that the noise trajectory is
-    the correct size and shape
+    Tests that HopsNoise with the FFT_Filter model produces reproducible noise
+    trajectories when seeded, each seed produces a unique noise trajectories,
+    and that the noise trajectory is the correct size and shape.
     """
     noise_param = {
         "SEED": 0,
@@ -55,68 +55,72 @@ def test_noiseModel():
         "TLEN": 10.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
     }
+    noise_param_interpolated = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "INTERPOLATE": True
+    }
     noise_corr = {
         "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
         "N_L2": sys_param["N_L2"],
         "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
-    noiseModel = FFTFilterNoise(noise_param, noise_corr)
+    noiseModel = HopsNoise(noise_param, noise_corr)
     noiseModel.prepare_noise()
     assert noiseModel.param["T_AXIS"][-1] == 10.0
     testnoise1 = noiseModel.get_noise(np.arange(10.0))[0, :]
-    testnoise2 = FFTFilterNoise(noise_param, noise_corr).get_noise(np.arange(10.0))[
+    testnoise2 = HopsNoise(noise_param, noise_corr).get_noise(np.arange(10.0))[
                  0, :]
     noise_param["SEED"] = 1
-    testnoise3 = FFTFilterNoise(noise_param, noise_corr).get_noise(np.arange(10.0))[
+    testnoise3 = HopsNoise(noise_param, noise_corr).get_noise(np.arange(10.0))[
                  0, :]
-
+    testnoise_interp = HopsNoise(noise_param_interpolated, noise_corr).get_noise(
+        np.arange(10.0))[0, :]
+    testnoise_interp_step = HopsNoise(noise_param_interpolated,
+                                      noise_corr).get_noise([0.3, 1.2, 2.4, 3.1, 4.5,
+                                                             5.6, 6.3, 7.9, 8.7])[0, :]
     assert np.allclose(testnoise1, testnoise2)
     assert not np.allclose(testnoise1, testnoise3)
+    assert np.allclose(testnoise1, testnoise_interp)
+    for i in range(len(testnoise_interp_step)):
+        sample_noise = testnoise_interp_step[i]
+        assert (np.real(sample_noise) > np.real(testnoise1)[i] and np.real(
+            sample_noise) < np.real(testnoise1)[i+1]) or \
+               (np.real(sample_noise) < np.real(testnoise1)[i] and np.real(
+                   sample_noise) > np.real(testnoise1[i+1]))  or \
+            np.allclose(np.real(testnoise1[i]), np.real(sample_noise), rtol=5e-2) or \
+               np.allclose(np.real(testnoise1[i+1]), np.real(sample_noise), rtol=5e-2)
+        assert (np.imag(sample_noise) > np.imag(testnoise1)[i] and np.imag(
+            sample_noise) < np.imag(testnoise1)[i + 1]) or \
+               (np.imag(sample_noise) < np.imag(testnoise1)[i] and np.imag(
+                   sample_noise) > np.imag(testnoise1[i + 1])) or \
+               np.allclose(np.imag(testnoise1[i]), np.imag(sample_noise), rtol=5e-2) or \
+               np.allclose(np.imag(testnoise1[i + 1]), np.imag(sample_noise), rtol=5e-2)
     assert np.size(noiseModel.get_noise(noiseModel.param["T_AXIS"])) == np.size(
         noiseModel.param["T_AXIS"])*noiseModel.param["N_L2"]
-
-
-def test_construct_indexing():
-    """
-    Tests that the _construct_indexing function constructs the correct indexing.
-    """
-    noise_param = {
-        "SEED": 0,
-        "MODEL": "FFT_FILTER",
-        "TLEN": 10.0,  # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
-    noise_corr = {
-        "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
-        "N_L2": sys_param["N_L2"],
-        "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
-        "CORR_PARAM": sys_param["PARAM_NOISE1"],
-    }
-    test_noise = FFTFilterNoise(noise_param, noise_corr)
-    biglength = 1000
-    for smalllength in range(0, biglength):
-        g_indexbig, phi_indexbig = test_noise._construct_indexing(biglength)
-        g_indexsmall, phi_indexsmall = test_noise._construct_indexing(smalllength)
-        assert g_indexbig[0:smalllength] == g_indexsmall[0:smalllength]
-        assert phi_indexbig[0:smalllength] == phi_indexsmall[0:smalllength]
 
 def test_correlated_noise_consistency():
     """
     Tests that the correlated noise trajectory is the same regardless of noise
     trajectory length. The noise trajectories produced should be extremely close.
     """
+    # Our version of the Box-Muller
     noise_param_short = {
         "SEED": 0,
         "MODEL": "FFT_FILTER",
         "TLEN": 100000.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "BOX_MULLER",
     }
     noise_param_long = {
         "SEED": 0,
         "MODEL": "FFT_FILTER",
         "TLEN": 200000.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "BOX_MULLER",
     }
     noise_corr = {
         "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
@@ -124,27 +128,56 @@ def test_correlated_noise_consistency():
         "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
-    test_noise_short = FFTFilterNoise(noise_param_short, noise_corr)
-    test_noise_long = FFTFilterNoise(noise_param_long, noise_corr)
+    test_noise_short = HopsNoise(noise_param_short, noise_corr)
+    test_noise_long = HopsNoise(noise_param_long, noise_corr)
     np.testing.assert_allclose(test_noise_short.get_noise(np.arange(10)),
-                       test_noise_long.get_noise(np.arange(10)), rtol=1E-4)
+                               test_noise_long.get_noise(np.arange(10)))
+
+    # Sum Gaussian version of the Box-Muller
+    noise_param_short = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 100000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "SUM_GAUSSIAN",
+    }
+    noise_param_long = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 200000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "SUM_GAUSSIAN",
+    }
+    noise_corr = {
+        "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
+        "N_L2": sys_param["N_L2"],
+        "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
+        "CORR_PARAM": sys_param["PARAM_NOISE1"],
+    }
+    test_noise_short = HopsNoise(noise_param_short, noise_corr)
+    test_noise_long = HopsNoise(noise_param_long, noise_corr)
+    np.testing.assert_allclose(test_noise_short.get_noise(np.arange(10)),
+                               test_noise_long.get_noise(np.arange(10)))
 
 def test_uncorrelated_noise_consistency():
     """
     Tests that the uncorrelated noise trajectory is the same regardless of noise
     trajectory length. The noise trajectories produced should be exactly identical.
     """
+    # Our version of the Box-Muller
     noise_param_short = {
         "SEED": 0,
         "MODEL": "FFT_FILTER",
         "TLEN": 10000.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "BOX_MULLER",
     }
     noise_param_long = {
         "SEED": 0,
         "MODEL": "FFT_FILTER",
         "TLEN": 20000.0,  # Units: fs
         "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "BOX_MULLER",
     }
     noise_corr = {
         "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
@@ -152,12 +185,45 @@ def test_uncorrelated_noise_consistency():
         "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
-    test_noise_short = FFTFilterNoise(noise_param_short, noise_corr)
-    test_noise_long = FFTFilterNoise(noise_param_long, noise_corr)
-    assert np.shape(test_noise_short._prepare_rand()) == (2,20000)
-    assert np.shape(test_noise_long._prepare_rand()) == (2,40000)
-    np.testing.assert_allclose(test_noise_short._prepare_rand()[:,:10],
-                       test_noise_long._prepare_rand()[:,:10], atol=1e-15, rtol=1e-15)
+    test_noise_short = HopsNoise(noise_param_short, noise_corr)._prepare_rand()
+    test_noise_long = HopsNoise(noise_param_long, noise_corr)._prepare_rand()
+    assert np.shape(test_noise_short) == (2, 20000)
+    assert np.shape(test_noise_long) == (2, 40000)
+    # Must re-initialize HopsNoise object or use the noise trajectory directly,
+    # re-running _prepare_rand will cause the values to change.
+    np.testing.assert_allclose(test_noise_short[:, :10],
+                               test_noise_long[:, :10], atol=1e-15, rtol=1e-15)
+
+
+    # Sum Gaussian version of the Box-Muller
+    noise_param_short = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "SUM_GAUSSIAN",
+    }
+    noise_param_long = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 20000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "RAND_MODEL": "SUM_GAUSSIAN",
+    }
+    noise_corr = {
+        "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
+        "N_L2": sys_param["N_L2"],
+        "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
+        "CORR_PARAM": sys_param["PARAM_NOISE1"],
+    }
+    test_noise_short = HopsNoise(noise_param_short, noise_corr)._prepare_rand()
+    test_noise_long = HopsNoise(noise_param_long, noise_corr)._prepare_rand()
+    assert np.shape(test_noise_short) == (2, 20000)
+    assert np.shape(test_noise_long) == (2, 40000)
+    # Must re-initialize HopsNoise object or use the noise trajectory directly,
+    # re-running _prepare_rand will cause the values to change.
+    np.testing.assert_allclose(test_noise_short[:, :10],
+                               test_noise_long[:, :10], atol=1e-15, rtol=1e-15)
 
 
 def test_prepare_rand():
@@ -183,50 +249,97 @@ def test_prepare_rand():
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
     noise_param["SEED"] = 0
-    test_noise = FFTFilterNoise(noise_param, noise_corr)
+    test_noise = HopsNoise(noise_param, noise_corr)
     test_rand_int_seed = test_noise._prepare_rand()
-    assert np.allclose(test_rand_int_seed, FFTFilterNoise(noise_param,
-                                                          noise_corr)._prepare_rand())
+    assert np.allclose(test_rand_int_seed, HopsNoise(noise_param,
+                                                     noise_corr)._prepare_rand())
 
-    # Manually test that the code does as it says with a certain seed
+    noise_param["RAND_MODEL"] = "BOX_MULLER"
+    test_noise_BM_old = HopsNoise(noise_param, noise_corr)
+    test_rand_int_seed_BM_old = test_noise_BM_old._prepare_rand()
+    assert np.allclose(test_rand_int_seed_BM_old, HopsNoise(noise_param,
+                                                     noise_corr)._prepare_rand())
+
+    assert not np.allclose(test_rand_int_seed, test_rand_int_seed_BM_old)
+
+    # Manually test that the code does as it says with a certain seed - sum Gaussian
+    # Box Muller
+    randstate = np.random.RandomState(seed=noise_param['SEED'])
+
+    index_a, index_b = test_noise._construct_indexing(len(test_noise.param['T_AXIS']))
+    random_gauss = randstate.normal(loc=0, size=(4 * (len(test_noise.param['T_AXIS']) - 1),
+                                    test_noise.param["N_L2"])).T
+    random_real = random_gauss[:, np.array(index_a)]
+    random_imag = random_gauss[:, np.array(index_b)]
+    test_prepared_random = np.complex64(random_real + 1j*random_imag)
+    print(test_prepared_random)
+    assert np.allclose(test_prepared_random, test_rand_int_seed)
+
+    # Manually test that the code does as it says with a certain seed - our
+    # implementation of Box Muller
     randstate = np.random.RandomState(seed=noise_param['SEED'])
 
     random_numbers = randstate.rand(4 * (len(test_noise.param['T_AXIS']) - 1),
                                     test_noise.param["N_L2"]).T
-    g_index, phi_index = test_noise._construct_indexing(len(test_noise.param['T_AXIS']))
-    g_rands = random_numbers[:, np.array(g_index)]
-    phi_rands = random_numbers[:, np.array(phi_index)]
+    g_rands = random_numbers[:, np.array(index_a)]
+    phi_rands = random_numbers[:, np.array(index_b)]
     test_prepared_random = np.complex64(
         np.sqrt(-2*np.log(g_rands)) * np.exp(2.0j * np.pi * phi_rands))
-    assert np.allclose(test_prepared_random, test_rand_int_seed)
-
+    assert np.allclose(test_prepared_random, test_rand_int_seed_BM_old)
 
     noise_param["SEED"] = None
-    test_noise = FFTFilterNoise(noise_param, noise_corr)
+    test_noise = HopsNoise(noise_param, noise_corr)
     test_rand_unseeded = test_noise._prepare_rand()
     assert not np.allclose(test_rand_int_seed, test_rand_unseeded)
 
     noise_param["SEED"] = np.array([np.arange(2*(len(test_noise.param["T_AXIS"])-1)),
                                     np.arange(2*(len(test_noise.param["T_AXIS"])-1))])
-    test_noise = FFTFilterNoise(noise_param, noise_corr)
+    test_noise = HopsNoise(noise_param, noise_corr)
     test_rand_list_seed = test_noise._prepare_rand()
     assert np.allclose(test_rand_list_seed,noise_param["SEED"])
 
     noise_param["SEED"] = np.array([np.arange(17), np.arange(17)])
-    test_noise = FFTFilterNoise(noise_param, noise_corr)
+    test_noise = HopsNoise(noise_param, noise_corr)
     with pytest.raises(UnsupportedRequest) as excinfo:
         test_rand_improper_list_seed = test_noise._prepare_rand()
         assert 'Noise.param[SEED] is an array of the wrong length' in str(excinfo.value)
 
     noise_param["SEED"] = "string"
-    test_noise = FFTFilterNoise(noise_param, noise_corr)
+    test_noise = HopsNoise(noise_param, noise_corr)
     with pytest.raises(UnsupportedRequest) as excinfo:
         test_rand_string_seed = test_noise._prepare_rand()
         assert 'Noise.param[SEED] of type {} not supported'.format(
                     type(noise_param['SEED'])) in str(excinfo.value)
 
     with pytest.raises(TypeError) as excinfo:
-        noise_param['SEED'] = FFTFilterNoise({}, {})
-        test_noise = FFTFilterNoise(noise_param, noise_corr)
-        test_rand_FFTFilterNoise = test_noise._prepare_rand()
+        noise_param['SEED'] = HopsNoise({}, {})
+        test_noise = HopsNoise(noise_param, noise_corr)
+        test_rand_HopsNoise = test_noise._prepare_rand()
         assert 'is of type' in str(excinfo.value)
+
+
+def test_construct_indexing():
+    """
+    Tests that the _construct_indexing function constructs the correct indexing for
+    Box-Mueller complex Gaussian raw noise generation.
+    """
+    noise_param = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    noise_corr = {
+        "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
+        "N_L2": sys_param["N_L2"],
+        "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
+        "CORR_PARAM": sys_param["PARAM_NOISE1"],
+    }
+    test_noise = HopsNoise(noise_param, noise_corr)
+    biglength = 1000
+    for smalllength in range(0, biglength):
+        g_indexbig, phi_indexbig = test_noise._construct_indexing(biglength)
+        g_indexsmall, phi_indexsmall = test_noise._construct_indexing(smalllength)
+        assert g_indexbig[0:smalllength] == g_indexsmall[0:smalllength]
+        assert phi_indexbig[0:smalllength] == phi_indexsmall[0:smalllength]
+

@@ -49,10 +49,10 @@ def test_mode_setter():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
 
-    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 4),
-                AuxiliaryVector([(2, 1)], 4), AuxiliaryVector([(1, 1), (2, 1)], 4),
-                AuxiliaryVector([(2, 3)], 4), AuxiliaryVector([(1, 4)], 4),
-                AuxiliaryVector([(3, 4)], 4), AuxiliaryVector([(5, 1)], 4)]
+    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 10),
+                AuxiliaryVector([(2, 1)], 10), AuxiliaryVector([(1, 1), (2, 1)], 10),
+                AuxiliaryVector([(2, 3)], 10), AuxiliaryVector([(1, 4)], 10),
+                AuxiliaryVector([(3, 4)], 10), AuxiliaryVector([(5, 1)], 10)]
 
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [1, 2]
@@ -83,14 +83,7 @@ def test_mode_setter():
     known_list_index_L2_by_hmode = [0, 1, 1, 2, 2]
     assert np.all(
         hops_ad.basis.mode.list_index_L2_by_hmode == known_list_index_L2_by_hmode)
-    # Test list_state_indices_by_hmode
-    known_list_state_indices_by_hmode = [(), (0,), (0,), (1,), (1,)]
-    assert np.all(
-        hops_ad.basis.mode.list_state_indices_by_hmode == known_list_state_indices_by_hmode)
-    # Test state_indices_by_index_L2
-    known_list_state_indices_by_index_L2 = [(), (0,), (1,)]
-    assert np.all(
-        hops_ad.basis.mode.list_state_indices_by_index_L2 == known_list_state_indices_by_index_L2)
+
     # Test list_L2_coo
     known_list_L2_coo = []
     L2_coo_0 = sp.sparse.coo_matrix(([], ([], [])), shape=(2, 2))

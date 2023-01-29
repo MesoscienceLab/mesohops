@@ -66,7 +66,7 @@ class AuxiliaryVector(Mapping):
     """
     __slots__ = ('dict_aux_vec', 'tuple_aux_vec', 'array_aux_vec', '__abs_index', '__len'
                   , '__hash', '_index', '__hash_string','_sum', '_dict_aux_p1', '_dict_aux_m1',
-                 '__mode_digits')
+                 '__mode_digits', '__kmax')
 
     def __init__(self, aux_array, nmodes):
         """
@@ -87,6 +87,7 @@ class AuxiliaryVector(Mapping):
         -------
         None
         """
+        self.__kmax = 9999 #YOU MUST NOT HAVE K_MAX > 9999!!!
         self.dict_aux_vec = {
             index_mode: aux_value for (index_mode, aux_value) in aux_array
         }
@@ -171,10 +172,10 @@ class AuxiliaryVector(Mapping):
         return self.__hash
 
     def __eq__(self, other):
-        return self.hash == hash(other)
+        return self.hash == other.hash
 
     def __ne__(self, other):
-        return self.hash != hash(other)
+        return self.hash != other.hash
 
     def _compare(self, other, comparison_function):
         """
@@ -435,34 +436,34 @@ class AuxiliaryVector(Mapping):
 
     def index_analytic(self):
         """
-         This function provides an absolute index value for an auxiliary
-         vector using an analytic function of the indices. The basic idea
-         is that the indices are always ordered by increasing hierarchy
-         'level' (i.e. the sum of the indices). Within a level they are ordered
-         by first comparing the first values, then the second values, etc.
+        This function provides an absolute index value for an auxiliary
+        vector using an analytic function of the indices. The basic idea
+        is that the indices are always ordered by increasing hierarchy
+        'level' (i.e. the sum of the indices). Within a level they are ordered
+        by first comparing the first values, then the second values, etc.
 
 
-         This gives the indexing a particularly simple form with a level:
-         L = sum(i_0,...,i_n)
-         (i_0, ... i_N) = sum_n<N sum_L>ln>i_n ((N-n-1 , L-sum(aux[:n])-ln)
-         where ((L,K)) denotes a L multichoose K.
+        This gives the indexing a particularly simple form with a level:
+        L = sum(i_0,...,i_n)
+        (i_0, ... i_N) = sum_n<N sum_L>ln>i_n ((N-n-1 , L-sum(aux[:n])-ln)
+        where ((L,K)) denotes a L multichoose K.
 
-         The derivation of the following equations is given on p. 68 of
-         Quantum Notebook #1. The sums have been removed by making use of the
-         binomial sum property and the binomial symmetry property. The result is
-         a equation that only sums over a number of elements equal to the number
-         of non-zero terms in aux.
+        The derivation of the following equations is given on p. 68 of
+        Quantum Notebook #1. The sums have been removed by making use of the
+        binomial sum property and the binomial symmetry property. The result is
+        a equation that only sums over a number of elements equal to the number
+        of non-zero terms in aux.
 
-         Parameters
-         ----------
-         None
+        Parameters
+        ----------
+        None
 
-         RETURNS
-         -------
-         1. index : int
+        RETURNS
+        -------
+        1. index : int
                     Absolute index for an auxiliary.
 
-         """
+        """
         # Constants
         # ---------
         aux = self.toarray()
@@ -626,12 +627,13 @@ class AuxiliaryVector(Mapping):
         -------
         None
         """
-        mode_digits = len(str(self.__len))
-        aux_hash_string = "".join([value * ((mode_digits - len(str(mode))) * "0" + str(mode))
-                                   for (mode, value) in self.array_aux_vec])
+        kmax = self.__kmax
+        aux_hash_string = "0" * (self.__len * len(str(kmax)))
+        for (mode,value) in self.array_aux_vec:
+            aux_hash_string = aux_hash_string[0:mode*len(str(kmax))] + (len(str(kmax)) - len(str(value))) * "0" + str(value) + aux_hash_string[(mode+1)*len(str(kmax)):]
         self.__hash_string = aux_hash_string
-
-    def get_list_identity_string_down(self):
+    
+    def get_list_hash_down(self):
         """
         Construct the hash values for all auxiliaries that are one step
         down from this auxiliary.
@@ -644,20 +646,21 @@ class AuxiliaryVector(Mapping):
         -------
         None
         """
+        kmax = self.__kmax
         ref_hash_str = self.identity_string
-        list_deleteindex = [0]+ list(np.cumsum([self.__mode_digits*value
-                                                for (key,value) in self.array_aux_vec[:-1]]))
         list_value_connects = self.array_aux_vec[:,1]
         list_mode_connects = self.array_aux_vec[:,0]
-        list_ident_string_down = [ref_hash_str[0:deleteindex]
-                                 + ref_hash_str[(deleteindex+self.__mode_digits):]
-                                 for deleteindex in list_deleteindex]
-        return list_ident_string_down, list_value_connects, list_mode_connects
-
-    def get_list_identity_string_up(self, modes_in_use):
+        list_hash_down = [hash(ref_hash_str[0:mode*len(str(kmax))]
+                                  + (len(str(kmax)) - len(str(list_value_connects[i]-1))) * "0" + str(list_value_connects[i]-1)
+                                  + ref_hash_str[(mode+1)*len(str(kmax)):])
+                     for (i,mode) in enumerate(list_mode_connects)]
+        return list_hash_down, list_value_connects, list_mode_connects
+    
+        
+    def get_list_hash_up(self, modes_in_use):
         """
-        Constructing all auxiliaries within one step 'up' from the
-        current auxiliary along modes that are currently in the basis.
+        Construct the hash values for all auxiliaries that are one step
+        down from this auxiliary along modes that are in the basis.
 
         [Explain algorithm]
 
@@ -669,7 +672,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. list_hash_string_up : list
+        1. list_hash_up : list
                                  List of hash strings of downward auxiliary connections
 
         2. list_value_connects : list
@@ -679,25 +682,16 @@ class AuxiliaryVector(Mapping):
                                 List of modes of auxiliary connections corresponding
                                 to 1.
         """
-        keys = self.keys()
+        kmax = self.__kmax
         ref_hash_str = self.identity_string
-        list_modes = list(set(modes_in_use) | set(keys))
-        list_modes.sort()
-        list_index_modes_in_use = [list_modes.index(mode) for mode in modes_in_use]
-
-        list_insert_index = np.cumsum([self.__mode_digits * self.dict_aux_vec[mode] if mode in keys
-                                       else 0
-                                       for mode in list_modes])[list_index_modes_in_use]
-        list_value_connects = np.array([self.dict_aux_vec[mode] if mode in keys
-                           else 0
-                           for mode in list_modes])[list_index_modes_in_use]
-        list_ident_string_up = [(ref_hash_str[0:insertindex]
-                                  + ((self.__mode_digits - len(str(mode))) * "0" + str(mode))
-                                  + ref_hash_str[insertindex:])
-                     for (mode, insertindex) in zip(modes_in_use, list_insert_index)]
-        list_mode_connects = np.array(list_modes)[list_index_modes_in_use]
-        return list_ident_string_up, list_value_connects, list_mode_connects
-
+        list_mode_connects = modes_in_use
+        list_value_connects = [int(ref_hash_str[mode*len(str(kmax)):(mode+1)*len(str(kmax))]) for mode in modes_in_use]
+        list_hash_up = [hash(ref_hash_str[0:mode*len(str(kmax))]
+                                  + (len(str(kmax)) - len(str(list_value_connects[i]+1))) * "0" + str(list_value_connects[i]+1)
+                                  + ref_hash_str[(mode+1)*len(str(kmax)):])
+                     for (i,mode) in enumerate(modes_in_use)]
+        return list_hash_up, list_value_connects, list_mode_connects
+        
     @property
     def absolute_index(self):
         if self.__abs_index is None:

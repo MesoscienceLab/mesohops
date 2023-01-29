@@ -13,7 +13,7 @@ import copy
 from mesohops.util.exceptions import LockedException, UnsupportedRequest
 
 
-class Dict_wDefaults(object):
+class Dict_wDefaults:
     """
     This is a 'Dictionary with Defaults' class that implements a initialization 
     routine for a dictionary that makes use of: 

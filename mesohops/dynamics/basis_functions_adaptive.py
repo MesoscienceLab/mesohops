@@ -181,7 +181,7 @@ def error_flux_up(Φ, n_state, n_hier, n_hmodes, list_w, K2_aux_bymode,
     if (type == "H"):
         # \sum_s |L_m[s,s] \psi_k[s]|^2 = \sum_s |M2[m,s] * \psi_k[s]|^2
         # \sum_s |M2[m,s]|^2 * |\psi_k[s]|^2
-        P2_pop_modes = (np.abs(M2_mode_from_state)**2 @ (np.abs(C2_phi) ** 2))
+        P2_pop_modes = (np.abs(M2_mode_from_state).power(2) @ (np.abs(C2_phi) ** 2))
         E2_error = np.abs(W2_bymode) ** 2 * (1 + K2_aux_bymode) ** 2 * P2_pop_modes / hbar ** 2
         if F2_filter is not None:
             E2_error = F2_filter*E2_error
@@ -191,7 +191,7 @@ def error_flux_up(Φ, n_state, n_hier, n_hmodes, list_w, K2_aux_bymode,
         E2_error = np.abs(np.abs(W2_bymode) * (1 + K2_aux_bymode)) ** 2
         if F2_filter is not None:
             E2_error *= F2_filter
-        E2_error = np.transpose(M2_mode_from_state) @ E2_error
+        E2_error = np.transpose(M2_mode_from_state.power(2)) @ E2_error
         E2_error = P2_pop_state * E2_error / hbar ** 2
 
     else:
@@ -263,7 +263,7 @@ def error_flux_down(Φ, n_state, n_hier, n_hmodes, list_g, list_w, M2_mode_from_
         # Hierarchy Type Downward Flux
         # ============================
         D2_mode_from_state = np.zeros([n_hmodes,n_state])
-        D2_mode_from_state[:,:] = M2_mode_from_state - E1_Lm.reshape([len(E1_Lm),1])
+        D2_mode_from_state[:,:] = M2_mode_from_state.toarray() - E1_Lm.reshape([len(E1_Lm),1])
         E2_flux_down_error = (
                 np.real(
                     (np.abs(G2_bymode / W2_bymode) ** 2)
@@ -278,7 +278,7 @@ def error_flux_down(Φ, n_state, n_hier, n_hmodes, list_g, list_w, M2_mode_from_
         # State Type Downward Flux
         # ========================
         D2_state_from_mode = np.zeros([n_state,n_hmodes])
-        D2_state_from_mode[:,:] = np.transpose(M2_mode_from_state) - E1_Lm
+        D2_state_from_mode[:,:] = np.transpose(M2_mode_from_state).toarray() - E1_Lm
         E2_flux_down_error = np.abs(G2_bymode / W2_bymode)**2
         if F2_filter is not None:
             E2_flux_down_error *= F2_filter

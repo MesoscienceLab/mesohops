@@ -5,7 +5,7 @@ import copy
 from collections import Counter
 
 __title__ = "System Class"
-__author__ = "D. I. G. Bennett, L. Varvelo"
+__author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
 __version__ = "1.2"
 
 
@@ -54,32 +54,42 @@ class HopsSystem(object):
                               correlation function given (t_axis, *PARAM_NOISE_2)
             i. PARAM_NOISE2 : list
                               A list of parameters defining the decomposition of Noise2
+            j. L_LT_CORR : list
+                           A list of system-bath coupling operators in the same order as
+                           PARAM_LT_CORR
+            k. PARAM_LT_CORR : list
+                               A list of low-temperature correction coefficients for
+                               each independent thermal environment
 
          ======================= DERIVED PARAMETERS ===========================
         The result is a dictionary HopsSystem.param which contains all the above plus
         additional parameters that are useful for indexing the simulation:
-            j. 'NSTATES' : int
+            l. 'NSTATES' : int
                         The dimension of the system Hilbert Space
-            k. 'N_HMODES' : int
+            m. 'N_HMODES' : int
                             The number of modes that will appear in the hierarchy
-            l. 'N_L2' : int
+            n. 'N_L2' : int
                         The number of unique system-bath coupling operators
-            m. 'LIST_INDEX_L2_BY_NMODE1' : np.array
+            o. 'LIST_INDEX_L2_BY_NMODE1' : np.array
                                            An array (list_absindex_noise1 --> index_L2)
-            n. 'LIST_INDEX_L2_BY_NMODE2' : np.array
+            p. 'LIST_INDEX_L2_BY_NMODE2' : np.array
                                            An array (list_absindex_noise2 --> index_L2)
-            o. 'LIST_INDEX_L2_BY_HMODE' : np.array
+            q. 'LIST_INDEX_L2_BY_LT_CORR' : np.array
+                                            An array (list_absindex_LT_CORR -->
+                                            index_L2)
+            q. 'LIST_INDEX_L2_BY_HMODE' : np.array
                                           An array (list_absindex_by_hmode  --> index_L2)
-            p. 'LIST_STATE_INDICES_BY_HMODE' : np.array
+            r. 'LIST_STATE_INDICES_BY_HMODE' : np.array
                                                An array (list_absindex_by_hmode   -->
                                                list_absindex_states)
-            q. 'LIST_L2_COO' : np.array
+            s. 'LIST_L2_COO' : np.array
                                An array (list_absindex_L2 --> coo_sparse L2)
-            r. 'LIST_STATE_INDICES_BY_INDEX_L2 ' : np.array
+            t. 'LIST_STATE_INDICES_BY_INDEX_L2 ' : np.array
                                                    (list_absindex_L2 -->
                                                    list_absindex_states)
-            s. 'SPARSE_HAMILTONIAN' : sp.sparse.csc_martix
+            u. 'SPARSE_HAMILTONIAN' : sp.sparse.csc_martix
                                       the sparse representation of the Hamiltonian
+
 
         Returns
         -------
@@ -112,7 +122,10 @@ class HopsSystem(object):
                         Dictionary containing the user input and the derived parameters
         """
         param_dict = copy.deepcopy(system_param)
-        param_dict["NSTATES"] = len(system_param["HAMILTONIAN"][0])
+        if(sparse.issparse(system_param["HAMILTONIAN"])):
+            param_dict["NSTATES"] = sparse.coo_matrix.get_shape(system_param["HAMILTONIAN"])[0]
+        else:
+            param_dict["NSTATES"] = len(system_param["HAMILTONIAN"][0])
         param_dict["N_HMODES"] = len(system_param["GW_SYSBATH"])
         param_dict["G"] = np.array([g for (g, w) in system_param["GW_SYSBATH"]])
         param_dict["W"] = np.array([w for (g, w) in system_param["GW_SYSBATH"]])
@@ -121,6 +134,12 @@ class HopsSystem(object):
         ]
         param_dict["SPARSE_HAMILTONIAN"] = sparse.csc_matrix(param_dict["HAMILTONIAN"])
         param_dict["SPARSE_HAMILTONIAN"].eliminate_zeros()
+
+        # check for low-temperature correction terms - if there are none, initialize
+        # empty lists as placeholders:
+        if not "L_LT_CORR" in param_dict.keys():
+            param_dict["L_LT_CORR"] = []
+            param_dict["PARAM_LT_CORR"] = []
 
         # Define the Hierarchy Operator Values
         # ------------------------------------
@@ -139,6 +158,9 @@ class HopsSystem(object):
         ]
         flag_l2_list = [False for i in range(param_dict["N_L2"])]
         param_dict["LIST_L2_COO"] = [0 for i in range(param_dict["N_L2"])]
+        param_dict["LIST_LT_PARAM"] = [0 for i in range(param_dict["N_L2"])]
+
+
         param_dict["LIST_STATE_INDICES_BY_INDEX_L2"] = []
         list_unique_L2 = []
         for (i, l) in enumerate(list_unique_l2_as_tuples):
@@ -155,6 +177,23 @@ class HopsSystem(object):
                         param_dict["LIST_STATE_INDICES_BY_INDEX_L2"].append(
                             param_dict["LIST_STATE_INDICES_BY_HMODE"][j]
                         )
+
+        l2_LT_CORR_as_tuples = [self._array_to_tuple(l) for l in
+                                param_dict["L_LT_CORR"]]
+        # Build a list of low-temperature coefficients guaranteed to be in the same
+        # order as the associated unique sparse L2 operators.
+        for j in range(len(param_dict["L_LT_CORR"])):
+            l_op_check = 0
+            for (i, l) in enumerate(list_unique_l2_as_tuples):
+                # i is the index of operator l in the unique list of operators
+                if l2_LT_CORR_as_tuples[j] == l:
+                    param_dict["LIST_LT_PARAM"][i] = param_dict["PARAM_LT_CORR"][j]
+                    l_op_check += 1
+            if not l_op_check:
+                print("WARNING: the list of low-temperature correction "
+                      "L-operators contains an L-operator not associated with any "
+                      "existing thermal environment. This low-temperature "
+                      "correction factor will be discarded!")
 
         # Define the Noise1 Operator Values
         # ---------------------------------
@@ -180,7 +219,6 @@ class HopsSystem(object):
                 for j in range(len(l2_as_tuples)):
                     if l2_as_tuples[j] == l:
                         param_dict["LIST_INDEX_L2_BY_NMODE2"][j] = i
-
         return param_dict
 
     def initialize(self, flag_adaptive, psi_0):
@@ -262,7 +300,7 @@ class HopsSystem(object):
 
     @state_list.setter
     def state_list(self, new_state_list):
-        # Construct information about pevious timestep
+        # Construct information about previous timestep
         # --------------------------------------------
         self.__previous_state_list = self.__state_list
         self.__list_add_state = list(set(new_state_list) - set(self.__previous_state_list ))
@@ -291,7 +329,14 @@ class HopsSystem(object):
                                   self.state_list)) != 0
                 ]
             )
-
+            self.__list_absindex_new_state_modes = np.array(
+                [
+                    i_mod
+                    for i_mod in range(self.param["N_HMODES"])
+                    if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod],
+                                  self.__list_add_state)) != 0
+                ]
+            )
             self.__list_absindex_L2_active = np.array(
                 [
                     i_lop
@@ -301,11 +346,19 @@ class HopsSystem(object):
                 ]
             )
 
+            self._lt_corr_param = np.array(self.param["LIST_LT_PARAM"])[
+                 self.__list_absindex_L2_active]
+
             # Update Local Properties
             # -----------------------
-            self._hamiltonian = self.param["HAMILTONIAN"][
-                np.ix_(self.__state_list, self.__state_list)
-            ]
+            if(sparse.issparse(self.param["HAMILTONIAN"])):
+                self._hamiltonian = self.param["SPARSE_HAMILTONIAN"][
+                    np.ix_(self.state_list, self.state_list)
+                ]
+            else:
+                self._hamiltonian = self.param["HAMILTONIAN"][
+                    np.ix_(self.state_list, self.state_list)
+                ]
 
     @property
     def previous_state_list(self):
@@ -326,7 +379,9 @@ class HopsSystem(object):
     @property
     def list_absindex_state_modes(self):
         return self.__list_absindex_state_modes
-
+    @property
+    def list_absindex_new_state_modes(self):
+        return self.__list_absindex_new_state_modes
     @property
     def list_absindex_L2_active(self):
         return self.__list_absindex_L2_active

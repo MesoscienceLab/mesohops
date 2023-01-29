@@ -1009,3 +1009,141 @@ def test_state_stable_error():
         hops_ad.phi, 2.0, z_step, list_index_aux_stable, list_aux_bound
     )
     assert np.allclose(error, known_error)
+
+
+def test_M2_mode_from_state():
+    """
+    Tests that the matrix that finds the attachment between modes and states in the
+    current basis is correct for diagonal L-operators.
+    """
+    noise_param = {
+        "SEED": basis_noise_10site[:5,:],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    nsite = 10
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+
+    gw_sysbath = []
+    lop_1 = np.zeros([10, 10])
+    lop_1[0,0] = 1.0
+    lop_1[1,1] = -1.0
+    lop_2 = np.zeros([10, 10])
+    lop_2[2, 2] = 1.0
+    lop_2[3, 3] = 0.5
+    lop_3 = np.zeros([10, 10])
+    lop_3[4, 4] = -0.5
+    lop_3[5, 5] = 1.0
+    lop_4 = np.zeros([10, 10])
+    lop_4[6, 6] = 1.0
+    lop_4[7, 7] = 1.0
+    lop_4[8, 8] = -1.0
+    lop_5 = np.zeros([10, 10])
+    lop_5[9, 9] = -1.0
+
+    lop_list_base = [lop_1, lop_2, lop_3, lop_4, lop_5]
+    lop_list = []
+    for lop in lop_list_base:
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 40
+    hs[1, 0] = 40
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 40
+    hs[3, 2] = 40
+    hs[3, 4] = 10
+    hs[4, 3] = 10
+    hs[4, 5] = 40
+    hs[5, 4] = 40
+    hs[5, 6] = 10
+    hs[6, 5] = 10
+    hs[6, 7] = 40
+    hs[7, 6] = 40
+    hs[7, 8] = 10
+    hs[8, 7] = 10
+    hs[8, 9] = 40
+    hs[9, 8] = 40
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0[1] = 1.0
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    hops_ad.basis.system.state_list = [0, 1, 4, 5]
+    hops_ad.basis.mode.list_absindex_mode = [0, 1, 4, 5, 9]
+    M2_mode_from_state_test = hops_ad.basis.M2_mode_from_state.todense()
+    M2_mode_from_state_known = np.array(
+        [[1.0,-1.0, 0.0, 0.0],
+         [1.0,-1.0, 0.0, 0.0],
+         [0.0, 0.0, -0.5, 1.0],
+         [0.0, 0.0, -0.5, 1.0],
+         [0.0, 0.0, 0.0, 0.0]]
+    )
+
+    assert np.allclose(M2_mode_from_state_test, M2_mode_from_state_known)
+
+    hops_ad.basis.system.state_list = [7, 9]
+    hops_ad.basis.mode.list_absindex_mode = [6, 7, 8, 9]
+    M2_mode_from_state_test = hops_ad.basis.M2_mode_from_state.todense()
+    M2_mode_from_state_known = np.array(
+        [[1.0, 0.0],
+         [1.0, 0.0],
+         [0.0, -1.0],
+         [0.0, -1.0]]
+    )
+
+    assert np.allclose(M2_mode_from_state_test, M2_mode_from_state_known)
+
+    hops_ad.basis.system.state_list = list(range(10))
+    hops_ad.basis.mode.list_absindex_mode = list(range(10))
+    M2_mode_from_state_test = hops_ad.basis.M2_mode_from_state.todense()
+    M2_mode_from_state_known = np.array(
+        [[1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, -1.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, -1.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0]]
+    )
+
+    assert np.allclose(M2_mode_from_state_test, M2_mode_from_state_known)

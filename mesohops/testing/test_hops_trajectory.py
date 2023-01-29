@@ -3,13 +3,12 @@ import scipy as sp
 from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.dynamics.hops_storage import HopsStorage
-from mesohops.dynamics.noise_fft import FFTFilterNoise as FFTFN
-from mesohops.dynamics.noise_zero import ZeroNoise
+from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
-__author__ = "D. I. G. Bennett"
+__author__ = "D. I. G. Bennett, J. K. Lynd"
 __version__ = "1.2"
 __date__ = ""
 
@@ -106,10 +105,12 @@ def test_initialize():
         "LIND_BY_NMODE": sys_param["L_IND_BY_NMODE1"],
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
-    noiseModel = FFTFN(noise_param, noise_corr)
+    noiseModel = HopsNoise(noise_param, noise_corr)
     assert type(noise) == type(noiseModel)
 
-    ZN = ZeroNoise(noise_param, hops.basis.system.param)
+    noise_param_0 = noise_param.copy()
+    noise_param_0["MODEL"] = "ZERO"
+    ZN = HopsNoise(noise_param_0, hops.basis.system.param)
     a = ZN
     b = hops.noise2
     assert type(a) == type(b)
