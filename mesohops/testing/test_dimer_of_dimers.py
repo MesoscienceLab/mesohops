@@ -59,7 +59,7 @@ eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
 integrator_param = {"INTEGRATOR": "RUNGE_KUTTA"}
 
-psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
 psi_0[2] = 1.0
 psi_0 = psi_0 / np.linalg.norm(psi_0)
 

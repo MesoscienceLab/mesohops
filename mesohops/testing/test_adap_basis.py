@@ -127,7 +127,7 @@ def test_adap_hier():
     t_step = 4.0
     delta = 0.0005
     ## Phi(0)
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[i_init] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
     hops = linear_chain(nsite, sb_params, V, maxhier, int(seed))
@@ -211,7 +211,7 @@ def test_adap_state():
     t_step = 4.0
     delta = 0.0005
     ## Phi(0)
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[i_init] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
     hops = linear_chain(nsite, sb_params, V, maxhier, int(seed))
@@ -295,7 +295,7 @@ def test_adap_hier_state():
     t_step = 4.0
     delta = 0.0005
     ## Phi(0)
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[i_init] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
     hops = linear_chain(nsite, sb_params, V, maxhier, int(seed))

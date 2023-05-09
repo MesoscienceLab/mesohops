@@ -196,7 +196,7 @@ def error_flux_up(Φ, n_state, n_hier, n_hmodes, list_w, K2_aux_bymode,
 
     else:
         E2_error = 0
-        raise UnsupportedRequest(type, f"in error_flux_up received type {type}")
+        raise UnsupportedRequest("type {}".format(type), "error_flux_up")
 
     return E2_error
 
@@ -288,7 +288,7 @@ def error_flux_down(Φ, n_state, n_hier, n_hmodes, list_g, list_w, M2_mode_from_
         )
     else:
         E2_flux_down_error = 0
-        raise UnsupportedRequest(type, f"in error_flux_down received type {type}")
+        raise UnsupportedRequest("type {}".format(type), "error_flux_down")
 
     return E2_flux_down_error
 

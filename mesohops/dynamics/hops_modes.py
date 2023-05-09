@@ -79,7 +79,7 @@ class HopsModes:
         self.__previous_list_absindex_L2 = self._list_absindex_L2
         self._list_index_mode_active = [list_absindex_mode.index(mode_from_states)
                                         for mode_from_states in self.system.list_absindex_state_modes]
-        self.__list_absindex_mode = np.array(list_absindex_mode)
+        self.__list_absindex_mode = np.array(list_absindex_mode, dtype=int)
 
         # Prepare Indexing for L2
         # -----------------------
@@ -101,7 +101,7 @@ class HopsModes:
         self._list_index_L2_active = [self._list_absindex_L2.index(absindex)
                                       for absindex in self.system.list_absindex_L2_active]
 
-        self._list_absindex_L2 = np.array(self._list_absindex_L2)
+        self._list_absindex_L2 = np.array(self._list_absindex_L2, dtype=int)
 
         self._g = np.array(self.system.param["G"])[self.__list_absindex_mode]
         self._w = np.array(self.system.param["W"])[self.__list_absindex_mode]

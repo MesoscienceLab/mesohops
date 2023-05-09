@@ -1,6 +1,8 @@
+import pytest
 import numpy as np
 from mesohops.dynamics.bath_corr_functions import bcf_exp
 from mesohops.dynamics.hops_noise import HopsNoise
+from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Test of hops_noise"
 __author__ = "J. K. Lynd"
@@ -34,7 +36,6 @@ sys_param["NMODES"] = len(sys_param["GW_SYSBATH"][0])
 sys_param["N_L2"] = 2
 sys_param["L_IND_BY_NMODE1"] = [0, 1]
 sys_param["LIND_DICT"] = {0: loperator[0, :, :], 1: loperator[1, :, :]}
-
 
 def test_initialize():
     """
@@ -116,6 +117,14 @@ def test_get_noise():
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
 
+    noise_param_broken = {
+        "SEED": None,
+        "MODEL": "NONEXISTENT_NOISE",
+        "TLEN": 1000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs,
+        "INTERPOLATE": False
+    }
+
     t_axis = np.arange(0, 1001.0, 1.0)
     test_noise = HopsNoise(noise_param, noise_corr_working)
     noise = np.ones([2,len(t_axis)])
@@ -127,6 +136,13 @@ def test_get_noise():
     # formula.
 
     assert np.allclose(test_noise.get_noise(t_axis[:2])[0,:], test_noise._noise[0,:2])
+
+    try:
+        HopsNoise(noise_param_broken, noise_corr_working).get_noise(t_axis[:2])
+    except UnsupportedRequest as excinfo:
+        if 'does not support Noise.param[MODEL] NONEXISTENT_NOISE in the ' not in str(
+            excinfo):
+            pytest.fail()
 
 def test_corr_func_builder():
     """

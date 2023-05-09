@@ -432,7 +432,7 @@ class HopsEOM(Dict_wDefaults):
                     list_w,
                     list_mode_absindex_L2,
                     list_absindex_mode,
-                    list_index_L2_active
+                    system.list_absindex_L2_active
                 )
 
                 return Φ_deriv, z_mem1_deriv

@@ -38,7 +38,7 @@ def test_mode_setter():
         'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
         'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -95,3 +95,55 @@ def test_mode_setter():
     assert np.all(
         hops_ad.basis.mode.list_L2_coo[i].toarray() == known_list_L2_coo[i].toarray()
         for i in range(3))
+
+def test_empty_modelist():
+    """
+    Tests that an empty list of modes does not crash a HOPS calculation.
+    """
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
+                   # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
+    nsite = 10
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+
+    loperator = np.zeros([10, 10, 10], dtype=np.float64)
+    gw_sysbath = []
+    lop_list = []
+    for i in range(nsite):
+        loperator[i, i, i] = 1.0
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(sp.sparse.coo_matrix(loperator[i]))
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(loperator[i])
+
+    hs = np.zeros([nsite, nsite])
+
+    # Ensure that the first 2 sites have no associated modes in the hierarchy
+    sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
+                 "GW_SYSBATH": gw_sysbath[2:], "L_HIER": lop_list[2:], "L_NOISE1":
+                                                                    lop_list[2:],
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath[2:], }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5,
+                        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(sys_param, noise_param=noise_param,
+
+                   hierarchy_param={'MAXHIER': 4}, eom_param=eom_param,
+                   integration_param=integrator_param, )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    assert len(hops_ad.basis.mode.list_absindex_mode) == 0
+    hops_ad.propagate(4.0, 2.0)

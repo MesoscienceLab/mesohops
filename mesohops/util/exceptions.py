@@ -4,36 +4,55 @@
 
 
 class UnsupportedRequest(Exception):
-    def __init__(self, request, function):
+    """
+    An exception to be raised for unsupported requests.
+    """
+    def __init__(self, request, function, override=False):
+        """
+        Parameters
+        ----------
+        1. request : str
+                     The request by the user.
+
+        2. function : str
+                      The function in which an unsupported request is raised.
+
+        3. override : boolean
+                      Flag that simplifies the exception message.
+        """
         self.request = request
         self.function = function
+        self.override = override
 
     def __str__(self):
-        msg = "The current code does not support {} in the {} function.".format(
+
+        if not self.override:
+            msg = "The current code does not support {} in the {} function.".format(
             self.request, self.function
-        )
+            )
+        if self.override:
+            msg = "{} in the {} function.".format(self.request, self.function)
         return str(msg)
-
-
-class FlagError(Exception):
-    """Error to catch corrupted files"""
-
-    def __init__(self, expression, message):
-        self.message = message
-        self.expression = expression
-        pass
-
-    def __str__(self):
-        msg = message % expression
-        return str(msg)
-
 
 class LockedException(Exception):
+    """
+    Exception called when a user is trying to access a restricted function.
+    """
     def __init__(self, func_name, class_name):
+        """
+        Parameters
+        ----------
+        1. func_name : str
+                       The restricted function called by the user.
+
+        2. class_name : str
+                        The class to which the restricted function belongs.
+        """
         self.func_name = func_name
         self.class_name = class_name
 
     def __str__(self):
+
         msg = (
             "The "
             + str(self.class_name)
@@ -43,24 +62,17 @@ class LockedException(Exception):
         )
         return str(msg)
 
-
-class WrongNumberAux(Exception):
-    def __init__(self, naux_teor, calc_aux, n, maxhier):
-        self.n = n
-        self.hier = maxhier
-        self.calc_aux = calc_aux
-        self.naux_teor = calc_aux
-
-    def __str__(self):
-        msg = (
-            " %d number of aux vec doesn't agree with expected %d for %d sites and %d maxhier"
-            % (self.calc_aux, self.naux_teor, self.n, self.hier)
-        )
-        return str(msg)
-
-
 class AuxError(Exception):
+    """
+    Catch-all exceptions for misconfiguration of an AuxiliaryVector.
+    """
     def __init__(self, sub_msg):
+        """
+        Parameters
+        ----------
+        1. sub_msg : str
+                     Error message.
+        """
         self.sub_msg = sub_msg
 
     def __str__(self):
@@ -69,7 +81,16 @@ class AuxError(Exception):
 
 
 class TrajectoryError(Exception):
+    """
+    Catch-all exceptions for misconfiguration of a HopsTrajectory.
+    """
     def __init__(self, sub_msg):
+        """
+        Parameters
+        ----------
+        1. sub_msg : str
+                     Error message.
+        """
         self.sub_msg = sub_msg
 
     def __str__(self):

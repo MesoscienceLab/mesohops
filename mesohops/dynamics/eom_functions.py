@@ -9,7 +9,7 @@ __version__ = "1.2"
 
 def operator_expectation(oper, vec, flag_gcorr = False):
     """
-    Calculates the expectation value of a sparse operator
+    Calculates the expectation value of a sparse operator.
 
     Parameters
     ----------
@@ -63,10 +63,10 @@ def compress_zmem(z_mem, list_index_L2_by_mode, list_absindex_mode):
     return dz_hat
 
 
-def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_index_L2_by_mode,
-                    list_absindex_mode, list_index_L2_active):
+def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_absindex_L2_by_mode,
+                    list_absindex_mode, list_absindex_L2_active):
     """
-    This updates the memory term. The form of the equation depends on expanding the
+    Updates the memory term. The form of the equation depends on expanding the
     memory integral assuming an exponential expansion.
 
     NOTE: THIS ASSUMES THE NOISE HAS EXPONENTIAL FORM.
@@ -77,9 +77,9 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_index_L2_by_mode,
           list_avg_L2 : relative
           list_g : absolute
           list_w : absolute
-          list_index_L2_by_mode : relative
+          list_absindex_L2_by_mode : absolute
           list_absindex_mode : mapping from relative-->absolute
-          list_index_L2_active : relative
+          list_absindex_L2_active : absolute
           
     Parameters
     ----------
@@ -90,23 +90,24 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_index_L2_by_mode,
                      Relative list of the expectation values of the L operators.
 
     3. list_g : list(complex)
-                List of pre exponential factors for bath correlation functions [
-                absolute].
+                List of pre exponential factors for bath correlation functions [unit:
+                cm^-2].
 
     4. list_w :  list(complex)
-                 List of exponents for bath correlation functions (w = γ+iΩ) [absolute].
+                 List of exponents for bath correlation functions (w = γ+iΩ) [unit:
+                 cm^-1].
 
-    5. list_index_L2_by_mode : list(int)
-                               List of length equal to the number of 'modes' in the
-                               current hierarchy basis and each entry is an index for
-                               the absolute list_L2.
+    5. list_absindex_L2_by_mode : list(int)
+                                  List of indices for the absolute list of L-operators
+                                  to match L-operators to the associated absolute mode
+                                  index.
 
     6. list_absindex_mode : list(int)
                             List of the absolute indices  of the modes in current basis.
 
-    7. list_index_L2_active : list(int)
-                              List of relative indices of L-operators that have any
-                              non-zero values.
+    7. list_absindex_L2_active : list(int)
+                                 List of absolute indices of L-operators that have any 
+                                 non-zero values.
 
     Returns
     -------
@@ -121,11 +122,12 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_index_L2_by_mode,
     )
 
     # Loop over modes in the current basis
-    for (relindex_mode, absindex_mode) in enumerate(list_absindex_mode):
-        index_L2 = list_index_L2_by_mode[relindex_mode]
-        if index_L2 in list_index_L2_active:
-            l_avg = list_avg_L2[list_index_L2_active.index(index_L2)]
-        else:
+    for absindex_mode in list_absindex_mode:
+        absindex_L2 = list_absindex_L2_by_mode[absindex_mode]
+        try:
+            relindex_L2 = list(list_absindex_L2_active).index(absindex_L2)
+            l_avg = list_avg_L2[relindex_L2]
+        except:
             l_avg = 0
         delta_z_mem[absindex_mode] = (
             l_avg * np.conj(list_g[absindex_mode])

@@ -1,3 +1,4 @@
+import os
 import pytest
 import numpy as np
 from mesohops.dynamics.bath_corr_functions import bcf_exp
@@ -11,8 +12,8 @@ __author__ = "J. K. Lynd"
 __version__ = "1.2"
 __date__ = "July 7 2021"
 
-
-
+path_data = os.path.realpath(__file__)[: -len("test_noise_fft.py")]
+path_seed = path_data + "/pre_calculated_uncorrelated_noise_test.npy"
 
 # Test FFT_FILTER Noise Model of the HopsNoise object.
 # ----------------------------------------------------
@@ -62,6 +63,20 @@ def test_noiseModel():
         "TAU": 1.0,  # Units: fs
         "INTERPOLATE": True
     }
+    noise_param_array_seed = {
+        "SEED": np.load(path_seed),
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "INTERPOLATE": True
+    }
+    noise_param_string_seed = {
+        "SEED": path_seed,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "INTERPOLATE": True
+    }
     noise_corr = {
         "CORR_FUNCTION": sys_param["ALPHA_NOISE1"],
         "N_L2": sys_param["N_L2"],
@@ -74,6 +89,10 @@ def test_noiseModel():
     testnoise1 = noiseModel.get_noise(np.arange(10.0))[0, :]
     testnoise2 = HopsNoise(noise_param, noise_corr).get_noise(np.arange(10.0))[
                  0, :]
+    testnoise_array_seed = HopsNoise(noise_param_array_seed, noise_corr).get_noise(
+        np.arange(10.0))[0, :]
+    testnoise_string_seed = HopsNoise(noise_param_string_seed, noise_corr).get_noise(
+        np.arange(10.0))[0, :]
     noise_param["SEED"] = 1
     testnoise3 = HopsNoise(noise_param, noise_corr).get_noise(np.arange(10.0))[
                  0, :]
@@ -83,6 +102,8 @@ def test_noiseModel():
                                       noise_corr).get_noise([0.3, 1.2, 2.4, 3.1, 4.5,
                                                              5.6, 6.3, 7.9, 8.7])[0, :]
     assert np.allclose(testnoise1, testnoise2)
+    assert np.allclose(testnoise1, testnoise_array_seed)
+    assert np.allclose(testnoise1, testnoise_string_seed)
     assert not np.allclose(testnoise1, testnoise3)
     assert np.allclose(testnoise1, testnoise_interp)
     for i in range(len(testnoise_interp_step)):
@@ -300,23 +321,24 @@ def test_prepare_rand():
 
     noise_param["SEED"] = np.array([np.arange(17), np.arange(17)])
     test_noise = HopsNoise(noise_param, noise_corr)
-    with pytest.raises(UnsupportedRequest) as excinfo:
+    try:
         test_rand_improper_list_seed = test_noise._prepare_rand()
-        assert 'Noise.param[SEED] is an array of the wrong length' in str(excinfo.value)
+    except UnsupportedRequest as excinfo:
+        assert "Noise.param[SEED] is an array of the wrong length" in str(excinfo)
 
     noise_param["SEED"] = "string"
     test_noise = HopsNoise(noise_param, noise_corr)
-    with pytest.raises(UnsupportedRequest) as excinfo:
+    try:
         test_rand_string_seed = test_noise._prepare_rand()
-        assert 'Noise.param[SEED] of type {} not supported'.format(
-                    type(noise_param['SEED'])) in str(excinfo.value)
+    except UnsupportedRequest as excinfo:
+        assert "is not the address of a valid file" in str(excinfo)
 
-    with pytest.raises(TypeError) as excinfo:
+    try:
         noise_param['SEED'] = HopsNoise({}, {})
         test_noise = HopsNoise(noise_param, noise_corr)
         test_rand_HopsNoise = test_noise._prepare_rand()
-        assert 'is of type' in str(excinfo.value)
-
+    except TypeError as excinfo:
+        assert 'is of type' in str(excinfo)
 
 def test_construct_indexing():
     """

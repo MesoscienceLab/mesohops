@@ -327,7 +327,7 @@ class HopsSystem(object):
                     for i_mod in range(self.param["N_HMODES"])
                     if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod],
                                   self.state_list)) != 0
-                ]
+                ], dtype=int
             )
             self.__list_absindex_new_state_modes = np.array(
                 [
@@ -335,7 +335,7 @@ class HopsSystem(object):
                     for i_mod in range(self.param["N_HMODES"])
                     if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod],
                                   self.__list_add_state)) != 0
-                ]
+                ], dtype=int
             )
             self.__list_absindex_L2_active = np.array(
                 [
@@ -343,7 +343,7 @@ class HopsSystem(object):
                     for i_lop in range(self.param["N_L2"])
                     if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_INDEX_L2"][i_lop],
                                   self.state_list)) != 0
-                ]
+                ], dtype=int
             )
 
             self._lt_corr_param = np.array(self.param["LIST_LT_PARAM"])[

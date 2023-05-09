@@ -1,11 +1,12 @@
 import copy
+import os
 import numpy as np
 from scipy.interpolate import interp1d
 from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import LockedException, UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
-__title__ = "Pyhops Noise"
+__title__ = "mesohops Noise"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
 __version__ = "1.2"
 
@@ -117,12 +118,12 @@ class HopsNoise(Dict_wDefaults):
 
         Parameters
         ----------
-        1. t_axis : list
+        1. t_axis : list(float)
                     List of time points.
 
         Returns
         -------
-        1. alpha : List
+        1. alpha : list(list(complex))
                    List of lists of correlation functions evaluated at each time point.
         """
         alpha = np.zeros([self.param["N_L2"], len(t_axis)], dtype=np.complex128)
@@ -138,15 +139,16 @@ class HopsNoise(Dict_wDefaults):
 
     def prepare_noise(self):
         """
-        This function is defined for each specific noise model (children classes of
-        HopsNoise class) and provides the specific rules for calculating a noise
-        trajectory using
+        Generates the correlated noise trajectory based on the choice of noise model.
+        Options include generating a zero noise trajectory, using an FFT filter
+        model to correlate a complex white noise, and using a numpy array (or loading
+        a .npy file) to serve as the correlated noise directly.
 
-        PARAMETERS
+        Parameters
         ----------
         None
 
-        RETURNS
+        Returns
         -------
         None
         """
@@ -176,7 +178,6 @@ class HopsNoise(Dict_wDefaults):
             #                                     ntaus = len(self.param['T_AXIS']))
             z_uncorrelated = self._prepare_rand()
 
-
             # Initialize correlated noise noise
             # ---------------------------------
             alpha = np.complex64(self._corr_func_by_lop_taxis(self.param['T_AXIS']))
@@ -185,16 +186,64 @@ class HopsNoise(Dict_wDefaults):
             # Remove 'Z_UNCORRELATED' for memory savings
             if self.param['STORE_RAW_NOISE']:
                 self.param['Z_UNCORRELATED'] = z_uncorrelated
-
             if self.param['INTERPOLATE']:
                 self._noise = interp1d(self.param['T_AXIS'], z_correlated, kind='cubic',axis=1)
             else:
                 self._noise = np.complex64(z_correlated)
 
+        # Precalculated case
+        elif self.param["MODEL"] == "PRE_CALCULATED":
+            # If SEED is an iterable
+            if (type(self.param['SEED']) is list) or (type(self.param['SEED']) is
+                                                       np.ndarray):
+                print('Correlated noise initialized from input array.')
+                # This is where we need to write the code to use an array of correlated
+                # noise variables input in place of the SEED parameter.
+                if len(self.param['SEED'][0]) == (len(self.param['T_AXIS'])):
+                    self._noise = self.param['SEED']
+                # We should add an interpolation option as well.
+                else:
+                    raise UnsupportedRequest(
+                        'Noise.param[SEED] is an array of the wrong length',
+                        'Noise.prepare_noise', True)
+
+            # if seed is a file address
+            elif type(self.param["SEED"]) is str:
+                print("Noise Model intialized from file: {}".format(self.param['SEED']))
+                if os.path.isfile(self.param["SEED"]):
+                    if self.param["SEED"][-4:] == ".npy":
+                        corr_noise = np.load(self.param["SEED"])
+                        if len(corr_noise[0]) == (len(self.param['T_AXIS'])):
+                            self._noise = corr_noise
+                        # We should add an interpolation option as well.
+                        else:
+                            raise UnsupportedRequest(
+                                'The file loaded at address Noise.param[SEED] is an '
+                                'array of the wrong length', 'Noise.prepare_noise',
+                                True)
+
+                    else:
+                        raise UnsupportedRequest(
+                            'Noise.param[SEED] of filetype {} is not supported'.format(
+                                type(self.param['SEED']))[-4:],
+                            'Noise.prepare_noise', True)
+                else:
+                    raise UnsupportedRequest(
+                        'Noise.param[SEED] {} is not the address of a valid file'.format(
+                            self.param['SEED']),
+                        'Noise.prepare_noise', True)
+
+
+            else:
+                raise UnsupportedRequest(
+                    'Noise.param[SEED] of type {}'.format(
+                        type(self.param['SEED'])),
+                    'Noise.prepare_noise')
+
         else:
             raise UnsupportedRequest(
-                'Noise.param[MODEL] of type {} not supported'.format(
-                    type(self.param['MODEL'])),
+                'Noise.param[MODEL] {}'.format(
+                    self.param['MODEL']),
                 'Noise.prepare_noise')
 
         # Lock Noise Instance
@@ -205,16 +254,16 @@ class HopsNoise(Dict_wDefaults):
 
     def get_noise(self, t_axis):
         """
-        Gets the noise.
+        Gets the noise associated with a given time interval.
 
         Parameters
         ----------
-        1. t_axis : list
+        1. t_axis : list(float)
                     List of time points.
 
         Returns
         -------
-        1. noise : list
+        1. noise : list(list(complex))
                    List of lists of noise values sampled at the given time points.
         """
         if not self.__locked__:
@@ -238,20 +287,23 @@ class HopsNoise(Dict_wDefaults):
 
     def _prepare_rand(self):
         """
-        A function to construct the uncorrelated complex gaussian distributions that
-        define the noise trajectory. Average of this uncorrelated noise trajectory is 0,
-        and average of the absolute values of is sqrt(pi)/2 (assuming an arbitrarily
-        long trajectory).
+        Constructs the uncorrelated complex Gaussian distributions that may be
+        converted to a correlated noise trajectory via an FFT filter model. Average
+        of this uncorrelated noise trajectory is 0, and average of the absolute
+        values of is sqrt(pi)/2 (assuming an arbitrarily long trajectory). The
+        uncorrelated noise trajectory may be generated from a Box-Muller distribution or
+        a sum of real and imaginary Gaussian distributions, or by using a numpy array
+        (or loading a .npy file) to serve as the uncorrelated noise directly.
 
-        PARAMETERS
+        Parameters
         ----------
         None
 
-        RETURNS
+        Returns
         -------
         1. z_uncorrelated : np.array(np.complex64)
                             The uncorrelated "raw" complex Gaussian random noise
-                            trajectory of the proper size to be transformed
+                            trajectory of the proper size to be transformed.
 
         """
         # Get the correct size of noise trajectory
@@ -263,23 +315,31 @@ class HopsNoise(Dict_wDefaults):
         if (type(self.param['SEED']) is list) or (
                 type(self.param['SEED']) is np.ndarray):
             print('Noise Model initialized from input array.')
-            # This is where we need to write the code to use an array of of random noise variables input in place of
-            # the SEED parameter.
+            # Import a .npy file as a noise trajectory.
             if len(self.param['SEED'][0]) == 2 * (len(self.param['T_AXIS']) - 1):
                 return self.param['SEED']
             else:
                 raise UnsupportedRequest(
                     'Noise.param[SEED] is an array of the wrong length',
-                    'Noise._prepare_rand')
+                    'Noise._prepare_rand', True)
 
         elif type(self.param["SEED"]) is str:
             print("Noise Model intialized from file: {}".format(self.param['SEED']))
-            # This is where we need to write a function that imports the uncorrelated noise trajectory.
-            # Question: What would be the best interface for this?
-            raise UnsupportedRequest(
-                'Noise.param[SEED] of type {} not supported'.format(
-                    type(self.param['SEED'])),
-                'Noise._prepare_rand')
+            # Import a .npy file as a noise trajectory
+            if os.path.isfile(self.param["SEED"]):
+                if self.param["SEED"][-4:] == ".npy":
+                    self.param["SEED"] = np.load(self.param["SEED"])
+                    return self._prepare_rand()
+                else:
+                    raise UnsupportedRequest(
+                        'Noise.param[SEED] of filetype {} is not supported'.format(
+                            type(self.param['SEED']))[-4:],
+                        'Noise._prepare_rand', True)
+            else:
+                raise UnsupportedRequest(
+                    'Noise.param[SEED] {} is not the address of a valid file '.format(
+                        self.param['SEED']), 'Noise._prepare_rand', True)
+
 
         elif (type(self.param['SEED']) is int) or (self.param['SEED'] is None):
             print("Noise Model initialized with SEED = ", self.param["SEED"])
@@ -313,13 +373,13 @@ class HopsNoise(Dict_wDefaults):
 
             else:
                 raise UnsupportedRequest(
-                    'Noise.param[RAND_MODEL] {} not supported'.format(
+                    'Noise.param[RAND_MODEL] {}'.format(
                         self.param["RAND_MODEL"]),
                     'Noise._prepare_rand')
 
         else:
             raise UnsupportedRequest(
-                'Noise.param[SEED] of type {} not supported'.format(
+                'Noise.param[SEED] of type {}'.format(
                     type(self.param['SEED'])),
                 'Noise._prepare_rand')
 
@@ -328,15 +388,18 @@ class HopsNoise(Dict_wDefaults):
         """
         Constructs a self-consistent indexing scheme that controls assignment of
         random numbers to different time points.
-        parameters
+
+        Parameters
         ----------
         1. ntaus : int
                    Length of the noise time-axis (that is, number of time points)
-        returns
+
+        Returns
         -------
         1. g_index : list(int)
                      List of indices where the Gaussian-determined norm of an
                      uncorrelated random noise point is placed
+
         2. phi_index : list(int)
                        List of indices where the phase of an uncorrelated random
                        noise point is placed
@@ -361,31 +424,34 @@ class HopsNoise(Dict_wDefaults):
     @staticmethod
     def _construct_correlated_noise(c_t, z_t, model="FFT_FILTER"):
         """
-        This function calculates a noise trajectory using the
-        bath correlation function (c_t). This function is
-        based on the description given by:
+        Calculates a noise trajectory using the bath correlation function (c_t). This
+        function is based on the description given by:
 
         "Exact simulation of complex-valued
         Gaussian stationary Processes via circulant embedding."
         Donald B. Percival Signal Processing 86, p. 1470-1476 (2006)
         [Section 3, p. 5-7]
 
-        PARAMETERS
+        Parameters
         ----------
-        1. c_t : list
-                  correlation function sampled at specific time points
-        2. z_t : list
-                  the list of complex-valued, uncorrelated random noise
-                  trajectories with real and imaginary components at
-                  each time having mean 0 and variance 1
-                  [Re(z_t) ~ N(0,1), Im(z_t) ~ N(0,1)]
-        3. model : string
-                   The model of the noise correlation function builder
+        1. c_t : list(list(complex))
+                 Correlation function sampled for each L operator at each time
+                 point.
 
-        RETURNS
+        2. z_t : list(list(complex))
+                 List of complex-valued, uncorrelated random noise
+                 trajectories with real and imaginary components at
+                 each time having mean 0 and variance 1 for each L operator.
+                 [Re(z_t) ~ N(0,1), Im(z_t) ~ N(0,1)]
+
+        3. model : str
+                   The model of the noise correlation function builder.
+
+        Returns
         -------
-        1. corr_noise : list
-                        the correlated noise trajectory
+        1. corr_noise : list(list(complex))
+                        Correlated noise trajectory for each L operator at each time
+                        point.
         """
         if model == "FFT_FILTER":
             # Rotate stochastic process such that final entry is real
@@ -440,22 +506,21 @@ class HopsNoise(Dict_wDefaults):
 
         else:
             raise UnsupportedRequest(
-                "Noise correlation model {} not supported".format(model),
+                "Noise correlation model {}".format(model),
                 "NoiseModel._construct_correlated_noise()",
             )
 
 
     def _reset_noise(self):
         """
-        Helper function that resets the RandomState object responsible for the raw
-        noise, as well as allows for the re-calculation of correlated noise. This is
-        only useful for testing.
+        Resets the RandomState object responsible for the raw noise, and allows for
+        the re-calculation of correlated noise. This is only useful for testing.
 
-        PARAMETERS
+        Parameters
         ----------
         None
 
-        RETURNS
+        Returns
         -------
         None
         """

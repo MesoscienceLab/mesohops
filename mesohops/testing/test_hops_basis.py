@@ -105,7 +105,7 @@ def test_initialize():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -220,7 +220,7 @@ def test_define_basis_state():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -300,7 +300,7 @@ def test_define_basis_hier():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[1] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -538,7 +538,7 @@ def test_define_state_basis():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -625,7 +625,7 @@ def test_define_hierarchy_basis():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[1] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -649,7 +649,7 @@ def test_define_hierarchy_basis():
         AuxiliaryVector([(2, 1)], 4),
         AuxiliaryVector([(3, 1)], 4),
     ]
-    assert np.array_equal(list_aux_stable, known_stable)
+    assert tuple(list_aux_stable) == tuple(known_stable)
     known_boundary = []
     assert tuple(known_boundary) == tuple(list_aux_boundary)
 
@@ -722,7 +722,7 @@ def test_determine_boundary_hier():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[1] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -853,7 +853,7 @@ def test_determine_basis_from_list():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -957,7 +957,7 @@ def test_state_stable_error():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -1092,7 +1092,7 @@ def test_M2_mode_from_state():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[1] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 

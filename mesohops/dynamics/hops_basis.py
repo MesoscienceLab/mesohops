@@ -345,8 +345,8 @@ class HopsBasis:
         list_state_boundary.sort()
 
         return (
-            np.array(list_state_stable, dtype=np.int),
-            np.array(list_state_boundary, dtype=np.int),
+            np.array(list_state_stable, dtype=int),
+            np.array(list_state_boundary, dtype=int),
         )
 
     def _define_hierarchy_basis(self, Φ, delta_t, z_step):
@@ -566,30 +566,30 @@ class HopsBasis:
             # Flux Up Error
             nonzero_modes_up = E2_flux_up[:,i_aux].nonzero()[0]
             if(len(nonzero_modes_up) > 0):
-                #Get the hash_string values for boundary auxiliaries up along modes with nonzero flux
-                hashes_up, value_connects,mode_connects = aux.get_list_hash_up(self.list_absindex_mode[nonzero_modes_up])
-                for (hash_ind,my_hash) in enumerate(hashes_up):
-                    #For each hash_string up, add the flux error to its entry in the boundary_aux_dict dictionary.
+                #Get the id values for boundary auxiliaries up along modes with nonzero flux
+                for mode in nonzero_modes_up:
+                    list_id_up, list_value_connect,list_mode_connect = aux.get_list_id_up([self.list_absindex_mode[mode]])
+                    #For each id up, add the flux error to its entry in the boundary_aux_dict dictionary.
                     #We assume that the filter is constructed correctly and that these are all indeed boundary auxiliaries.
                     #If it is the first flux for a boundary auxiliary, we keep track of the connection in the boundary_connect_dict, so we can use the 
                     #e_step method to construct the new Auxiliary as before.
                     try: 
-                        boundary_aux_dict[my_hash] += E2_flux_up[nonzero_modes_up[hash_ind],i_aux]
+                        boundary_aux_dict[list_id_up[0]] += E2_flux_up[mode,i_aux]
                     except:
-                        boundary_aux_dict[my_hash] = E2_flux_up[nonzero_modes_up[hash_ind],i_aux] 
-                        boundary_connect_dict[my_hash] = [aux, mode_connects[hash_ind], 1]
+                        boundary_aux_dict[list_id_up[0]] = E2_flux_up[mode,i_aux] 
+                        boundary_connect_dict[list_id_up[0]] = [aux, list_mode_connect[0], 1]
 
             # Flux Down Error
             nonzero_modes_down = self.list_absindex_mode[E2_flux_down[:,i_aux].nonzero()[0]]
             if(len(nonzero_modes_down) > 0):
-                hashes_down, value_connects, mode_connects = aux.get_list_hash_down()
-                for (hash_ind,my_hash) in enumerate(hashes_down):
-                    
-                    try: 
-                        boundary_aux_dict[my_hash] += E2_flux_down[list(self.list_absindex_mode).index(mode_connects[hash_ind]),i_aux]
-                    except:
-                        boundary_aux_dict[my_hash] = E2_flux_down[list(self.list_absindex_mode).index(mode_connects[hash_ind]),i_aux] 
-                        boundary_connect_dict[my_hash] = [aux,mode_connects[hash_ind],-1]
+                list_id_down, list_value_connects, list_mode_connects = aux.get_list_id_down()
+                for (id_ind,my_id) in enumerate(list_id_down):
+                    if(list_mode_connects[id_ind] in nonzero_modes_down):
+                        try: 
+                            boundary_aux_dict[my_id] += E2_flux_down[list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux]
+                        except:
+                            boundary_aux_dict[my_id] = E2_flux_down[list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux] 
+                            boundary_connect_dict[my_id] = [aux,list_mode_connects[id_ind],-1]
                         
         # Sort the errors and find the error threshold
         # --------------------------------------------                
@@ -598,9 +598,9 @@ class HopsBasis:
 
         # Identify and construct boundary auxiliaries
         # -------------------------------------------
-        list_aux_updown = [boundary_connect_dict[aux_hash][0].e_step(boundary_connect_dict[aux_hash][1],
-                                                                     boundary_connect_dict[aux_hash][2])
-                              for aux_hash in boundary_aux_dict.keys() if boundary_aux_dict[aux_hash] > error_thresh]
+        list_aux_updown = [boundary_connect_dict[aux_id][0].e_step(boundary_connect_dict[aux_id][1],
+                                                                     boundary_connect_dict[aux_id][2])
+                              for aux_id in boundary_aux_dict.keys() if boundary_aux_dict[aux_id] > error_thresh]
 
         return list_aux_updown
 

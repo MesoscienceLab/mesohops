@@ -6,10 +6,9 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_ex
 
 
 def test_filter_hierarchy_stable_up():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -33,22 +32,23 @@ def test_filter_hierarchy_stable_up():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
 
@@ -70,10 +70,9 @@ def test_filter_hierarchy_stable_up():
 
 
 def test_filter_hierarchy_stable_down():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -97,22 +96,23 @@ def test_filter_hierarchy_stable_down():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
 
@@ -134,10 +134,9 @@ def test_filter_hierarchy_stable_down():
 
 
 def test_filter_hierarchy_boundary_up():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -157,33 +156,34 @@ def test_filter_hierarchy_boundary_up():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
-    
+
     hops_ad.basis.hierarchy.auxiliary_list = [hops_ad.basis.hierarchy.auxiliary_list[0]]
     # The auxiliary list currently contains AuxVec([],20)
     # In order to keep the current connections intact, we must pass in the existing main auxiliary,
     # rather than creating a new one.
-    list_aux = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(1, 1), (2, 1)], 20),
-                AuxiliaryVector([(2, 3)], 20), AuxiliaryVector([(1, 4)], 20),
-                AuxiliaryVector([(3, 4)], 20)]
+    list_aux = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(1, 1), (2, 1)], 20), AuxiliaryVector([(2, 3)], 20),
+                AuxiliaryVector([(1, 4)], 20), AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = list_aux
     hops_ad.basis.system.state_list = [0]
     hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
@@ -196,10 +196,9 @@ def test_filter_hierarchy_boundary_up():
 
 
 def test_filter_hierarchy_boundary_down():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -219,33 +218,34 @@ def test_filter_hierarchy_boundary_down():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[0] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
-    
+
     hops_ad.basis.hierarchy.auxiliary_list = [hops_ad.basis.hierarchy.auxiliary_list[0]]
     # The auxiliary list currently contains AuxVec([],20)
     # In order to keep the current connections intact, we must pass in the existing main auxiliary,
     # rather than creating a new one.
-    list_aux = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(1, 1), (2, 1)], 20),
-                AuxiliaryVector([(2, 3)], 20), AuxiliaryVector([(1, 4)], 20),
-                AuxiliaryVector([(3, 4)], 20)]
+    list_aux = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(1, 1), (2, 1)], 20), AuxiliaryVector([(2, 3)], 20),
+                AuxiliaryVector([(1, 4)], 20), AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = list_aux
     hops_ad.basis.system.state_list = [0]
     hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
@@ -257,10 +257,9 @@ def test_filter_hierarchy_boundary_down():
 
 
 def test_filter_state_stable_up():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -280,31 +279,32 @@ def test_filter_state_stable_up():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     # The auxiliary list currently contains AuxVec([],20),AuxVec([(10,1)],20),AuxVec([(11,1)],20)
     # In order to keep the current connections intact, we must pass in the existing main auxiliary,
     # rather than creating a new one.
-    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(1, 1), (2, 1)], 20),
-                AuxiliaryVector([(2, 3)], 20), AuxiliaryVector([(1, 4)], 20),
-                AuxiliaryVector([(3, 4)], 20)]
+    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(1, 1), (2, 1)], 20), AuxiliaryVector([(2, 3)], 20),
+                AuxiliaryVector([(1, 4)], 20), AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
 
     list_aux_bound = [AuxiliaryVector([(1, 2)], 20), AuxiliaryVector([(2, 2)], 20),
@@ -322,13 +322,13 @@ def test_filter_state_stable_up():
     assert np.all(filter_state_stable_up == known_filter_state_stable_up)
 
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
-    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(1, 1), (2, 1)], 20),
-                AuxiliaryVector([(2, 3)], 20), AuxiliaryVector([(1, 4)], 20),
-                AuxiliaryVector([(3, 4)], 20)]
+    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(1, 1), (2, 1)], 20), AuxiliaryVector([(2, 3)], 20),
+                AuxiliaryVector([(1, 4)], 20), AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     list_aux_bound = [AuxiliaryVector([(1, 2)], 20), AuxiliaryVector([(2, 2)], 20),
                       AuxiliaryVector([(3, 3)], 20),
@@ -345,10 +345,9 @@ def test_filter_state_stable_up():
 
 
 def test_filter_state_stable_down():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -368,31 +367,32 @@ def test_filter_state_stable_down():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param, hierarchy_param={"MAXHIER": 4},
-        eom_param=eom_param, integration_param=integrator_param, )
+                   eom_param=eom_param, integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     # The auxiliary list currently contains AuxVec([],20),AuxVec([(10,1)],20),AuxVec([(11,1)],20)
     # In order to keep the current connections intact, we must pass in the existing main auxiliary,
     # rather than creating a new one.
-    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(1, 1), (2, 1)], 20),
-                AuxiliaryVector([(2, 3)], 20), AuxiliaryVector([(1, 4)], 20),
-                AuxiliaryVector([(3, 4)], 20)]
+    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(1, 1), (2, 1)], 20), AuxiliaryVector([(2, 3)], 20),
+                AuxiliaryVector([(1, 4)], 20), AuxiliaryVector([(3, 4)], 20)]
 
     list_aux_bound = [AuxiliaryVector([(1, 2)], 20), AuxiliaryVector([(2, 2)], 20),
                       AuxiliaryVector([(3, 3)], 20),
@@ -411,10 +411,9 @@ def test_filter_state_stable_down():
 
 
 def test_filter_markovian_up():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -434,16 +433,17 @@ def test_filter_markovian_up():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -451,17 +451,18 @@ def test_filter_markovian_up():
     # Adaptive Hops
     hops_ad = HOPS(sys_param, noise_param=noise_param,
 
-        hierarchy_param={'MAXHIER': 4,
-                         'STATIC_FILTERS': [['Markovian', mark_filter_list]], },
-        eom_param=eom_param, integration_param=integrator_param, )
+                   hierarchy_param={'MAXHIER': 4, 'STATIC_FILTERS': [
+                       ['Markovian', mark_filter_list]], }, eom_param=eom_param,
+                   integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     # The auxiliary list currently contains AuxVec([],20),AuxVec([(10,1)],20),AuxVec([(11,1)],20)
     # In order to keep the current connections intact, we must pass in the existing main auxiliary,
     # rather than creating a new one.
-    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(3, 1)], 20),
-                AuxiliaryVector([(4, 1)], 20), AuxiliaryVector([(2, 3)], 20)]
+    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(3, 1)], 20), AuxiliaryVector([(4, 1)], 20),
+                AuxiliaryVector([(2, 3)], 20)]
 
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [0, 1, 2]
@@ -474,11 +475,11 @@ def test_filter_markovian_up():
 
     assert np.all(filter_markovian == known_filter_markovian)
 
+
 def test_mode_setter():
-    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
-        # Units: fs
-        "TAU": 1.0,  # Units: fs
-    }
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0, # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
     nsite = 10
     e_lambda = 20.0
     gamma = 50.0
@@ -498,30 +499,32 @@ def test_mode_setter():
     hs = np.zeros([nsite, nsite])
 
     sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
-        "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
-        "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
 
     eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
 
     integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM', 'EARLY_INTEGRATOR_STEPS': 5,
-        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5, 'INCHWORM_CAP': 5,
+                        'STATIC_BASIS': None}
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[5] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     hops_ad = HOPS(sys_param, noise_param=noise_param,
 
-        hierarchy_param={'MAXHIER': 4}, eom_param=eom_param,
-        integration_param=integrator_param, )
+                   hierarchy_param={'MAXHIER': 4}, eom_param=eom_param,
+                   integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
 
-    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0], AuxiliaryVector([(1, 1)], 20),
-                AuxiliaryVector([(2, 1)], 20), AuxiliaryVector([(1, 1), (2, 1)], 20),
-                AuxiliaryVector([(2, 3)], 20), AuxiliaryVector([(1, 4)], 20),
-                AuxiliaryVector([(3, 4)], 20), AuxiliaryVector([(5, 1)], 20)]
+    aux_list = [hops_ad.basis.hierarchy.auxiliary_list[0],
+                AuxiliaryVector([(1, 1)], 20), AuxiliaryVector([(2, 1)], 20),
+                AuxiliaryVector([(1, 1), (2, 1)], 20), AuxiliaryVector([(2, 3)], 20),
+                AuxiliaryVector([(1, 4)], 20), AuxiliaryVector([(3, 4)], 20),
+                AuxiliaryVector([(5, 1)], 20)]
 
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [1, 2]

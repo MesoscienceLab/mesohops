@@ -284,12 +284,12 @@ def _add_crossterms_stable_K(
         for l_mode_abs in list_new_mode:
             #For each new mode, we look through our dictionary of mode connections between stable auxiliaries and add the corresponding entry to K
             #super operators.
-            if(len(hierarchy.stable_aux_hash_conn_by_mode[l_mode_abs]) > 0):
-                list_hashes, list_aux_conn_hash_and_value = list(zip(*hierarchy.stable_aux_hash_conn_by_mode[
+            if(len(hierarchy.stable_aux_id_conn_by_mode[l_mode_abs]) > 0):
+                list_ids, list_aux_conn_id_and_value = list(zip(*hierarchy.stable_aux_id_conn_by_mode[
                     l_mode_abs].items()))
-                list_aux_indices = [hierarchy._aux_index(hierarchy._aux_by_hash[hash_]) for hash_ in list_hashes]
-                list_hashes_p1, list_aux_mode_values = list(zip(*list_aux_conn_hash_and_value))
-                list_aux_indices_p1 = [hierarchy._aux_index(hierarchy._aux_by_hash[hash_]) for hash_ in list_hashes_p1]
+                list_aux_indices = [hierarchy._aux_index(hierarchy.dict_aux_by_id[id_]) for id_ in list_ids]
+                list_ids_p1, list_aux_mode_values = list(zip(*list_aux_conn_id_and_value))
+                list_aux_indices_p1 = [hierarchy._aux_index(hierarchy.dict_aux_by_id[id_]) for id_ in list_ids_p1]
                 l_mod = list(mode.list_absindex_mode).index(l_mode_abs)
                 i_lop = mode.list_index_L2_by_hmode[l_mod]
                 Kp1_data.extend(

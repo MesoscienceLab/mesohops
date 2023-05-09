@@ -254,9 +254,11 @@ def test_error_flux_up():
                                                F2_filter)
     assert np.allclose(error, known_error)
 
-    with pytest.raises(Exception):
-        error = error_flux_down(phi, n_state, n_hier, n_hmodes, list_g,
-                                list_w, "T", aux_list)
+    try:
+        error = error_flux_up(phi, nstate, nhier, n_hmodes, list_w, K2_aux_bymode,
+                          M2_mode_from_state, "T", F2_filter)
+    except UnsupportedRequest as excinfo:
+        assert "type T in the error_flux_up function" in str(excinfo)
 
 
 def test_error_flux_down():
@@ -496,9 +498,11 @@ def test_error_flux_down():
                                                  F2_filter)
     assert np.allclose(error, known_error)
 
-    with pytest.raises(Exception):
-        error = error_flux_down(phi, n_state, n_hier, n_hmodes, list_g,
-                                list_w, "T", aux_list)
+    try:
+        error = error_flux_down(phi, n_state, n_hier, n_hmodes, list_g, list_w,
+                            get_M2_mode_from_state(list_lop), "T", False, F2_filter)
+    except UnsupportedRequest as excinfo:
+        assert "type T in the error_flux_down function" in str(excinfo)
 
 
 def test_error_sflux_state():

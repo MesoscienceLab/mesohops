@@ -47,7 +47,7 @@ class HopsStorage:
                         t_index, np.array(self.data['state_list'][t_index])] = psi
                 return psi_traj_full
             else:
-                return np.array(self.data[item])
+                return self.data[item]
         else:
             print('{} not a key of storage.data'.format(item))
 
@@ -69,7 +69,7 @@ class HopsStorage:
         self.storage_dic.setdefault('t_axis', True)
 
         if self._adaptive:
-            self.storage_dic.setdefault('aux_new', True)
+            self.storage_dic.setdefault('aux_list', True)
             self.storage_dic.setdefault('state_list', True)
             self.storage_dic.setdefault('list_nhier', True)
             self.storage_dic.setdefault('list_nstate', True)
@@ -82,30 +82,32 @@ class HopsStorage:
                 elif callable(value):
                     self.dic_save[key] = value
                 else:
-                    raise UnsupportedRequest('Value is not supported')
+                    raise UnsupportedRequest('this value',
+                                             'Storage.adaptive')
         for (key, value) in self.storage_dic.items():
             if value:
                 self.data[key] = []
 
     def store_step(self, **kwargs):
         """
-        Inserts data into the HopsStorage class at eachtime point of the simulation.
+        Inserts data into the HopsStorage class at each time point of the simulation.
 
         Parameters
         ----------
         1. kwargs : any
                     The following parameters are the default key word arguments that
                     are currently being passed
-                    1. phi_new : np.array
-                                 the updated full hierarchy
-                    2. aux_new : list
-                                 a list of the current auxiliaries in the hierarchy basis
-                    3. state_list : list
-                                   the list of current states in the system basis
+                    1. phi_new : np.array(complex)
+                                 Updated full hierarchy.
+                    2. aux_list : list(AuxiliaryVector)
+                                  List of the current auxiliaries in the hierarchy
+                                  basis.
+                    3. state_list : list(int)
+                                    List of current states in the system basis.
                     4. t_new : float
-                               the new time point (t+tau)
-                    5. z_mem_new : list
-                                   a list of memory values
+                               New time point (t+tau).
+                    5. z_mem_new : list(complex)
+                                   List of memory values.
 
          Returns
          -------

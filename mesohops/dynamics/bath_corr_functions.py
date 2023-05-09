@@ -72,6 +72,59 @@ def bcf_convert_sdl_to_exp(lambda_sdl, gamma_sdl, omega_sdl, temp):
 
     return (g_exp, w_exp)
 
+def bcf_convert_dl_ud_to_exp(lambda_dl, gamma_dl, omega_dl, temp):
+    """
+    Converts underdamped Drude-Lorentz spectral density parameters to the exponential
+    equivalent. Assumes that omega_dl (the underdamped frequency) is larger than
+    gamma_dl (the reorganization timescale). Does not account for Matsubara modes.
+
+    Parameters
+    ----------
+    1. lambda_sdl : float [unit: cm^-1]
+                    Reorganization energy.
+
+    2. gamma_sdl : float [unit: cm^-1]
+                   Reorganization time scale.
+
+    3. omega_sdl : float [unit: cm^-1]
+                   Vibrational frequency.
+
+    4. temp : float [unit: K]
+              Temperature.
+
+    Returns
+    -------
+    1. list_modes: list(complex)
+                   List of the exponential modes that comprise the correlation
+                   function, alternating gs and ws (complex, [cm^-2] and [cm^-1],
+                   representing the constant prefactor and exponential decay rate,
+                   respectively)
+    """
+    beta = 1 / (kB * temp)
+    xi = np.sqrt(omega_dl**2 - gamma_dl**2)
+    prefactor_base = (lambda_dl * omega_dl**2)/(2 * xi)
+    w_1 = xi + 1j*gamma_dl
+    w_2 = -1*xi + 1j*gamma_dl
+    g_1 = prefactor_base
+    g_2 = -prefactor_base
+    coth_w_1 = 1 / np.tanh(w_1*beta/2)
+    coth_w_2 = 1 / np.tanh(w_2*beta/2)
+    g_1 += (coth_w_1 - np.conj(coth_w_2)) * prefactor_base
+    g_2 += (-coth_w_2 + np.conj(coth_w_1)) * prefactor_base
+
+    # # Test to prove that this expression is the same as the high-temperature
+    # # approximation of equation S52 from Bennet et al., Supplementary Information:
+    # # Mechanistic regimes of vibronic transport in a heterodimer and the design
+    # # principle of incoherent vibronic transport in phycobiliproteins, J. Phys. Chem.
+    # # Lett., 2018, https://doi.org/10.1021/acs.jpclett.8b00844:
+    # t_axis = np.arange(0, 0.21, 0.01)
+    # exp_form = g_1*np.exp(1j*w_1*t_axis) + g_2*np.exp(1j*w_2*t_axis)
+    # analytic_form = (lambda_dl*(gamma_dl**2 + xi**2)/xi) * np.exp(-1*gamma_dl*t_axis)\
+    #                 * (2*(np.sin(beta*gamma_dl)*np.sin(xi*t_axis) + np.sinh(
+    #     beta*xi)*np.cos(xi*t_axis))/(np.cosh(beta*xi)-np.cos(beta*gamma_dl)) +
+    #                    1j*np.sin(xi*t_axis))
+    return [g_1, -1j*w_1, g_2, -1j*w_2]
+
 
 def bcf_convert_dl_to_exp_with_Matsubara(lambda_dl, gamma_dl, temp, k_matsubara):
     """

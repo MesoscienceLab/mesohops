@@ -5,6 +5,7 @@ from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.dynamics.hops_storage import HopsStorage
 from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.util.exceptions import UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
@@ -360,7 +361,7 @@ def test_inchworm_aux():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[1] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -595,7 +596,7 @@ def test_inchworm_state():
         'STATIC_BASIS': None
     }
 
-    psi_0 = np.array([0.0] * nsite, dtype=np.complex)
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
     psi_0[2] = 1.0
     psi_0 = psi_0 / np.linalg.norm(psi_0)
 
@@ -675,3 +676,61 @@ def test_prepare_zstep():
     assert np.allclose(zran1,known_zran1)
     assert np.allclose(zrand2,np.zeros(2))
     assert np.array_equal(z_mem_init,z_mem)
+
+def test_early_time_integrator():
+    """
+    Tests that the early time integrator is called only when expected, and that
+    unsupported early time integrators throw an exception.
+    """
+    noise_param = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 50.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops.make_adaptive(0.001, 0.001)
+    hops.initialize(psi_0)
+    assert hops.use_early_integrator
+    hops.propagate(6.0, 2.0)
+    assert hops.use_early_integrator
+    hops.propagate(4.0, 2.0)
+    assert not hops.use_early_integrator
+    hops.reset_early_time_integrator()
+    assert hops.use_early_integrator
+    hops.propagate(4.0, 2.0)
+    assert hops.use_early_integrator
+    hops.propagate(8.0, 4.0)
+    assert hops.use_early_integrator
+    hops.propagate(2.0, 2.0)
+    assert not hops.use_early_integrator
+
+    integrator_param_broken = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'CHOOSE_BASIS_RANDOMLY',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_broken,
+    )
+    hops.make_adaptive(0.001, 0.001)
+    hops.initialize(psi_0)
+    try:
+        hops.propagate(2.0, 2.0)
+    except UnsupportedRequest as excinfo:
+        if "does not support CHOOSE_BASIS_RANDOMLY in the early time integrator " \
+           "clause" not in str(excinfo):
+            pytest.fail()

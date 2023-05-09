@@ -121,6 +121,7 @@ class HopsTrajectory:
         self._early_integrator = integration_param['EARLY_ADAPTIVE_INTEGRATOR']
         self._static_basis = integration_param["STATIC_BASIS"]
         self._early_steps = integration_param["EARLY_INTEGRATOR_STEPS"]
+        self._early_step_counter = 0
         if integration_param['EARLY_ADAPTIVE_INTEGRATOR'] == 'INCH_WORM':
             self._inchworm_cap = integration_param["INCHWORM_CAP"]
 
@@ -201,16 +202,16 @@ class HopsTrajectory:
                     aux_update = (list_aux_new, list_stable_aux, list_add_aux)
 
                     (phi_tmp, dsystem_dt) = self.basis.update_basis(
-                        phi_tmp, state_update, aux_update
+                        phi_tmp, list_state_new, list_aux_new
                     )
+
                     self.dsystem_dt = dsystem_dt
-            else:
-                aux_update = [[],[],[]]
 
             # Store System State
             # ------------------
             self.storage.store_step(
-                phi_new=phi_tmp, aux_new=aux_update, state_list=self.state_list, t_new=0, z_mem_new=self.z_mem
+                phi_new=phi_tmp, aux_list=self.auxiliary_list, state_list=self.state_list,
+                t_new=0, z_mem_new=self.z_mem
             )
             self.t = 0
             self.phi = phi_tmp
@@ -315,7 +316,7 @@ class HopsTrajectory:
 
                 # Check for Early Time Integration
                 # ================================
-                if index_t <= self._early_steps:
+                if self.use_early_integrator:
                     print(f'Early Integration: Using {self._early_integrator}')
                     # Early Integrator: Inch Worm
                     # ---------------------------
@@ -344,16 +345,14 @@ class HopsTrajectory:
                     # Early Integrator: Static Basis
                     # ------------------------------
                     elif self._early_integrator == 'STATIC':
-                        if index_t == self._early_steps:
-                            z_step = self._prepare_zstep(z_mem)
-                            (state_update, aux_update) = self.basis.define_basis(phi,
-                                                                                 tau,
-                                                                                 z_step)
-                            # update basis
-                            (phi, self.dsystem_dt) = self.basis.update_basis(
-                                phi, state_update, aux_update
-                            )
+                        pass
 
+                    else:
+                        raise UnsupportedRequest(self._early_integrator,
+                                                 "early time integrator "
+                                                 "clause of the propagate")
+
+                    self._early_step_counter += 1
                 # Standard Adaptive Integration
                 # =============================
                 elif (index_t + 1) % self.update_step == 0:
@@ -370,11 +369,8 @@ class HopsTrajectory:
                         phi, state_update, aux_update
                     )
 
-            else:
-                aux_update = [[],[],[]]
-
             self.storage.store_step(
-                phi_new=phi, aux_new=aux_update, state_list=self.state_list, t_new=t,
+                phi_new=phi, aux_list=self.auxiliary_list, state_list=self.state_list, t_new=t,
                 z_mem_new=self.z_mem
             )
             self.phi = phi
@@ -584,8 +580,8 @@ class HopsTrajectory:
             warnings.warn('SEED is not None; Summing over identical noise trajectories'
                           'In order to reconstruct correlation function seed must be None')
         t_axis = np.arange(0, self.noise1.param['TLEN'], self.noise1.param['TAU'])
-        list_ct1 = np.zeros(len(t_axis), dtype=np.complex)
-        list_ct2 = np.zeros(len(t_axis), dtype=np.complex)
+        list_ct1 = np.zeros(len(t_axis), dtype=np.complex128)
+        list_ct2 = np.zeros(len(t_axis), dtype=np.complex128)
         for _ in np.arange(n_traj):
             noise1 = prepare_noise(self.noise_param, self.basis.system.param)
             noise1.prepare_noise()
@@ -600,6 +596,14 @@ class HopsTrajectory:
                                       noise2.get_noise(t_axis)[n_l2, :], mode='full')
                 list_ct2 += result[result.size // 2:]
         return list_ct1 / (n_traj * len(t_axis)), list_ct2 / (n_traj * len(t_axis))
+
+    def reset_early_time_integrator(self):
+        """
+        Sets self._early_integrator_time to the current time so that the next use of
+        propagate will make the first self._early_steps early time integrator
+        propagation steps.
+        """
+        self._early_step_counter = 0
 
     @property
     def psi(self):
@@ -644,6 +648,10 @@ class HopsTrajectory:
     @property
     def t(self):
         return self._t
+
+    @property
+    def use_early_integrator(self):
+        return self._early_step_counter < self._early_steps
 
     @t.setter
     def t(self, t):

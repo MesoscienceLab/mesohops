@@ -189,11 +189,11 @@ class HopsFluxFilters:
         """
         F2_filter = np.zeros([self.n_hmodes, self.n_hier])
         for aux in list_aux_bound:
-            hashes_up, hash_values, mode_connects = \
-                aux.get_list_hash_up(self.mode.list_absindex_mode)
-            for (rel_ind, my_hash) in enumerate(hashes_up):
-                if (my_hash in self.hierarchy.aux_by_hash.keys()):
-                    aux_up = self.hierarchy.aux_by_hash[my_hash]
+            for (rel_ind,mode) in enumerate(self.mode.list_absindex_mode):
+                list_id_up, list_value_connects, list_mode_connect = \
+                aux.get_list_id_up([mode])
+                if (list_id_up[0] in self.hierarchy.dict_aux_by_id.keys()):
+                    aux_up = self.hierarchy.dict_aux_by_id[list_id_up[0]]
                     F2_filter[rel_ind, aux_up._index] = 1
         return F2_filter
 
@@ -216,11 +216,11 @@ class HopsFluxFilters:
         """
         F2_filter = np.zeros([self.n_hmodes, self.n_hier])
         for aux in list_aux_bound:
-            hashes_down, hash_values, mode_connects = aux.get_list_hash_down()
-            for (rel_ind, my_hash) in enumerate(hashes_down):
-                if (my_hash in self.hierarchy.aux_by_hash.keys()):
-                    aux_down = self.hierarchy.aux_by_hash[my_hash]
-                    F2_filter[list(self.mode.list_absindex_mode).index(mode_connects[
+            list_ids_down, list_id_values, list_mode_connects = aux.get_list_id_down()
+            for (rel_ind, my_id) in enumerate(list_ids_down):
+                if (my_id in self.hierarchy.dict_aux_by_id.keys()):
+                    aux_down = self.hierarchy.dict_aux_by_id[my_id]
+                    F2_filter[list(self.mode.list_absindex_mode).index(list_mode_connects[
                                                                   rel_ind]), aux_down._index] = 1
         return F2_filter
 

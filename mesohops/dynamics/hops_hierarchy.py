@@ -71,12 +71,10 @@ class HopsHierarchy(Dict_wDefaults):
         self.param = hierarchy_param
         self.n_hmodes = system_param["N_HMODES"]
         self._auxiliary_list = []
-        self._auxiliary_by_depth = {depth: [] for depth in range(self.param['MAXHIER']+1)}
-        self._hash_by_depth = {depth : [] for depth in range(self.param['MAXHIER']+1)}
         self._new_aux_index_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
-        self._new_aux_hash_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
-        self._stable_aux_hash_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
-        self._aux_by_hash = {}
+        self._new_aux_id_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
+        self._stable_aux_id_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
+        self._dict_aux_by_id = {}
         self._list_modes_in_use = []
         self._count_by_modes = {}
 
@@ -167,12 +165,12 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       List of auxiliaries to be filtered.
 
         Returns
         -------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       Filtered list of auxiliaries.
 
         """
@@ -189,7 +187,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       List of auxiliaries that needs to be filtered.
 
         2. filter_name : str
@@ -200,7 +198,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Returns
         -------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       List of filtered auxiliaries.
 
 
@@ -263,8 +261,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. aux : Auxiliary object
-                 Hops_aux auxiliary object.
+        1. aux : instance(AuxVec)
 
         Returns
         -------
@@ -295,8 +292,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Returns
         -------
-        1. aux : Auxiliary object
-                 Auxiliary at the edge node.
+        1. aux : instance(AuxVec)
         """
         return AuxVec([(absindex_mode, depth)], n_hmodes)
 
@@ -316,7 +312,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Returns
         -------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       List of auxiliaries in the new triangular hierarchy.
         """
         list_aux = []
@@ -352,7 +348,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Returns
         -------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       List of auxiliaries in the new triangular hierarchy.
         """
         list_not_boolean_mark = [not bool_mark for bool_mark in list_boolean_mark]
@@ -418,7 +414,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Returns
         -------
-        1. list_aux : list
+        1. list_aux : list(instance(AuxVec))
                       List of auxiliaries in the new triangular hierarchy.
         """
         list_aux = []
@@ -480,7 +476,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. aux : instance(HopsAuxiliary)
+        1. aux : instance(AuxVec)
 
         2. type : str
                   Two options add or remove
@@ -538,41 +534,38 @@ class HopsHierarchy(Dict_wDefaults):
         None
         """
         for mode in range(self.n_hmodes):
-            self._stable_aux_hash_conn_by_mode[mode].update(self._new_aux_hash_conn_by_mode[mode])
+            self._stable_aux_id_conn_by_mode[mode].update(self._new_aux_id_conn_by_mode[mode])
         self._new_aux_index_conn_by_mode = {mode: {} for mode in range(self.n_hmodes)}
-        self._new_aux_hash_conn_by_mode = {mode: {} for mode in range(self.n_hmodes)}
+        self._new_aux_id_conn_by_mode = {mode: {} for mode in range(self.n_hmodes)}
         for aux in self.list_aux_add:
             sum_aux = np.sum(aux)
             # add connections to k+1
             
             if sum_aux < self.param['MAXHIER']:
-                list_hash_p1, list_value_connects_p1, mode_connects_p1 = aux.get_list_hash_up(self._list_modes_in_use)
-                #we need to return mode_connects, so simple modification of identity_string_up was made.
-                for (index,hash_p1) in enumerate(list_hash_p1):
+                for mode in self._list_modes_in_use:
+                    list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up([mode])
                     try:
-                        aux_p1 = self._aux_by_hash[hash_p1]
-                        aux.add_aux_connect(mode_connects_p1[index],aux_p1,1)
+                        aux_p1 = self._dict_aux_by_id[list_id_p1[0]]
+                        aux.add_aux_connect(list_mode_connects_p1[0],aux_p1,1)
                         
                         #We simply keep track of the index connections of new auxiliaries
                         #Note: It does not matter that the indices will change because we only use this dictionary 
                         #once, immediately after it is created in eom.ksuper
-                        self._new_aux_hash_conn_by_mode[mode_connects_p1[index]][aux.hash] = [aux_p1.hash,list_value_connects_p1[index] + 1]
-                        self._new_aux_index_conn_by_mode[mode_connects_p1[index]][aux._index] = [aux_p1._index,list_value_connects_p1[index] + 1]  
+                        self._new_aux_id_conn_by_mode[list_mode_connects_p1[0]][aux.id] = [aux_p1.id,list_value_connects_p1[0] + 1]
+                        self._new_aux_index_conn_by_mode[list_mode_connects_p1[0]][aux._index] = [aux_p1._index,list_value_connects_p1[0] + 1]  
                     except:
                         pass
 
             # Add connections to k-1
             if sum_aux > 0:
-            
-                list_hash_m1, list_value_connects_m1, mode_connects_m1 = aux.get_list_hash_down()
+                list_id_m1, list_value_connects_m1, list_mode_connects_m1 = aux.get_list_id_down()
 
-                for (index,hash_m1) in enumerate(list_hash_m1):
+                for (index,id_m1) in enumerate(list_id_m1):
                     try:
-                        aux_m1 = self._aux_by_hash[hash_m1]
-                        if aux_m1 not in self.list_aux_add:
-                            aux.add_aux_connect(mode_connects_m1[index], aux_m1, -1)
-                            self._new_aux_hash_conn_by_mode[mode_connects_m1[index]][aux_m1.hash] = [aux.hash,list_value_connects_m1[index]]
-                            self._new_aux_index_conn_by_mode[mode_connects_m1[index]][aux_m1._index] = [aux._index,list_value_connects_m1[index]]
+                        aux_m1 = self._dict_aux_by_id[id_m1]
+                        aux.add_aux_connect(list_mode_connects_m1[index], aux_m1, -1)
+                        self._new_aux_id_conn_by_mode[list_mode_connects_m1[index]][aux_m1.id] = [aux.id,list_value_connects_m1[index]]
+                        self._new_aux_index_conn_by_mode[list_mode_connects_m1[index]][aux_m1._index] = [aux._index,list_value_connects_m1[index]]
                     except:
                         pass
 
@@ -581,8 +574,8 @@ class HopsHierarchy(Dict_wDefaults):
         return self._new_aux_index_conn_by_mode
         
     @property
-    def stable_aux_hash_conn_by_mode(self):
-        return self._stable_aux_hash_conn_by_mode  
+    def stable_aux_id_conn_by_mode(self):
+        return self._stable_aux_id_conn_by_mode  
          
     @property
     def size(self):
@@ -593,8 +586,8 @@ class HopsHierarchy(Dict_wDefaults):
         return self._auxiliary_list
 
     @property
-    def aux_by_hash(self):
-        return self._aux_by_hash
+    def dict_aux_by_id(self):
+        return self._dict_aux_by_id
 
     @property
     def list_absindex_hierarchy_modes(self):
@@ -608,7 +601,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         set_aux_add = set(aux_list) - set(self.auxiliary_list)
         set_aux_remove = set(self.auxiliary_list) - set(aux_list)
-        list_aux_remove = [self.auxiliary_list[self.auxiliary_list.index(aux)]
+        list_aux_remove = [self.auxiliary_list[aux._index]
                            for aux in set_aux_remove]
         self.__list_aux_remove = list_aux_remove
         self.__list_aux_add = list(set_aux_add)
@@ -620,25 +613,19 @@ class HopsHierarchy(Dict_wDefaults):
         if set(aux_list) != set(self.__previous_auxiliary_list):
             # Prepare New Auxiliary List
             # --------------------------
-            # Update auxiliary_by_depth
             for aux in set_aux_add:
-                self._auxiliary_by_depth[np.sum(aux)].append(aux)
-                self._hash_by_depth[np.sum(aux)].append(aux.hash)
-                self._aux_by_hash[aux.hash] = aux
+                self._dict_aux_by_id[aux.id] = aux
                 self.__update_count(aux, 'add')
 
             for aux in list_aux_remove:
-                self._auxiliary_by_depth[np.sum(aux)].remove(aux)
-                self._hash_by_depth[np.sum(aux)].remove(aux.hash)
-                self._aux_by_hash.pop(aux.hash)
+                self._dict_aux_by_id.pop(aux.id)
                 self.__update_count(aux, 'remove')
-
             # Update auxiliary_list
             aux_list.sort()
             self._auxiliary_list = aux_list
-            if not aux_list[0].absolute_index == 0:
+            if not aux_list[0].id == '':
                 raise AuxError("Zero Vector not contained in list_aux!")
-
+            
             # Update modes_in_use
             self.__update_modes_in_use()
 
@@ -656,19 +643,19 @@ class HopsHierarchy(Dict_wDefaults):
         for aux in list_aux_remove:
             for (mode,aux_p1) in aux.dict_aux_p1.items():
                 try:
-                    self._stable_aux_hash_conn_by_mode[mode].pop(aux.hash)
+                    self._stable_aux_id_conn_by_mode[mode].pop(aux.id)
                 except:
                     pass
             for (mode,aux_m1) in aux.dict_aux_m1.items():
                 try:
-                    self._stable_aux_hash_conn_by_mode[mode].pop(aux_m1.hash)
+                    self._stable_aux_id_conn_by_mode[mode].pop(aux_m1.id)
                 except:
                     pass
                     
         # Remove auxiliary connections
         for aux in set_aux_remove:
             aux.remove_pointers() 
-            
+             
     @property
     def list_aux_stable(self):
         return self.__list_aux_stable
