@@ -8,7 +8,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Test of ZERO noise model"
 __author__ = "J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = "Oct 19 2022"
 
 

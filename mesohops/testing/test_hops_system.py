@@ -6,7 +6,7 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_ex
 
 __title__ = "test for System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = "Jan. 15, 2020"
 
 # HOPS SYSTEM PARAMETERS
@@ -117,14 +117,6 @@ def test_initialize_false():
     state = HS.state_list
     known_state = [0, 1, 2, 3]
     assert np.array_equal(state, known_state)
-
-
-def test_array_to_tuple():
-    """ This function test whether an array properly turns into a tuple"""
-    array = lop_list[0]
-    array_to_tuple = HS._array_to_tuple(array)
-    known_tuple = (tuple([0]), tuple([0]))
-    assert array_to_tuple == known_tuple
 
 
 def test_get_states_from_L2_try():

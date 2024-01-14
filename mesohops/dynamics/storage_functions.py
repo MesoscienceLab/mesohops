@@ -2,7 +2,7 @@ import numpy as np
 
 __title__ = "storage functions"
 __author__ = "L. Varvelo, D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 def save_psi_traj(phi_new, state_list, **kwargs):
@@ -56,7 +56,7 @@ def save_phi_norm(phi_new, **kwargs):
     Returns
     -------
     1. phi_norm : float
-                  The L2-norm of the full wave function.
+                  L2-norm of the full wave function.
     """
     return np.linalg.norm(phi_new)
 

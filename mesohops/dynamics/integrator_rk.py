@@ -1,9 +1,10 @@
 import copy
+import numpy as np
 from mesohops.util.physical_constants import hbar
 
 __title__ = "Integrators, Runge-Kutta"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
@@ -13,27 +14,27 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     Parameters
     ----------
     1. dsystem_dt : function
-                    A function that calculates the system derivatives.
+                    Calculates the system derivatives.
 
-    2. phi : array
+    2. phi : np.array(complex)
              Full hierarchy vector.
 
-    3. z_mem : array
-              Array of memory terms for the bath.
+    3. z_mem : np.array(complex)
+               Noise memory drift terms for the bath [units: cm^-1].
 
-    4. z_rnd : array
-               Array of random numbers for the bath (at three time points).
+    4. z_rnd : np.array(complex)
+               Random numbers for the bath (at three time points) [units: cm^-1].
 
     5. tau : float
-             Timestep of the calculation.
+             Timestep of the calculation [units: fs].
 
     Returns
     -------
-    1. phi : array
+    1. phi : np.array(complex)
              Updated hierarchy vector.
 
-    2. z_mem : array
-               Updated memory term
+    2. z_mem : np.array(complex)
+               Updated noise memory drift terms for the bath [units: cm^-1].
     """
     # Calculation constants
     # ---------------------
@@ -63,7 +64,8 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     return phi, z_mem
 
 
-def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage):
+def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage,
+                          effective_noise_integration=False):
     """
     Accepts a storage and noise objects and returns the pre-requisite variables for
     a runge-kutta integration step in a list that can be unraveled to correctly feed
@@ -71,11 +73,11 @@ def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage):
 
     Parameters
     ----------
-    1. phi : array
+    1. phi : np.array(complex)
              Full hierarchy vector.
 
-    2. z_mem : list
-               a list of memory terms
+    2. z_mem : list(complex)
+               List of memory terms [units: cm^-1].
 
     3. t : int
            Integration time point.
@@ -85,14 +87,37 @@ def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage):
     5. noise2 : instance(HopsNoise)
 
     6. tau : float
-             Noise time step.
+             Noise time step [units: fs].
+             
+    7. storage : instance(HopsStorage)
+
+    8. effective_noise_integration: bool
+                                    True indicates that the effective noise
+                                    integration is used to take a moving average over
+                                    the noise while False indicates otherwise.
 
     Returns
     -------
     1. variables : dict
                    Dictionary of variables needed for Runge Kutta.
     """
-    z_rnd = noise.get_noise([t, t + tau * 0.5, t + tau])
-    z_rnd2 = noise2.get_noise([t, t + tau * 0.5, t + tau])
+    if effective_noise_integration:
+        tau_ratio = round(tau/noise.param["TAU"])
+        tau_ratio2 = round(tau / noise2.param["TAU"])
+        z_rnd_raw = noise.get_noise([t + (i/tau_ratio)*tau for i in
+                                     range(round(tau_ratio*1.5))])
+        z_rnd2_raw = noise2.get_noise([t + (i / tau_ratio2) * tau for i in
+                                       range(round(tau_ratio2 * 1.5))])
+        z_rnd = np.array([np.mean(z_rnd_raw[:,:round(tau_ratio/2)], axis=1),
+                          np.mean(z_rnd_raw[:,round(tau_ratio/2):tau_ratio], axis=1),
+                          np.mean(z_rnd_raw[:, tau_ratio:], axis=1)]).T
+        z_rnd2 = np.array([np.mean(z_rnd2_raw[:, :round(tau_ratio2 / 2)], axis=1),
+                           np.mean(z_rnd2_raw[:, round(tau_ratio2 / 2):tau_ratio2],
+                                   axis=1),
+                           np.mean(z_rnd2_raw[:, tau_ratio2:], axis=1)]).T
+
+    else:
+        z_rnd = noise.get_noise([t, t + tau * 0.5, t + tau])
+        z_rnd2 = noise2.get_noise([t, t + tau * 0.5, t + tau])
 
     return {"phi": phi, "z_mem": z_mem, "z_rnd": z_rnd, "z_rnd2": z_rnd2, "tau": tau}

@@ -1,4 +1,4 @@
-# Function Title: hysical Constants
+# Function Title: Physical Constants
 # Project: Exciton Dynamics
 # Author: Doran I. G. Bennett
 # Date:January 7, 2016

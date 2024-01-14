@@ -5,7 +5,7 @@ from mesohops.dynamics.noise_trajectories import NumericNoiseTrajectory
 
 __title__ = "Test of noise_trajectories"
 __author__ = "J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = "July 7 2021"
 
 # Test Noise Model

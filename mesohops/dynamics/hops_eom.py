@@ -15,7 +15,7 @@ from mesohops.dynamics.eom_functions import (
 
 __title__ = "Equations of Motion"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.2"
+__version__ = "1.4"
 
 EOM_DICT_DEFAULT = {
     "TIME_DEPENDENCE": False,
@@ -24,7 +24,8 @@ EOM_DICT_DEFAULT = {
     "ADAPTIVE_S": False,
     "DELTA_H": 0,
     "DELTA_S": 0,
-    "UPDATE_STEP": None
+    "UPDATE_STEP": None,
+    "F_DISCARD": 0
 }
 
 EOM_DICT_TYPES = {
@@ -33,41 +34,41 @@ EOM_DICT_TYPES = {
     "ADAPTIVE": [type(False)],
     "DELTA_H": [type(1.0)],
     "DELTA_S": [type(1.0)],
-    "UPDATE_STEP": [type(1.0), type(False)]
+    "UPDATE_STEP": [type(1.0), type(False)],
+    "F_DISCARD": [type(0.0)]
 }
 
 
 class HopsEOM(Dict_wDefaults):
     """
-    HopsEOM is the class that defines the equation of motion for time-evolving
-    the hops trajectory. Its primary responsibility is to define the derivative
-    of the system state. It also contains the parameters that determine what
+    Defines the equation of motion for time-evolving the hops trajectory, primarily the
+    derivative of the system state. Also contains the parameters that determine what
     kind of adaptive-hops strategies are used.
     """
 
     def __init__(self, eom_params):
         """
-        A self initializing function that defines the normalization condition and
-        checks the adaptive definition.
-
         Inputs
         ------
-        1. eom_params: a dictionary of user-defined parameters
-            a. TIME_DEPENDENCE : boolean          [Allowed: False]
-                                 defines time-dependence of system Hamiltonian
-            b. EQUATION_OF_MOTION : str           [Allowed: NORMALIZED NONLINEAR,
-            LINEAR, NONLINEAR, NONLINEAR ABSORPTION]
-                                    The hops equation that is being solved
-            c. ADAPTIVE_H : boolean               [Allowed: True, False]
-                            Boolean that defines whether the hierarchy should be
-                           adaptively updated
-            d. ADAPTIVE_S : boolean               [Allowed: True, False]
-                            Boolean that defines whether the system should be
-                            adaptively updated.
-            e. DELTA_H : float                    [Allowed: >0]
-                         The threshold value for the adaptive hierarchy
-            f. DELTA_S : float                    [Allowed: >0]
-                         The threshold value for the adaptive system
+        1. eom_params : dict
+                        Dictionary of user-defined parameters.
+            a. TIME_DEPENDENCE : bool
+                                 True indicates a time-dependence of system Hamiltonian
+                                 while False indicates otherwise (options: False).
+            b. EQUATION_OF_MOTION : str
+                                    Hops equation being solved (options: NORMALIZED
+                                    NONLINEAR, LINEAR, NONLINEAR, NONLINEAR
+                                    ABSORPTION).
+            c. ADAPTIVE_H : bool  
+                            True indicates that the hierarchy should be adaptively updated
+                            while False indicates otherwise.             
+            d. ADAPTIVE_S : bool           
+                            True indicates that the state basis should be adaptively
+                            updated while False indicates otherwise.
+            e. DELTA_H : float
+                         Threshold value for the adaptive hierarchy (options: >= 0).
+            f. DELTA_S : float
+                         Threshold value for the adaptive state basis (options: >= 0).
     
         Returns
         -------
@@ -77,7 +78,7 @@ class HopsEOM(Dict_wDefaults):
         self._param_types = EOM_DICT_TYPES
         self.param = eom_params
 
-        # Define Normalization condition
+        # Defines normalization condition
         # ------------------------------
         if self.param["EQUATION_OF_MOTION"] == "NORMALIZED NONLINEAR":
             self.normalized = True
@@ -93,7 +94,7 @@ class HopsEOM(Dict_wDefaults):
                 type(self).__name__,
             )
 
-        # Check Adaptive Definition
+        # Checks adaptive definition
         # -------------------------
         if self.param["ADAPTIVE_H"] or self.param["ADAPTIVE_S"]:
             self.param["ADAPTIVE"] = True
@@ -121,29 +122,29 @@ class HopsEOM(Dict_wDefaults):
         3. mode : instance(HopsMode)
 
         4. permute_index : list(int)
-                           List of rows and columns of non-zero entries that define
-                           a permutation matrix.
+                           List of rows and columns of non-zero entries that define a
+                           permutation matrix.
 
-        5. update : boolean
-                    True = updating adaptive calculation,
-                    False = non-adaptive calculation.
+        5. update : bool
+                    True indicates an adaptive calculation while False indicates a
+                    non-adaptive calculation.
 
         Returns
         -------
         1. dsystem_dt : function
                         Function that returns the derivative of phi and z_mem based
-                        on whether the calculation is linear or nonlinear
+                        on whether the calculation is linear or nonlinear.
         """
-        # Prepare Super-Operators
+        # Prepares super-operators
         # -----------------------
         if not update:
-            self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1 = calculate_ksuper(
+            self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1, self.list_hier_mask_Zp1 = calculate_ksuper(
                 system, 
                 hierarchy,
                 mode
             )
         else:
-            self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1 = update_ksuper(
+            self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1, self.list_hier_mask_Zp1 = update_ksuper(
                 self.K2_k,
                 self.K2_kp1,
                 self.Z2_kp1,
@@ -154,7 +155,7 @@ class HopsEOM(Dict_wDefaults):
                 permute_index,
             )
 
-        # Combine Sparse Matrices
+        # Combines sparse matrices
         # -----------------------
         K2_stable = self.K2_kp1 + self.K2_km1
         list_L2 = mode.list_L2_coo  # list_L2
@@ -165,7 +166,7 @@ class HopsEOM(Dict_wDefaults):
                 or self.param["EQUATION_OF_MOTION"] == "NONLINEAR ABSORPTION"):
             nmode = len(hierarchy.auxiliary_list[0])
 
-            # Construct tuple containing:
+            # Constructs tuple containing:
             # 1. aux_index for the phi_1
             # 2. associated L2 index
             # 3. associated absindex mode
@@ -186,7 +187,9 @@ class HopsEOM(Dict_wDefaults):
                 z_rnd2_tmp,
                 K2_stable=K2_stable,
                 Z2_kp1=self.Z2_kp1,
+                list_hier_mask_Zp1 = self.list_hier_mask_Zp1,
                 list_L2=list_L2,
+                list_L2_masks = mode.list_L2_masks,
                 list_index_L2_by_hmode=mode.list_index_L2_by_hmode,
                 list_mode_absindex_L2=system.param["LIST_INDEX_L2_BY_HMODE"],
                 nsys=system.size,
@@ -196,14 +199,15 @@ class HopsEOM(Dict_wDefaults):
                 list_g=system.param["G"],
                 list_w=system.param["W"],
                 list_lt_corr_param=mode.lt_corr_param,
-                list_L2_csc = mode.list_L2_csc,
+                list_L2_csr = mode.list_L2_csr,
+                list_L2_sq_csr = mode.list_L2_sq_csr,
                 list_tuple_index_phi1_L2_mode=list_tuple_index_phi1_L2_mode,
             ):
 
                 """
-                This is the core function for calculating the time-evolution of the
-                wave function. The logic here becomes slightly complicated because
-                we need use both the relative and absolute indices at different points.
+                Calculates the time-evolution of the wave function. The logic here
+                becomes slightly complicated because we need use both the relative and
+                absolute indices at different points.
 
                 z_hat1_tmp : relative
                 z_rnd1_tmp : absolute
@@ -217,8 +221,9 @@ class HopsEOM(Dict_wDefaults):
                 The nonlinear evolution equation used to perform this calculation
                 takes the following form:
                 ~
-                Ψ̇_t^(k)=(-iH-kw+(z~_t)L)ψ_t^(k) + κα(0)Lψ_t^(k-1) - (L†-〈L†〉_t)ψ_t^(k+1)
+                hbar dΨ̇_t^(k)/dt = (-iH-kw+(z~_t)L)ψ_t^(k) + κwLψ_t^(k-1) - (g/w)(L†-〈L†〉_t)ψ_t^(k+1)
                 with z~ = z^* + ∫ds(a^*)(t-s)〈L†〉
+                presented here for a single mode m: w = w_m, g = g_m, L = L_m, z_t = z_{m,t}.
                 A super operator notation is implemented in this code.
 
                 Parameters
@@ -238,14 +243,14 @@ class HopsEOM(Dict_wDefaults):
                                 set of time points required in the integration.
 
                 5. K2_stable : np.array(complex)
-                               The component of the super operator that does not depend
+                               Component of the super operator that does not depend
                                on noise.
 
                 6. Z2_kp1 : np.array(complex)
-                            The component of the super operator that is multiplied by
+                            Component of the super operator that is multiplied by
                             noise z and maps the (K+1) hierarchy to the kth hierarchy.
 
-                7. list_L2 : list(sparse matrix)
+                7. list_L2 : np.array(sparse matrix)
                              List of L operators.
 
                 8. list_index_L2_by_hmode : list(int)
@@ -258,7 +263,7 @@ class HopsEOM(Dict_wDefaults):
                                            each entry is an index for the absolute
                                            list_L2.
                 10. nsys : int
-                          Current dimension (size) of the system basis.
+                           Current dimension (size) of the system basis.
 
                 11. list_absindex_L2 : list(int)
                                        List of length equal to the number of L-operators
@@ -285,10 +290,14 @@ class HopsEOM(Dict_wDefaults):
                 16. list_lt_corr_param : list(complex)
                                          List of low-temperature correction factors.
 
-                17. list_L2_csc : list(sparse matrix)
-                                  L-operators in csc format in the current basis.
+                17. list_L2_csr : np.array(sparse matrix)
+                                  L-operators in csr format in the current basis.
 
-                18. list_tuple_index_phi1_index_L2 : list(int)
+                18. list_L2_sq_csr : np.array(sparse matrix)
+                                     Squared L-operators in csr format in the current
+                                     basis.
+
+                19. list_tuple_index_phi1_index_L2 : list(int)
                                                      List of tuples with each tuple
                                                      containing the index of the first
                                                      auxiliary mode (phi1) in the
@@ -304,7 +313,7 @@ class HopsEOM(Dict_wDefaults):
                                   Derivative of z_mem with respect to time.
                 """
                 
-                # Construct Noise Terms
+                # Construct noise terms
                 # ---------------------
                 z_hat1_tmp = (np.conj(z_rnd1_tmp[list_absindex_L2]) + compress_zmem(
                     z_mem1_tmp, list_index_L2_by_hmode, list_absindex_mode
@@ -322,76 +331,73 @@ class HopsEOM(Dict_wDefaults):
                         operator_expectation(list_L2[index], Φ[:nsys])
                         for index in list_index_L2_active] # <L>
 
-                norm_corr = calc_norm_corr(
-                    Φ,
-                    z_hat1_tmp,
-                    list_avg_L2,
-                    list_L2[list_index_L2_active],
-                    nsys,
-                    list_tuple_index_phi1_L2_mode,
-                    np.array(list_g)[np.array(list_absindex_mode)],
-                    np.array(list_w)[np.array(list_absindex_mode)],
-                )
+                norm_corr = 0
+                if self.normalized:
+                    norm_corr = calc_norm_corr(
+                        Φ,
+                        z_hat1_tmp,
+                        list_avg_L2,
+                        list_L2[list_index_L2_active],
+                        nsys,
+                        list_tuple_index_phi1_L2_mode,
+                        np.array(list_g)[np.array(list_absindex_mode)],
+                        np.array(list_w)[np.array(list_absindex_mode)],
+                    )
                     
                 # Check for a low-temperature correction stemming from flux from
                 # Markovian auxiliaries
+                C2_gamma_LT_corr_to_norm_corr = 0
                 if any(np.array(list_lt_corr_param)):
-                    # Get LT correction to the physical wavefunction
-                    C2_LT_corr_physical = calc_LT_corr(
-                        np.array(list_lt_corr_param),
-                        list_L2[list_index_L2_active],
-                        list_avg_L2,
-                        physical = True
-                    )
-
-                    # Get LT correction to the full hierarchy stemming from
-                    # delta-function approximation of noise memory drift
-                    C2_LT_corr_hier = calc_LT_corr(
-                        np.array(list_lt_corr_param),
-                        list_L2[list_index_L2_active],
-                        list_avg_L2,
-                        physical = False
-                    )
-                    
                     # Find <L^2>
                     if self.param["EQUATION_OF_MOTION"] == "NONLINEAR ABSORPTION":
                         list_avg_L2_sq = [
-                            operator_expectation(list_L2[index]@list_L2[index],
-                                                 Φ[:nsys],
+                            operator_expectation(list_L2_sq_csr[index], Φ[:nsys],
                                                  flag_gcorr=True)
                             for index in list_index_L2_active]  # <L^2>
                     else:
                         list_avg_L2_sq = [
-                            operator_expectation(list_L2[index]@list_L2[index],
-                                                 Φ[:nsys])
+                            operator_expectation(list_L2_sq_csr[index], Φ[:nsys],
+                                                 flag_gcorr=False)
                             for index in list_index_L2_active]  # <L^2>
-
-                    # Get LT correction to the normalization correction factor
-                    C2_gamma_LT_corr_to_norm_corr = calc_LT_corr_to_norm_corr(
+                    
+                    # Gets LT correction to the physical wavefunction stemming from
+                    # the terminator approximation to the Markovian auxiliaries and
+                    # to the full hierarchy stemming from delta-function
+                    # approximation of noise memory drift
+                    C2_LT_corr_physical, C2_LT_corr_hier = calc_LT_corr(
                         np.array(list_lt_corr_param),
+                        list_L2_csr[list_index_L2_active],
                         list_avg_L2,
-                        list_avg_L2_sq
+                        list_L2_sq_csr[list_index_L2_active]
                     )
+
+                    if self.normalized:
+                        # Get LT correction to the normalization correction factor
+                        C2_gamma_LT_corr_to_norm_corr = calc_LT_corr_to_norm_corr(
+                            np.array(list_lt_corr_param),
+                            list_avg_L2,
+                            list_avg_L2_sq
+                        )
+
                 
-                
-                # calculate dphi/dt
+                # Calculates dphi/dt
                 # -----------------
                 
+                Φ_view_F = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
+                Φ_view_C = np.asarray(Φ).reshape([hierarchy.size,system.size],order="C")
+                
                 Φ_deriv = K2_stable @ Φ
-                Φ_deriv += (self.K2_k @ np.asarray(Φ).reshape([hierarchy.size, system.size],
-                                                              order="C")).reshape([hierarchy.size * system.size],
-                                                                                  order="C")
-                Φ_deriv += ((-1j * system.hamiltonian) @ np.asarray(Φ).reshape([system.size, hierarchy.size],
-                                                                               order="F")).reshape([system.size * hierarchy.size],
-                                                                                                   order="F")
+                Φ_deriv += (self.K2_k @ Φ_view_C).reshape([hierarchy.size * system.size],order="C")
+                Φ_deriv += ((-1j * system.hamiltonian) @ Φ_view_F).reshape([system.size * hierarchy.size],order="F")
+
+                Φ_deriv_view_F = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
+                Φ_deriv_view_C = np.asarray(Φ_deriv).reshape([hierarchy.size,system.size],order="C")
+                
                 
                 
                 # Implement the low-temperature correction
                 if any(np.array(list_lt_corr_param)):
-                    Φ_deriv += (C2_LT_corr_hier @ np.asarray(Φ).reshape(
-                        [system.size, hierarchy.size],
-                        order="F")).reshape([system.size * hierarchy.size],
-                                            order="F")
+                    Φ_deriv += (C2_LT_corr_hier @ Φ_view_F).reshape([system.size * hierarchy.size],order="F")
                     Φ_deriv[:system.size] += C2_LT_corr_physical @ np.asarray(
                         Φ[:system.size])
                     norm_corr += C2_gamma_LT_corr_to_norm_corr
@@ -399,31 +405,25 @@ class HopsEOM(Dict_wDefaults):
                 if self.normalized:
                     Φ_deriv -= norm_corr * Φ
                 
-                Φ_deriv_view = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
-                Φ_view = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
                 
                 
                 for j in range(len(list_avg_L2)):
                     rel_index = list_index_L2_active[j]
                     # ASSUMING: L = L^*
-                    mask = list(set(list_L2[rel_index].row))
-                    mask2 = list(set(list_L2[rel_index].col))
-                    Φ_view_red = Φ_view[mask2,:]
-                    list_L2_csc_red = list_L2_csc[rel_index][:,mask2]
-                    Φ_deriv_view[mask,:] += (z_hat1_tmp[j] - 2.0j * np.real(z_tmp2[j])) * (list_L2_csc_red @ Φ_view_red)[mask,:]
-
-                Φ_deriv_view = np.asarray(Φ_deriv).reshape([hierarchy.size,system.size],order="C")
-                Φ_view = np.asarray(Φ).reshape([hierarchy.size,system.size],order="C")
-                for j in range(len(list_avg_L2)):
-                    rel_index = list_index_L2_active[j]
-                    # ASSUMING: L = L^*
-                    mask = list(set(Z2_kp1[rel_index].nonzero()[0]))
-                    mask2 = list(set(Z2_kp1[rel_index].nonzero()[1]))
-                    Φ_view_red = Φ_view[mask2,:]
-                    Z2_kp1_red = Z2_kp1[rel_index][:,mask2]
-                    Φ_deriv_view[mask,:] += np.conj(list_avg_L2[j]) * (Z2_kp1_red @ Φ_view_red)[mask,:]
                     
-                # calculate dz/dt
+                    Φ_view_red = Φ_view_F[list_L2_masks[rel_index][1],:]
+                    list_L2_csr_red = list_L2_csr[rel_index][list_L2_masks[rel_index][2]]
+                    
+                    Φ_deriv_view_F[list_L2_masks[rel_index][0],:] += (z_hat1_tmp[j] - 2.0j * np.real(z_tmp2[j])) * (list_L2_csr_red @ Φ_view_red)
+                    
+                    Φ_view_red = Φ_view_C[list_hier_mask_Zp1[rel_index][1],:]
+                    Z2_kp1_red = Z2_kp1[rel_index][list_hier_mask_Zp1[rel_index][2]]
+                    
+                    Φ_deriv_view_C[list_hier_mask_Zp1[rel_index][0],:] += np.conj(list_avg_L2[j]) * (Z2_kp1_red @ Φ_view_red)
+
+
+                    
+                # Calculates dz/dt
                 # ---------------
                 z_mem1_deriv = calc_delta_zmem(
                     z_mem1_tmp,
@@ -444,13 +444,14 @@ class HopsEOM(Dict_wDefaults):
                 z_mem1_tmp,
                 z_rnd1_tmp,
                 z_rnd2_tmp,
-                list_L2_csc = mode.list_L2_csc,
+                list_L2_csr = mode.list_L2_csr,
+                list_L2_sq_csr = mode.list_L2_sq_csr,
                 K2_stable=K2_stable,
                 Z2_kp1=self.Z2_kp1,
                 list_lt_param = mode.lt_corr_param
             ):
                 """
-                NOTE: unlike in the non-linear case, this equation of motion does
+                NOTE: Unlike in the non-linear case, this equation of motion does
                       NOT support an adaptive solution at the moment. Implementing
                       adaptive integration would require updating the adaptive
                       routine to handle non-normalized wave-functions.
@@ -462,7 +463,8 @@ class HopsEOM(Dict_wDefaults):
                 The linear evolution equation used to perform this calculation
                 takes the following form:
 
-                Ψ_̇t^(k)=(-iH-kw+((z^*)_t)L)ψ_t^(k) + κα(0)Lψ_t^(k-1) - (L^†)ψ_t^(k+1)
+                hbar*dΨ_̇t^(k)/dt=(-iH-kw+((z^*)_t)L)ψ_t^(k) + κw Lψ_t^(k-1) - (g/w)(L^†)ψ_t^(k+1)
+                presented here for a single mode m: w = w_m, g = g_m, L = L_m, z_t = z_{m,t}.
                 A super operator notation is implemented in this code.
 
                 Parameters
@@ -481,19 +483,22 @@ class HopsEOM(Dict_wDefaults):
                                 Array of random noise corresponding to NOISE2 for the
                                 set of time points required in the integration.
 
-                5. list_L2_csc : list(sparse matrix)
-                                 L-operators in csc format in the current basis.
+                5. list_L2_csr : np.array(sparse matrix)
+                                 L-operators in csr format in the full basis.
 
-                6. K2_stable : np.array(complex)
-                               The component of the super operator that does not depend
+                6. list_L2_sq_csr : np.array(sparse matrix)
+                                    Squared L-operators in csr format in the full basis.
+
+                7. K2_stable : np.array(complex)
+                               Component of the super operator that does not depend
                                on noise.
 
-                7. Z2_kp1 : np.array(complex)
-                            The component of the super operator that is multiplied by
+                8. Z2_kp1 : np.array(complex)
+                            Component of the super operator that is multiplied by
                             noise z and maps the (K+1)th hierarchy to the Kth hierarchy.
 
-                8. list_lt_corr_param : list(complex)
-                                         List of low-temperature correction factors.
+                9. list_lt_corr_param : list(complex)
+                                        List of low-temperature correction factors.
 
                 Returns
                 -------
@@ -504,31 +509,30 @@ class HopsEOM(Dict_wDefaults):
                                   Derivative of z_men with respect to time.
                 """
 
-                # prepare noise
+                Φ_view_F = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
+                Φ_view_C = np.asarray(Φ).reshape([hierarchy.size,system.size],order="C")
+
+                # Prepares noise
                 # -------------
                 z_hat1_tmp = np.conj(z_rnd1_tmp)
 
-                # calculate dphi/dt
+                # Calculates dphi/dt
                 # -----------------
                 Φ_deriv = K2_stable @ Φ
-                Φ_deriv += (self.K2_k @ np.asarray(Φ).reshape([hierarchy.size, system.size],
-                                                              order="C")).reshape([hierarchy.size * system.size],
-                                                                                  order="C")
-                Φ_deriv += ((-1j * system.hamiltonian) @ np.asarray(Φ).reshape([system.size, hierarchy.size],
-                                                                               order="F")).reshape([system.size * hierarchy.size],
-                                                                                                   order="F")
+                Φ_deriv += (self.K2_k @ Φ_view_C).reshape([hierarchy.size * system.size],order="C")
+                Φ_deriv += ((-1j * system.hamiltonian) @ Φ_view_F).reshape([system.size * hierarchy.size],order="F")
                 if any(list_lt_param):
                     Φ_deriv[:system.size] += calc_LT_corr_linear(list_lt_param,
-                                                                 list_L2_csc) @ \
+                                                                 list_L2_sq_csr) @ \
                                              np.asarray(Φ[:system.size])
 
                 Φ_deriv_view = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
                 Φ_view = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
-                for j in range(len(list_L2_csc)):
+                for j in range(len(list_L2_csr)):
                     Φ_deriv_view += (z_hat1_tmp[j] - 2.0j * np.real(z_rnd2_tmp[j])) * (
-                                list_L2_csc[j] @ Φ_view)
+                                list_L2_csr[j] @ Φ_view)
 
-                # calculate dz/dt
+                # Calculates dz/dt
                 # ---------------
                 z_mem1_deriv = 0 * z_mem1_tmp
 

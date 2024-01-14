@@ -12,7 +12,7 @@ from mesohops.util.exceptions import AuxError, UnsupportedRequest
 
 __title__ = "Hierarchy Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 HIERARCHY_DICT_DEFAULT = {"MAXHIER": int(3), "TERMINATOR": False, "STATIC_FILTERS": []}
@@ -26,7 +26,7 @@ HIERARCHY_DICT_TYPES = dict(
 
 class HopsHierarchy(Dict_wDefaults):
     """
-    HopsHierarchy defines the representation of the hierarchy in the HOPS
+    Defines the representation of the hierarchy in the HOPS
     calculation. It contains the user parameters, helper functions, and
     the list of all nodes contained in the hierarchy.
     """
@@ -39,22 +39,23 @@ class HopsHierarchy(Dict_wDefaults):
         Inputs
         ------
         1. hierarchy_param :
-            [see hops_basis]
-            a. MAXHIER : int                    [Allowed: >0]
-                         The maximum depth in the hierarchy that will be kept
-                         in the calculation
-            b. TERMINATOR : boolean             [Allowed: False]
-                            The name of the terminator condition to be used
-            c. STATIC_FILTERS :                 [Allowed: Triangular, Markovian,
-                                                LongEdge, Domain]
-                              The total set of nodes defined by MAXHIER can
-                              be further filtered. This is a list of filters
-                              [(filter_name1, [filter_param_1]), ...]
+            [see hops_basis.py]
+            a. MAXHIER : int
+                         Maximum depth in the hierarchy that will be kept in the
+                         calculation (options: >= 0).
+            b. TERMINATOR : bool
+                            True indicates the terminator condition is used while False
+                            indicates otherwise (options: False).
+            c. STATIC_FILTERS : str
+                                Total set of nodes defined by MAXHIER can be further
+                                filtered. This is a list of filters [(filter_name1,
+                                [filter_param_1]), ...] (options: Triangular,
+                                Markovian, LongEdge, Domain).
 
         2. system_param :
-            [see hops_system]
+            [see hops_system.py]
             a. N_HMODES : int
-                          number of modes that appear in hierarchy
+                          Number of modes that appear in hierarchy.
 
         Returns
         -------
@@ -69,6 +70,11 @@ class HopsHierarchy(Dict_wDefaults):
         self._param_types = HIERARCHY_DICT_TYPES
 
         self.param = hierarchy_param
+        if self.param["MAXHIER"] > 255:
+            print("Warning: using a hierarchy depth greater than 255 can cause "
+                  "integer overflow issues when calculating derivative error. "
+                  "Resetting hierarchy depth to 255.")
+            self.param["MAXHIER"] = 255
         self.n_hmodes = system_param["N_HMODES"]
         self._auxiliary_list = []
         self._new_aux_index_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
@@ -80,12 +86,13 @@ class HopsHierarchy(Dict_wDefaults):
 
     def initialize(self, flag_adaptive):
         """
-        This function will initialize the hierarchy.
+        Initializes the hierarchy.
 
         Parameters
         ----------
-        1. flag_adaptive : boolean
-                           Boolean describing whether the calculation is adaptive or not.
+        1. flag_adaptive : bool
+                           True indicates an adaptive calculation while False indicates
+                           otherwise.  
 
         Returns
         -------
@@ -111,38 +118,14 @@ class HopsHierarchy(Dict_wDefaults):
                                                      self.param["MAXHIER"]
                                                      )
                 )
-            # If the first static filter is Markovian, then use either the Markovian
-            # triangular hierarchy generator or the Markovian-LongEdge triangular
-            # hierarchy
-            # generator special cases
+            # If the first static filter is Markovian, then use the Markovian
+            # triangular hierarchy generator
             else:
                 list_mark = self.param["STATIC_FILTERS"][0][1]
-                # Check if there are additional static filters beyond Markovian. If
-                # not, use the Markovian triangular hierarchy generator special case
-                if len(self.param["STATIC_FILTERS"]) < 2:
-                    self.auxiliary_list = self.filter_aux_list(
-                        self.define_markovian_filtered_triangular_hierarchy(
-                            self.n_hmodes, self.param["MAXHIER"], list_mark)
-                    )
-                # If there are additional static filters, but the second is not
-                # LongEdge, use the Markovian triangular hierarchy generator special
-                # case
-                elif not "LongEdge" in self.param["STATIC_FILTERS"][1]:
-                    self.auxiliary_list = self.filter_aux_list(
-                        self.define_markovian_filtered_triangular_hierarchy(
-                            self.n_hmodes, self.param["MAXHIER"], list_mark)
-                    )
-                # Finally, if the second filter is LongEdge, use the
-                # Markovian-LongEdge triangular hierarchy generator special case
-                else:
-                    list_LE = self.param["STATIC_FILTERS"][1][1][0]
-                    LE_depth, LE_edge = self.param["STATIC_FILTERS"][1][1][1]
-                    self.auxiliary_list = self.filter_aux_list(
-                        self.define_markovian_and_LE_filtered_triangular_hierarchy(
-                            self.n_hmodes, self.param["MAXHIER"], list_mark, list_LE,
-                            LE_edge)
-                    )
-
+                self.auxiliary_list = self.filter_aux_list(
+                    self.define_markovian_filtered_triangular_hierarchy(
+                        self.n_hmodes, self.param["MAXHIER"], list_mark)
+                )
 
         else:
             # Initialize Guess for the hierarchy
@@ -220,15 +203,13 @@ class HopsHierarchy(Dict_wDefaults):
             list_aux = filter_aux_triangular(
                 list_aux=list_aux,
                 list_boolean_by_mode=params[0],
-                kmax=params[1][0],
-                kdepth=params[1][1],
+                kmax_2=params[1]
             )
         elif filter_name == "LongEdge":
             list_aux = filter_aux_longedge(
                 list_aux=list_aux,
                 list_boolean_by_mode=params[0],
-                kmax=params[1][0],
-                kdepth=params[1][1],
+                kdepth=params[1],
             )
         elif filter_name == "Markovian":
             list_aux = filter_markovian(list_aux=list_aux, list_boolean=params)
@@ -266,7 +247,7 @@ class HopsHierarchy(Dict_wDefaults):
         Returns
         -------
         1. aux_index : int
-                       Relative or absolute index of a single auxiliary
+                       Relative or absolute index of a single auxiliary.
         """
         if aux._index is None:
             return self.auxiliary_list.index(aux)
@@ -340,11 +321,11 @@ class HopsHierarchy(Dict_wDefaults):
                       Number of modes that appear in the hierarchy.
 
         2. maxhier : int
-                     Max single value of the hierarchy
+                     Max single value of the hierarchy.
 
-        3. list_boolean_mark : list(boolean)
-                               List by mode of whether the Markovian filter will
-                               be applied
+        3. list_boolean_mark : list(bool)
+                               List by modes. True indicates that the Markovian filter
+                               will be applied while False indicates otherwise.
 
         Returns
         -------
@@ -375,100 +356,6 @@ class HopsHierarchy(Dict_wDefaults):
                 )
         return list_aux
 
-    @staticmethod
-    def define_markovian_and_LE_filtered_triangular_hierarchy(n_hmodes, maxhier,
-                                                              list_boolean_mark,
-                                                              list_boolean_le, edge_le):
-        """
-        Creates a triangular hierarchy when the Markovian and LongEdge filters are in
-        use, applying the filters as the hierarchy is constructed to reduce
-        transient memory burdens.
-
-        IMPORTANT: This function relies on being filtered after it runs to get rid of
-        the terms with a depth greater than LE_depth in the modes filtered by
-        list_boolean_LE. THIS FUNCTION SHOULD NEVER BE RUN WITHOUT BEING WRAPPED BY
-        SELF.FILTER_AUX_LIST()!
-
-        Parameters
-        ----------
-        1. n_hmodes : int
-                      Number of modes that appear in the hierarchy.
-
-        2. maxhier : int
-                     Max single value of the hierarchy.
-
-        3. list_boolean_mark : list(boolean)
-                               List by mode of whether the Markovian filter will
-                               be applied.
-
-        4. list_boolean_LE: list(boolean)
-                            List by mode of whether the LongEdge filter will be applied.
-
-        5. depth_le: int
-                     Allowed hierarchy depth of the LongEdge-filtered modes. This
-                     parameter is unused in the code: we include it due to the
-                     dictionary structure associated with the LongEdge filter.
-
-        6. edge_le: int
-                    Depth beyond which LongEdge-filtered modes retain only edge terms.
-
-        Returns
-        -------
-        1. list_aux : list(instance(AuxVec))
-                      List of auxiliaries in the new triangular hierarchy.
-        """
-        list_aux = []
-        list_not_boolean_mark = [not bool_mark for bool_mark in list_boolean_mark]
-        list_not_boolean_le = [not bool_le for bool_le in list_boolean_le]
-
-        # Loops over hierarchy depths at which the Markovian filter does not apply
-        for k in [0, 1]:
-            for aux_raw in it.combinations_with_replacement(np.arange(n_hmodes), k):
-                count = Counter(aux_raw)
-                list_aux.append(
-                    AuxVec([(key, count[key]) for key in count.keys()], n_hmodes)
-                )
-
-        # Create a list of booleans that identifies entirely unfiltered modes
-        list_modes_unfiltered = np.array(list_not_boolean_mark)*np.array(
-            list_not_boolean_le)
-        # Create a list of booleans that identifies modes with only the LongEdge filter
-        list_modes_only_le_filtered = np.array(list_boolean_mark)*np.array(1-np.array(
-            list_not_boolean_le), dtype=bool)
-        # Generate an array of all non-Markovian-filtered modes
-        M1_modes_filtered_mark = np.arange(n_hmodes)[list_not_boolean_mark]
-        # Generate an array of all modes that are both non-Markovian-filtered and
-        # non-LongEdge-filtered
-        M1_modes_not_longedge = np.arange(n_hmodes)[list_modes_unfiltered]
-        # Generate an array of all modes that are only LongEdge-filtered
-        M1_modes_longedge_only = np.arange(n_hmodes)[list_modes_only_le_filtered]
-        
-        # Loop over hierarchy depths at which the LongEdge filter does not yet apply
-        for k in np.arange(2, edge_le+1):
-            # At each depth, add to list_aux all possible combinations of only the
-            # non-Markovian-filtered modes
-            for aux_raw in it.combinations_with_replacement(M1_modes_filtered_mark, k):
-                count = Counter(aux_raw)
-                list_aux.append(
-                    AuxVec([(key, count[key]) for key in count.keys()], n_hmodes)
-                )
-
-        # Loop over hierarchy depths at which the LongEdge filter allows only edge terms
-        for k in np.arange(edge_le+1, maxhier+1):
-            # At each depth, add to list_aux all possible combinations of only the
-            # modes that are both non-Markovian-filtered and non-LongEdge-filtered
-            for aux_raw in it.combinations_with_replacement(M1_modes_not_longedge, k):
-                count = Counter(aux_raw)
-                list_aux.append(
-                    AuxVec([(key, count[key]) for key in count.keys()], n_hmodes)
-                )
-            # In addition, add to list_aux all the edge terms associated with the
-            # LongEdge-filtered modes
-            for mode in M1_modes_longedge_only:
-                list_aux.append(AuxVec([(mode, k)], n_hmodes))
-
-        return list_aux
-
     def __update_count(self, aux, type):
         """
         Updates the dictionary of number of auxiliaries possessing non-zero depth in
@@ -479,7 +366,7 @@ class HopsHierarchy(Dict_wDefaults):
         1. aux : instance(AuxVec)
 
         2. type : str
-                  Two options add or remove
+                  Determines whether to add or remove (options: add, remove).
 
         Returns
         -------
@@ -518,12 +405,11 @@ class HopsHierarchy(Dict_wDefaults):
                 print(f'ERROR: _count_by_modes is negative for mode {mode}')
 
         [self._count_by_modes.pop(mode) for mode in list_to_remove]
-        self._list_modes_in_use = list_modes_in_use
+        self._list_modes_in_use = sorted(list_modes_in_use)
 
     def add_connections(self):
         """
-        The method responsible for adding the connections between HopsAux objects
-        composing an auxiliary list.
+        Adds the connections between HopsAux objects composing an auxiliary list.
 
         Parameters
         ----------
@@ -533,26 +419,25 @@ class HopsHierarchy(Dict_wDefaults):
         -------
         None
         """
-        for mode in range(self.n_hmodes):
+        for mode in self._previous_list_modes_in_use:
             self._stable_aux_id_conn_by_mode[mode].update(self._new_aux_id_conn_by_mode[mode])
-        self._new_aux_index_conn_by_mode = {mode: {} for mode in range(self.n_hmodes)}
-        self._new_aux_id_conn_by_mode = {mode: {} for mode in range(self.n_hmodes)}
+        self._new_aux_index_conn_by_mode = {mode: {} for mode in self._list_modes_in_use}
+        self._new_aux_id_conn_by_mode = {mode: {} for mode in self._list_modes_in_use}
         for aux in self.list_aux_add:
             sum_aux = np.sum(aux)
             # add connections to k+1
-            
             if sum_aux < self.param['MAXHIER']:
-                for mode in self._list_modes_in_use:
-                    list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up([mode])
+                list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up(self._list_modes_in_use)
+                for (rel_ind,my_id) in enumerate(list_id_p1):
                     try:
-                        aux_p1 = self._dict_aux_by_id[list_id_p1[0]]
-                        aux.add_aux_connect(list_mode_connects_p1[0],aux_p1,1)
+                        aux_p1 = self._dict_aux_by_id[my_id]
+                        aux.add_aux_connect(list_mode_connects_p1[rel_ind],aux_p1,1)
                         
                         #We simply keep track of the index connections of new auxiliaries
                         #Note: It does not matter that the indices will change because we only use this dictionary 
                         #once, immediately after it is created in eom.ksuper
-                        self._new_aux_id_conn_by_mode[list_mode_connects_p1[0]][aux.id] = [aux_p1.id,list_value_connects_p1[0] + 1]
-                        self._new_aux_index_conn_by_mode[list_mode_connects_p1[0]][aux._index] = [aux_p1._index,list_value_connects_p1[0] + 1]  
+                        self._new_aux_id_conn_by_mode[list_mode_connects_p1[rel_ind]][aux.id] = [aux_p1.id,list_value_connects_p1[rel_ind] + 1]
+                        self._new_aux_index_conn_by_mode[list_mode_connects_p1[rel_ind]][aux._index] = [aux_p1._index,list_value_connects_p1[rel_ind] + 1]  
                     except:
                         pass
 
@@ -568,7 +453,7 @@ class HopsHierarchy(Dict_wDefaults):
                         self._new_aux_index_conn_by_mode[list_mode_connects_m1[index]][aux_m1._index] = [aux._index,list_value_connects_m1[index]]
                     except:
                         pass
-
+         
     @property
     def new_aux_index_conn_by_mode(self):
         return self._new_aux_index_conn_by_mode
@@ -591,7 +476,7 @@ class HopsHierarchy(Dict_wDefaults):
 
     @property
     def list_absindex_hierarchy_modes(self):
-        return list(self._count_by_modes.keys())
+        return self._list_modes_in_use
 
     @auxiliary_list.setter
     def auxiliary_list(self, aux_list):
@@ -610,6 +495,10 @@ class HopsHierarchy(Dict_wDefaults):
         set_aux_stable = set(self.auxiliary_list).intersection(set(aux_list))
         self.__list_aux_stable = [aux for aux in self.auxiliary_list if aux in set_aux_stable]
         self.__previous_list_auxstable_index = [aux._index for aux in self.__list_aux_stable]
+        
+        self._previous_list_modes_in_use = self._list_modes_in_use.copy()
+        
+        
         if set(aux_list) != set(self.__previous_auxiliary_list):
             # Prepare New Auxiliary List
             # --------------------------
@@ -654,8 +543,8 @@ class HopsHierarchy(Dict_wDefaults):
                     
         # Remove auxiliary connections
         for aux in set_aux_remove:
-            aux.remove_pointers() 
-             
+            aux.remove_pointers()
+            
     @property
     def list_aux_stable(self):
         return self.__list_aux_stable

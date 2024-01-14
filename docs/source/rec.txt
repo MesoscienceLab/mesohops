@@ -40,8 +40,8 @@ py==1.8.1
 pycparser==2.19
 pycryptodome==3.9.7
 Pygments==2.5.2
-# Editable install with no version control (pyhops==0.2)
--e /Users/leovarvelo/Documents/PythonLibrary/pyhopslib
+# Editable install with no version control (mesohops==0.2)
+-e /Users/leovarvelo/Documents/PythonLibrary/mesohopslib
 PyNaCl==1.3.0
 pyOpenSSL==19.1.0
 pyparsing==2.4.6

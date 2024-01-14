@@ -1,5 +1,7 @@
+import sys
 import numpy as np
 import scipy as sp
+from io import StringIO
 from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.dynamics.hops_storage import HopsStorage
@@ -10,7 +12,7 @@ from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = ""
 
 noise_param = {
@@ -734,3 +736,115 @@ def test_early_time_integrator():
         if "does not support CHOOSE_BASIS_RANDOMLY in the early time integrator " \
            "clause" not in str(excinfo):
             pytest.fail()
+
+def test_static_state_inchworm_hierarchy():
+    """
+        Tests that choosing the early time integrator 'STATIC_STATE_INCHWORM_HIERARCHY'
+        results in a static state basis but an evolving hierarchy basis.
+        """
+    noise_param = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    integrator_param_test = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'STATIC_STATE_INCHWORM_HIERARCHY',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': [[0], [AuxVec([],4)]]
+    }
+
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_test,
+    )
+    hops.make_adaptive(0.00001, 0.001)
+    hops.initialize(psi_0)
+    state_0_fs = hops.state_list
+    hier_0_fs = hops.auxiliary_list
+    hops.propagate(10.0,2.0)
+    state_10_fs = hops.state_list
+    hier_10_fs = hops.auxiliary_list
+    assert np.allclose(state_0_fs, np.array([0]))
+    assert np.allclose(state_0_fs, state_10_fs)
+    assert not hier_10_fs == hier_0_fs
+    hops.propagate(2.0, 2.0)
+    assert not np.allclose(state_0_fs, hops.state_list)
+
+    # Control HOPS propagation to show that the state basis should in fact evolve in
+    # time
+    integrator_param_control = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': [[0], [AuxVec([], 4)]]
+    }
+
+    hops_control = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_control,
+    )
+    hops_control.make_adaptive(0.00001, 0.001)
+    hops_control.initialize(psi_0)
+    hops_control.propagate(10.0, 2.0)
+    assert not np.allclose(hops_control.state_list, state_10_fs)
+
+def test_noise_hier_mismatch():
+    """
+    Tests that the noise is handled properly when the noise L-operators and hierarchy
+    L-operators are not the same full set.
+    """
+    sys_param_noise_shorter = {
+        "HAMILTONIAN": np.array([[0, 10.0], [10.0, 0]], dtype=np.float64),
+        "GW_SYSBATH": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+        "L_HIER": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "L_NOISE1": [loperator[0], loperator[0]],
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0], [5.0, 5.0]],
+    }
+    hops = HOPS(
+        sys_param_noise_shorter,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops.initialize(psi_0)
+    assert np.shape(hops.noise1._noise) == (1,11)
+
+    new_lop = np.array([[1,0],[0,1]])
+    sys_param_noise_longer = {
+        "HAMILTONIAN": np.array([[0, 10.0], [10.0, 0]], dtype=np.float64),
+        "GW_SYSBATH": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+        "L_HIER": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "L_NOISE1": [loperator[0], loperator[0], loperator[1], loperator[1], new_lop,
+                     new_lop],
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0],
+                         [10.0, 10.0], [5.0, 5.0]],
+    }
+    old_stdout = sys.stdout
+    result = StringIO()
+    sys.stdout = result
+    hops = HOPS(
+        sys_param_noise_longer,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    sys.stdout = old_stdout
+    result_string = result.getvalue()
+    hops.initialize(psi_0)
+    assert np.shape(hops.noise1._noise) == (3, 11)
+    assert "WARNING: the list of noise 1 L-operators contains an L" in result_string

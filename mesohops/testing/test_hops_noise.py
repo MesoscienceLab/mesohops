@@ -6,7 +6,7 @@ from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Test of hops_noise"
 __author__ = "J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = "July 7 2021"
 
 # Test Noise Model

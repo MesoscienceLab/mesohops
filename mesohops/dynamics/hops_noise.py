@@ -6,9 +6,9 @@ from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import LockedException, UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
-__title__ = "mesohops Noise"
+__title__ = "Pyhops Noise"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 # NOISE MODELS:
 # =============
@@ -38,10 +38,9 @@ NOISE_TYPE_DEFAULT = {
 
 class HopsNoise(Dict_wDefaults):
     """
-    This is the BaseClass for defining a hops noise trajectory. All noise classes
-    will inherit from here. Anything that defines the input-output structure of a
-    noise trajectory should be controlled from this class - rather than any of the
-    model-specific child classes.
+    Defines and manages a HOPS noise trajectory. Allows multiple methods for the
+    generation of both the uncorrelated and correlated noise to ensure reproducibility of
+    HOPS calculations.
 
 
     NOTE: This class is only well defined within the context of a specific
@@ -52,37 +51,43 @@ class HopsNoise(Dict_wDefaults):
 
     def __init__(self, noise_param, noise_corr):
         """
-        Initializes the HopsNoise object with the parameters that it will use to
-        construct the noise.
-
         Inputs
         ------
         1. noise_param : dict
-                        A dictionary that defines the noise trajectory for
-                        the calculation.
-                    ===================  USER INPUTS ====================
-                    * SEED:   an integer valued seed (or None). The noise
-                              trajectories for all modes are defined by one seed.
-                    * MODEL:  The name of the noise model to be used. Allowed
-                              names include: 'FFT_FILTER', 'ZERO'
-                    * TLEN:   The length of the time axis. Units: fs
-                    * TAU:    The smallest timestep used for direct noise
-                              calculations.
-                    * INTERP: Boolean. If True, then off-grid calls for noise
-                              values will be determined by interpolation.
-                              Allowed values: False [True not implemented!]
+                         Dictionary that defines the noise trajectory for
+                         the calculation.
+            a. SEED : int, str, or np.array
+                      Seed that predefines the noise trajectory.
+            b. MODEL : str
+                       Name of the noise model to be used (options: FFT_FILTER, ZERO,
+                       PRE_CALCULATED).
+            c. TLEN : float
+                      Length of the time axis [units: fs].
+            d. TAU : float
+                     Smallest timestep used for direct noise calculations [units: fs].
+            e. INTERP : bool
+                        True indicates that off-grid calls for noise values will be
+                        determined by interpolation while False indicates otherwise
+                        (options: False).
+            f. RAND_MODEL: str
+                           Name of the raw noise generation model to be used. (options:
+                           BOX_MULLER, SUM_GAUSSIAN)
+            g. STORE_RAW_NOISE: bool
+                                True indicates that the uncorrelated noise trajectories
+                                will be stored while False indicates that they will be
+                                discarded.
+
 
         2. noise_corr : dict
-                        A dictionary that defines the noise correlation function for
-                        the calculation.
-                    ===================  USER INPUTS ====================
-                    * CORR_FUNCTION:  A pointer to the function that defines alpha(t)
-                                      for the noise term given CORR_PARAM[i] inputs
-                    * N_L2:          The number of L operators (and hence number of
-                                      final z(t) trajectories)
-                    * L_IND_BY_NMODE: The L-indices associated with each CORR_PARAM
-                    * CORR_PARAM:     The parameters that define the components of
-                                      alpha(t)
+                        Defines the noise correlation function for the calculation.
+            a. CORR_FUNCTION : function
+                               Defines alpha(t) for the noise term given CORR_PARAM[i].
+            b. N_L2 : int
+                      Number of L operators (and final z(t) trajectories).
+            c. L_IND_BY_NMODE : list(int)
+                                L-indices associated with each CORR_PARAM.
+            d. CORR_PARAM : list(complex)
+                            Parameters that define the components of alpha(t).
 
         Returns
         -------
@@ -199,7 +204,8 @@ class HopsNoise(Dict_wDefaults):
                 print('Correlated noise initialized from input array.')
                 # This is where we need to write the code to use an array of correlated
                 # noise variables input in place of the SEED parameter.
-                if len(self.param['SEED'][0]) == (len(self.param['T_AXIS'])):
+                if np.shape(self.param['SEED']) == (self.param['N_L2'],
+                                                    len(self.param['T_AXIS'])):
                     self._noise = self.param['SEED']
                 # We should add an interpolation option as well.
                 else:
@@ -213,7 +219,8 @@ class HopsNoise(Dict_wDefaults):
                 if os.path.isfile(self.param["SEED"]):
                     if self.param["SEED"][-4:] == ".npy":
                         corr_noise = np.load(self.param["SEED"])
-                        if len(corr_noise[0]) == (len(self.param['T_AXIS'])):
+                        if np.shape(corr_noise) == (self.param['N_L2'],
+                                                    len(self.param['T_AXIS'])):
                             self._noise = corr_noise
                         # We should add an interpolation option as well.
                         else:
@@ -316,7 +323,8 @@ class HopsNoise(Dict_wDefaults):
                 type(self.param['SEED']) is np.ndarray):
             print('Noise Model initialized from input array.')
             # Import a .npy file as a noise trajectory.
-            if len(self.param['SEED'][0]) == 2 * (len(self.param['T_AXIS']) - 1):
+            if np.shape(self.param['SEED']) == (self.param['N_L2'], 2 * (len(
+                    self.param['T_AXIS']) - 1)):
                 return self.param['SEED']
             else:
                 raise UnsupportedRequest(
@@ -464,11 +472,14 @@ class HopsNoise(Dict_wDefaults):
 
             # Construct the embedding
             # -----------------------
-
-            s_w = np.real(np.fft.fft(np.array(
-                np.concatenate([tildec_t, np.conj(np.flip(tildec_t[:, 1:-1], axis=1))],
-                               axis=1)),
-                axis=1))
+            
+            s_w = np.zeros([len(tildec_t[:,0]),2*len(tildec_t[0,:])-2])
+            for site in range(len(tildec_t[:,0])):
+                temp = np.real(np.fft.fft(np.array(
+                    np.concatenate([tildec_t[site,:], np.conj(np.flip(tildec_t[site, 1:-1]))],
+                               )),
+                    ))
+                s_w[site,:] = temp
 
             # Check that the embedding is positive semidefinite
             # -------------------------------------------------
@@ -490,11 +501,16 @@ class HopsNoise(Dict_wDefaults):
             # has a std. dev. of \sigma*\sqrt(N/2) where N is the length of the trajectory.
             # As a result, the equation from the paper is slightly modified below.
             # Stack Exchange: https://dsp.stackexchange.com/questions/24170/what-are-the-statistics-of-the-discrete-fourier-transform-of-white-gaussian-nois
-            z_w = np.fft.fft(z_t, axis=1)
-
-            tildey_t = np.fft.ifft(np.array(np.abs(z_w) * np.exp(1.0j * np.angle(z_w))
-                                            * np.sqrt(s_w / 2.0)), axis=1)[:,
-                       :len(c_t[0, :])]
+            z_w = np.zeros([len(z_t[:,0]),len(z_t[0,:])],dtype=np.complex128)
+            for site in range(len(z_t[:,0])):
+                temp = np.fft.fft(z_t[site,:])
+                z_w[site,:] = temp
+            tildey_t = np.zeros_like(E2_expmatrix)
+            for site in range(len(z_w[:,0])):
+                
+                temp = np.fft.ifft(np.array(np.abs(z_w[site,:]) * np.exp(1.0j * np.angle(z_w[site,:]))
+                                            * np.sqrt(s_w[site,:] / 2.0)))[:len(c_t[0, :])]
+                tildey_t[site,:] = temp
 
             # Undo initial phase rotation
             # ---------------------------

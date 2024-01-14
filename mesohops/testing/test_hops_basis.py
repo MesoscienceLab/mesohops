@@ -1,6 +1,7 @@
 # Title: Test of HopsBasis Class
 # Author: Doran I. G. Bennett
 
+import pytest
 import os
 import numpy as np
 import scipy as sp
@@ -8,8 +9,8 @@ from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxiliaryVector
 from mesohops.dynamics.hops_hierarchy import HopsHierarchy as HHier
 from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
+from mesohops.util.exceptions import UnsupportedRequest
 from mesohops.util.physical_constants import hbar
-
 
 def map_to_auxvec(list_aux):
     """
@@ -729,7 +730,7 @@ def test_determine_boundary_hier():
     hops_ad = HOPS(
         sys_param,
         noise_param=noise_param,
-        hierarchy_param={"MAXHIER": 4},
+        hierarchy_param={"MAXHIER": 6},
         eom_param=eom_param,
         integration_param=integrator_param,
     )
@@ -748,8 +749,12 @@ def test_determine_boundary_hier():
     flux_up[1, 0] = 0.001**2
     list_e2_kflux = np.array((flux_up, flux_down))
     list_index_stable = np.array([0])
+    
+    error_bound = 0.0015 ** 2
+    f_discard = 0.01
+    
     list_aux_bound = hops_ad.basis._determine_boundary_hier(
-        list_e2_kflux, list_index_stable, 0.001
+        list_e2_kflux, list_index_stable, error_bound, f_discard
     )
     known_list_aux = [AuxiliaryVector([(2, 1)], 4)]
     assert set(list_aux_bound) == set(known_list_aux)
@@ -772,11 +777,14 @@ def test_determine_boundary_hier():
     flux_down = np.zeros((4, 11))
     flux_down[0, 4] = 0.1**2
 
+    error_bound = 0.001 ** 2
+    f_discard = 0.01
+
     list_e2_kflux = np.array((flux_up, flux_down))
     list_index_stable = np.array([6, 4, 10, 5, 7, 1, 9, 0, 3, 8, 2])
     list_index_stable.sort()
     list_aux_bound = hops_ad.basis._determine_boundary_hier(
-        list_e2_kflux, list_index_stable, 0.001
+        list_e2_kflux, list_index_stable, error_bound, f_discard
     )
     known_aux_bound = [
         AuxiliaryVector([(0, 1),(2, 1),(3, 1)], 4),
@@ -785,7 +793,320 @@ def test_determine_boundary_hier():
         AuxiliaryVector([(0, 1)], 4)
     ]
     assert set(list_aux_bound) == set(known_aux_bound)
+    
+    hops_ad.basis.hierarchy.auxiliary_list = [hops_ad.basis.hierarchy.auxiliary_list[0]]
+    # Creating flux up and flux down matrices for hierarchy after propagation with a
+    # more-complicated basis involving multiple fluxes into one boundary
+    hops_ad.basis.hierarchy.auxiliary_list = [hops_ad.basis.hierarchy.auxiliary_list[0],AuxiliaryVector([(1, 1)],4),AuxiliaryVector([(2, 1)],4),AuxiliaryVector([(3, 1)],4),
+                                               AuxiliaryVector([(0, 2)],4),AuxiliaryVector([(1, 2)],4),AuxiliaryVector([(2, 1),(3, 1)],4),
+                                               AuxiliaryVector([(1,1),(2,2)],4),AuxiliaryVector([(1,1),(2,1),(3,1)],4),AuxiliaryVector([(2,2),(3,1)],4),
+                                               AuxiliaryVector([(1,2),(2,1),(3,1)],4),AuxiliaryVector([(1,2),(3,2)],4),
+                                               AuxiliaryVector([(1,1),(2,1),(3,2)],4),AuxiliaryVector([(1,3),(2,1),(3,1)],4),AuxiliaryVector([(1,2),(2,2),(3,1)],4),
+                                               AuxiliaryVector([(1,2),(2,1),(3,2)],4)]
+    hops_ad.basis.system.state_list = [0,1]
+    hops_ad.basis.mode.list_absindex_mode = [0,1,2,3]
 
+    mainaux = 0
+    aux_1 = 1
+    aux_2 = 2
+    aux_3 = 3
+    aux_00 = 4
+    aux_11 = 5
+    aux_23 = 6
+    aux_122 = 7
+    aux_123 = 8
+    aux_223 = 9
+    aux_1123 = 10
+    aux_1133 = 11
+    aux_1233 = 12
+    aux_11123 = 13
+    aux_11223 = 14
+    aux_11233 = 15
+
+    # The comments represent the boundary auxiliary receiving the flux. The
+    # parenthetical numbers are the total flux that boundary auxiliary receives (all
+    # individual flux terms are 1).
+    flux_up = np.zeros((4, 16))
+    flux_up[0, mainaux] = 1.0 #aux_0 (2)
+    flux_up[0, aux_1] = 1.0 #aux_01 (1)
+    flux_up[0, aux_2] = 1.0 #aux_02 (1)
+    flux_up[0, aux_3] = 1.0 #aux_03 (1)
+    flux_up[0, aux_00] = 1.0 #aux_000 (1)
+    flux_up[0, aux_11] = 1.0 #aux_011 (1)
+    flux_up[0, aux_23] = 1.0 #aux_023 (1)
+    flux_up[0, aux_122] = 1.0 #aux_0112 (1)
+    flux_up[0, aux_123] = 1.0 #aux_0123 (1)
+    flux_up[0, aux_223] = 1.0 #aux_0223 (1)
+    flux_up[0, aux_1123] = 1.0 #aux_01123 (1)
+    flux_up[0, aux_1133] = 1.0 #aux_01133 (1)
+    flux_up[0, aux_1233] = 1.0 #aux_01233 (1)
+    
+    flux_up[1, aux_2] = 1.0 #aux_12 (4)
+    flux_up[1, aux_3] = 1.0 #aux_13 (3)
+    flux_up[1, aux_00] = 1.0 #aux_001 (1)
+    flux_up[1, aux_11] = 1.0 #aux_111 (1)
+    flux_up[1, aux_122] = 1.0 #aux_1122 (2)
+    flux_up[1, aux_223] = 1.0 #aux_1223  (4)
+    flux_up[1, aux_1133] = 1.0 #aux_11133 (1)
+    
+    flux_up[2, aux_1] = 1.0 #aux_12 (4)
+    flux_up[2, aux_2] = 1.0 #aux_22 (3)
+    flux_up[2, aux_00] = 1.0 #aux_002 (1)
+    flux_up[2, aux_11] = 1.0 #aux_112 (2)
+    flux_up[2, aux_122] = 1.0 #aux_1222 (1)
+    flux_up[2, aux_123] = 1.0 #aux_1223 (4)
+    flux_up[2, aux_223] = 1.0 #aux_2223 (1)
+    flux_up[2, aux_1233] = 1.0 #aux_12233 (1)
+    
+    
+    flux_up[3, aux_1] = 1.0 #aux_13 (3)
+    flux_up[3, aux_3] = 1.0 #aux_33 (1)
+    flux_up[3, aux_00] = 1.0 #aux_003 (1)
+    flux_up[3, aux_11] = 1.0 #aux_113 (3)
+    flux_up[3, aux_23] = 1.0 #aux_233 (2)
+    flux_up[3, aux_122] = 1.0 #aux_1223 (4)
+    flux_up[3, aux_223] = 1.0 #aux_2233 (1)
+    flux_up[3, aux_1133] = 1.0 #aux_11333 (1)
+    flux_up[3, aux_1233] = 1.0 #aux_12333 (1)
+    
+    flux_down = np.zeros((4, 16))
+    flux_down[0, aux_00] = 1.0 #aux_0 (2)
+    flux_down[1, aux_122] = 1.0 #aux_22 (3)
+    flux_down[1, aux_1133] = 1.0 #aux_133 (2)
+    flux_down[1, aux_1233] = 1.0 #aux_233 (2)
+    flux_down[1, aux_11223] = 1.0 #aux_1223 (4)
+    flux_down[2, aux_122] = 1.0 #aux_12 (4)
+    flux_down[2, aux_123] = 1.0 #aux_13 (3)
+    flux_down[2, aux_1123] = 1.0 #aux_113 (3)
+    flux_down[2, aux_1233] = 1.0 #aux_133 (2)
+    flux_down[2, aux_11123] = 1.0 #aux_1113 (1)
+    flux_down[3, aux_123] = 1.0 #aux_12 (4)
+    flux_down[3, aux_223] = 1.0 #aux_22 (3)
+    flux_down[3, aux_1123] = 1.0 #aux_112 (2)
+    flux_down[3, aux_1133] = 1.0 #aux_113 (3)
+    flux_down[3, aux_11123] = 1.0 #aux_1112 (1)
+    flux_down[3, aux_11223] = 1.0 #aux_1122 (2)
+    
+    #Boundary Auxes with one flux:  
+    
+    #aux_01, aux_02, aux_03, aux_000, aux_011
+    #aux_023, aux_0112, aux_0123, aux_0223, aux_01123
+    #aux_01133, aux_01233, aux_001, aux_111, aux_12233
+    #aux_11133, aux_002, aux_1222, aux_2223, aux_33,
+    #aux_003, aux_2233, aux_11333, aux_12333, aux_1113,
+    #aux_1112
+    
+    num_1flux = 26
+    #Boundary Auxes with two fluxes:
+    #aux_0, aux_1122, aux_112, aux_233, aux_133
+    
+    num_2flux = 5
+    #Boundary Auxes with three fluxes:
+    #aux_13, aux_22, aux_113
+    
+    num_3flux = 3
+    #Boundary Auxes with four fluxes:
+    
+    #aux_12, aux_1223
+    num_4flux = 2
+    
+    #All but flux 4 terms can be removed
+    bound_error = 1.0 * num_1flux + 2.0 * num_2flux + 3.0 * num_3flux + 0.001
+    
+    list_e2_kflux = [flux_up, flux_down]
+    list_index_stable = np.array([6, 4, 10, 5, 7, 1, 9, 0, 3, 8, 2,11,12,13,14,15])
+    list_index_stable.sort()
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
+        list_e2_kflux, list_index_stable, bound_error, 0.00
+    )
+    
+    known_aux_bound = [
+        AuxiliaryVector([(1, 1),(2, 1)], 4),
+        AuxiliaryVector([(1, 1), (2, 2), (3, 1)], 4),
+    ]
+    assert set(list_aux_bound) == set(known_aux_bound)
+    
+    #All but flux 4 and 3 terms can be removed
+    bound_error = 1.0 * num_1flux + 2.0 * num_2flux + 0.001
+    
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
+        list_e2_kflux, list_index_stable, bound_error, 0.00
+    )
+    
+    known_aux_bound = [
+        AuxiliaryVector([(1, 1),(2, 1)], 4),
+        AuxiliaryVector([(1, 1), (2, 2), (3, 1)], 4),
+        AuxiliaryVector([(1, 1), (3, 1)], 4),
+        AuxiliaryVector([(2, 2)], 4),
+        AuxiliaryVector([(1, 2), (3, 1)], 4),
+    ]
+    assert set(list_aux_bound) == set(known_aux_bound)
+    
+    #All but flux 4, 3, and 2 terms can be removed
+    
+    bound_error = 1.0 * num_1flux + 0.001
+    
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
+        list_e2_kflux, list_index_stable, bound_error, 0.00
+    )
+    
+    known_aux_bound = [
+        AuxiliaryVector([(1, 1),(2, 1)], 4),
+        AuxiliaryVector([(1, 1), (2, 2), (3, 1)], 4),
+        AuxiliaryVector([(1, 1), (3, 1)], 4),
+        AuxiliaryVector([(2, 2)], 4),
+        AuxiliaryVector([(1, 2), (3, 1)], 4),
+        AuxiliaryVector([(0, 1)], 4),
+        AuxiliaryVector([(1, 2), (2, 2)], 4),
+        AuxiliaryVector([(1, 2), (2, 1)], 4),
+        AuxiliaryVector([(2, 1), (3, 2)], 4),
+        AuxiliaryVector([(1, 1), (3, 2)], 4),
+    ]
+    assert set(list_aux_bound) == set(known_aux_bound)
+
+def test_fraction_discard():
+    """
+    Tests that f_discard is stored properly and affects the calculation of the
+    auxiliary boundary correctly.
+    """
+    noise_param = {
+        "SEED": basis_noise_2site,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    nsite = 2
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+
+    loperator = np.zeros([2, 2, 2], dtype=np.float64)
+    gw_sysbath = []
+    lop_list = []
+    for i in range(nsite):
+        loperator[i, i, i] = 1.0
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(sp.sparse.coo_matrix(loperator[i]))
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(loperator[i])
+
+    hs = np.zeros([nsite, nsite], dtype=np.float64)
+    hs[0, 1] = 40
+    hs[1, 0] = 40
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[1] = 1.0
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 4},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    try:
+        hops_ad.make_adaptive(1e-3, 1e-3, f_discard=-1)
+    except UnsupportedRequest as excinfo:
+        if "acceptable range of [0,1]" not in str(excinfo):
+            pytest.fail()
+    try:
+        hops_ad.make_adaptive(1e-3, 1e-3, f_discard=2)
+    except UnsupportedRequest as excinfo:
+        if "acceptable range of [0,1]" not in str(excinfo):
+            pytest.fail()
+
+    # test that f_discard is properly assigned
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 4},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(0.15, 0, f_discard=0.99)
+    assert hops_ad.basis.f_discard == 0.99
+    hops_ad.initialize(psi_0)
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([], 4),
+                                              AuxiliaryVector([(2,1)],4),
+                                              AuxiliaryVector([(3,1)],4)]
+    hops_ad.basis.system.state_list = [1]
+    hops_ad.basis.mode.list_absindex_mode = [2, 3]
+    # Creating flux up and flux down matrices for initial hierarchy
+    flux_down = np.zeros((2, 3))
+    flux_up = np.zeros((2, 3))
+    flux_up[0, 1] = 0.14 ** 2 # flux into <0, 0, 2, 0>
+    flux_up[1, 1] = 0.1 ** 2 # flux into <0, 0, 1, 1>
+    flux_up[0, 2] = 0.099 ** 2 # flux into <0, 0, 1, 1>
+    flux_up[1, 2] = 0.201 ** 2 # flux into <0, 0, 0, 2>
+    list_e2_kflux = np.array((flux_up, flux_down))
+    list_index_stable = np.array([0, 1, 2])
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
+        list_e2_kflux, list_index_stable, hops_ad.basis.delta_h ** 2, hops_ad.basis.f_discard
+    )
+    # Explanation: the total squared-flux associated with <0, 0, 1, 1> is just over
+    # 0.14^2. However, the individual components of flux are the smallest in the flux
+    # list. Their sum is less than (0.15*0.99)^2 and as such both are discarded.
+    # With the ensuing offset in place, <0, 0, 2, 0> is included in the basis.
+    known_list_aux = [AuxiliaryVector([(2, 2)], 4), AuxiliaryVector([(3, 2)], 4)]
+    assert set(list_aux_bound) == set(known_list_aux)
+
+    # Test with f_discard set to 0
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 4},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(0.15, 1e-3, f_discard=0)
+    # Note: we should guarantee that integer 0, because it's simple to enter,
+    # yields the same results as 0.0.
+    assert hops_ad.basis.f_discard == 0.0
+    hops_ad.initialize(psi_0)
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([], 4),
+                                              AuxiliaryVector([(2,1)],4),
+                                              AuxiliaryVector([(3,1)],4)]
+    hops_ad.basis.system.state_list = [1]
+    hops_ad.basis.mode.list_absindex_mode = [2, 3]
+    # Creating flux up and flux down matrices for initial hierarchy
+    flux_down = np.zeros((2, 3))
+    flux_up = np.zeros((2, 3))
+    flux_up[0, 1] = 0.14 ** 2 # flux into <0, 0, 2, 0>
+    flux_up[1, 1] = 0.1 ** 2 # flux into <0, 0, 1, 1>
+    flux_up[0, 2] = 0.099 ** 2 # flux into <0, 0, 1, 1>
+    flux_up[1, 2] = 0.201 ** 2 # flux into <0, 0, 0, 2>
+    list_e2_kflux = np.array((flux_up, flux_down))
+    list_index_stable = np.array([0, 1, 2])
+    list_aux_bound = hops_ad.basis._determine_boundary_hier(
+        list_e2_kflux, list_index_stable, hops_ad.basis.delta_h ** 2, hops_ad.basis.f_discard
+    )
+    # Explanation: the total squared-flux associated with <0, 0, 1, 1> is just over
+    # 0.14^2. Thus, <0, 0, 2, 0> is not included in the basis, but <0, 0, 1, 1> is.
+    known_list_aux = [AuxiliaryVector([(2, 1), (3, 1)], 4), AuxiliaryVector([(3, 2)],
+                                                                            4)]
+    assert set(list_aux_bound) == set(known_list_aux)
 
 def test_determine_basis_from_list():
     """
@@ -886,9 +1207,9 @@ def test_determine_basis_from_list():
     list_index, list_new_member = hops_ad.basis._determine_basis_from_list(
         error_by_member, max_error, list_member
     )
-    known_index = [1, 3]
+    known_index = [0, 1, 3, 4]
     assert np.array_equal(list_index, known_index)
-    known_members = [2, 4]
+    known_members = [1, 2, 4, 5]
     assert np.array_equal(list_new_member, known_members)
 
 
@@ -1001,7 +1322,7 @@ def test_state_stable_error():
                                                np.abs(gw_11[0] / gw_11[1]) ** 2)],
                                    [0, 0]], dtype=np.complex128) / hbar ** 2
 
-    known_error = np.sqrt(np.sum(analytic_error_deriv_deletion,axis=1) +
+    known_error = (np.sum(analytic_error_deriv_deletion,axis=1) +
                           analytic_sflux_deriv +
                           np.sum(analytic_flux_up, axis=1) +
                           np.sum(analytic_flux_down, axis=1))

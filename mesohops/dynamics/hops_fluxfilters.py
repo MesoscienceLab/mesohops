@@ -31,9 +31,9 @@ class HopsFluxFilters:
 
     def construct_filter_auxiliary_stable_up(self):
         """
-        Filter that ensures that flux up from members of the current auxiliary basis is
-        only counted if flux along that mode would go to an auxiliary wave function
-        contained in the triangular filter.
+        Constructs a filter array that ensures that flux up from members of the
+        current auxiliary basis is only counted if flux goes to an auxiliary wave
+        function allowed by the triangular truncation condition.
 
         Parameters
         ----------
@@ -41,26 +41,27 @@ class HopsFluxFilters:
 
         Returns
         -------
-        1. F2_filter : np.array
-                       Array containing 0 for filtered fluxes and 1 for allowed
-                       fluxes [mode,aux].
+        1. F2_filter : np.array(bool)
+                       True indicates the associated flux is allowed (not
+                       filtered out) while False indicates otherwise
+                       (positioning is (mode, aux)).
         """
         # Filter out flux to aux with depth>k_max
         # ---------------------------------------
         # Start by assuming that all flux is allowed
-        F2_filter = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)])
+        F2_filter = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
         list_index_terminator_aux = [aux._index for aux in self.hierarchy.auxiliary_list
                                      if aux._sum == self.hierarchy.param['MAXHIER']]
 
         if len(list_index_terminator_aux) > 0:
-            F2_filter[:, np.array(list_index_terminator_aux)] = 0
+            F2_filter[:, np.array(list_index_terminator_aux)] = False
 
         return F2_filter
 
     def construct_filter_auxiliary_stable_down(self):
         """
-        Filter that ensures that flux down from members of the current auxiliary
-        basis is only counted if flux along that mode would go to an auxiliary wave
+        Constructs a filter array that ensures that flux down from members of the
+        current auxiliary basis is only counted if flux goes an auxiliary wave
         function that has no negative indices.
 
         Parameters
@@ -69,14 +70,15 @@ class HopsFluxFilters:
 
         Returns
         -------
-        1. F2_filter_any_m1 : np.array
-                              Array containing 0 for filtered fluxes and 1 for allowed
-                              fluxes [mode,aux].
+        1. F2_filter_any_m1 : np.array(bool)
+                              True indicates the associated flux is allowed (not
+                              filtered out) while False indicates otherwise
+                              (positioning is (mode, aux)).
         """
         # Filter for Stable Hierarchy, Flux Down
         # --------------------------------------
         # Start by assuming that all flux is not allowed
-        F2_filter_any_m1 = np.zeros([self.n_hmodes, len(self.hierarchy.auxiliary_list)])
+        F2_filter_any_m1 = np.zeros([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
 
         # Now find the allowed flux down along modes that have non-zero indices
         list_absindex_mode = list(self.mode.list_absindex_mode)
@@ -85,16 +87,18 @@ class HopsFluxFilters:
                 [list_absindex_mode.index(mode) for mode in aux.keys()
                  if mode in list_absindex_mode], dtype=int)
 
-            F2_filter_any_m1[array_index2, aux._index] = 1
+            F2_filter_any_m1[array_index2, aux._index] = True
 
         return F2_filter_any_m1
 
     def construct_filter_auxiliary_boundary_up(self):
         """
-        Filter that ensures that only fluxes to auxiliaries not present in the
-        current auxiliary basis are considered. NOTE: Additional filtering to subset
-        to fluxes originating from stable auxiliaries is done in
-        _determine_boundary_hier
+        Constructs a filter array that ensures that only flux up to boundary
+        auxiliaries (not present in the current basis) is considered, and then only
+        when the boundary auxiliary is allowed by the triangular truncation condition.
+
+        NOTE: Additional filtering to subset to flux originating from stable
+        auxiliaries is done in _determine_boundary_hier.
 
         Parameters
         ----------
@@ -102,13 +106,14 @@ class HopsFluxFilters:
 
         Returns
         -------
-        1. F2_filter_p1 : np.array
-                          Array containing 0 for filtered fluxes and 1 for allowed
-                          fluxes [mode,aux].
+        1. F2_filter_p1 : np.array(bool)
+                          True indicates the associated flux is allowed (not
+                          filtered out) while False indicates otherwise
+                          (positioning is (mode, aux)).
         """
         # Filter for Boundary Auxiliary, Flux Up
         # --------------------------------------
-        F2_filter_p1 = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)])
+        F2_filter_p1 = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
         list_absindex_mode = list(self.mode.list_absindex_mode)
         for aux in self.hierarchy.auxiliary_list:
             if aux._sum < self.hierarchy.param['MAXHIER']:
@@ -118,19 +123,21 @@ class HopsFluxFilters:
                                         for mode in aux.dict_aux_p1.keys()
                                         if mode in list_absindex_mode],
                                        dtype=int)
-                F2_filter_p1[array_index, aux._index] = 0
+                F2_filter_p1[array_index, aux._index] = False
             else:
                 # Remove flux that would contribute to an aux beyond maximum hier depth
-                F2_filter_p1[:, aux._index] = 0
+                F2_filter_p1[:, aux._index] = False
 
         return F2_filter_p1
 
     def construct_filter_auxiliary_boundary_down(self):
         """
-        Filter that ensures that only fluxes to auxiliaries not present in the
-        current auxiliary basis are considered. NOTE: Additional filtering to subset
-        to fluxes originating from stable auxiliaries is done in
-        _determine_boundary_hier
+        Constructs a filter array that ensures that only flux down to boundary
+        auxiliaries (not present in the current basis) is considered, and then only
+        when the boundary auxiliary has no negative indices in its indexing vector.
+
+        NOTE: Additional filtering to subset to flux originating from stable
+        auxiliaries is done in _determine_boundary_hier.
 
         Parameters
         ----------
@@ -138,16 +145,17 @@ class HopsFluxFilters:
 
         Returns
         -------
-        1. F2_filter_m1 : np.array
-                          Array containing 0 for filtered fluxes and 1 for allowed
-                          fluxes [mode,aux].
+        1. F2_filter_m1 : np.array(bool)
+                          True indicates the associated flux is allowed (not
+                          filtered out) while False indicates otherwise
+                          (positioning is (mode, aux)).
         """
         # Filter for Boundary Auxiliary, Flux Down
         # ----------------------------------------
         list_absindex_mode = list(self.mode.list_absindex_mode)
 
         # Assume all fluxes are allowed
-        F2_filter_m1 = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)])
+        F2_filter_m1 = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
 
         for aux in self.hierarchy.auxiliary_list:
             if list(aux.dict_aux_m1.keys()) != list(aux.keys()):
@@ -155,7 +163,7 @@ class HopsFluxFilters:
                 array_index = np.array([list_absindex_mode.index(mode) for mode in
                                         aux.dict_aux_m1.keys() if mode in list_absindex_mode],
                                        dtype=int)
-                F2_filter_m1[array_index, aux._index] = 0
+                F2_filter_m1[array_index, aux._index] = False
 
                 # Also filter out connections from modes that are not ever in auxiliary basis
                 # for example, all modes in the main auxiliary will be filtered here,
@@ -164,72 +172,74 @@ class HopsFluxFilters:
                                          aux.keys() if mode in list_absindex_mode], dtype=int)
                 array_index2 = np.setdiff1d(np.arange(self.n_hmodes), array_index2)
 
-                F2_filter_m1[array_index2, aux._index] = 0
+                F2_filter_m1[array_index2, aux._index] = False
             else:
-                F2_filter_m1[:, aux._index] = 0
+                F2_filter_m1[:, aux._index] = False
 
         return F2_filter_m1
 
     def construct_filter_state_stable_down(self, list_aux_bound):
         """
-        This is the filter which locates the fluxes which go up from
-        auxiliaries in the stable Aux basis (A_S) to auxiliaries
-        in the boundary aux basis (A_B).
+        Constructs a filter array that ensures that only flux up to auxiliaries in
+        list_aux_bound is considered.
 
         Parameters
         ----------
         1. list_aux_bound : list(HopsAux)
-                            List of boundary auxiliaries
+                            List of boundary auxiliaries.
 
         Returns
         -------
-        1. F2_filter : np.array
-                       Array containing 0 for filtered fluxes and 1 for allowed
-                       fluxes [mode,aux].
+        1. F2_filter : np.array(bool)
+                       True indicates the associated flux is allowed (not
+                       filtered out) while False indicates otherwise
+                       (positioning is (mode, aux)).
         """
-        F2_filter = np.zeros([self.n_hmodes, self.n_hier])
+        F2_filter = np.zeros([self.n_hmodes, self.n_hier],dtype=bool)
         for aux in list_aux_bound:
-            for (rel_ind,mode) in enumerate(self.mode.list_absindex_mode):
-                list_id_up, list_value_connects, list_mode_connect = \
-                aux.get_list_id_up([mode])
-                if (list_id_up[0] in self.hierarchy.dict_aux_by_id.keys()):
-                    aux_up = self.hierarchy.dict_aux_by_id[list_id_up[0]]
-                    F2_filter[rel_ind, aux_up._index] = 1
+            list_id_up, list_value_connects, list_mode_connect = \
+                aux.get_list_id_up(self.mode.list_absindex_mode)
+            for (rel_ind,my_id) in enumerate(list_id_up):
+                if (my_id in self.hierarchy.dict_aux_by_id.keys()):
+                    aux_up = self.hierarchy.dict_aux_by_id[my_id]
+                    F2_filter[rel_ind, aux_up._index] = True
         return F2_filter
 
     def construct_filter_state_stable_up(self, list_aux_bound):
         """
-        This is the filter which locates the fluxes which go down from
-        auxiliaries in the stable Aux basis (A_S) to auxiliaries
-        in the boundary aux basis (A_B).
+        Constructs a filter array that ensures that only flux down to auxiliaries in
+        list_aux_bound is considered.
 
         Parameters
         ----------
         1. list_aux_bound : list(HopsAux)
-                            List of boundary auxiliaries
+                            List of boundary auxiliaries.
 
         Returns
         -------
-        1. F2_filter : np.array
-                       Array containing 0 for filtered fluxes and 1 for allowed
-                       fluxes [mode,aux].
+        1. F2_filter : np.array(bool)
+                       True indicates the associated flux is allowed (not
+                       filtered out) while False indicates otherwise
+                       (positioning is (mode, aux)).
         """
-        F2_filter = np.zeros([self.n_hmodes, self.n_hier])
+        F2_filter = np.zeros([self.n_hmodes, self.n_hier],dtype=bool)
         for aux in list_aux_bound:
             list_ids_down, list_id_values, list_mode_connects = aux.get_list_id_down()
             for (rel_ind, my_id) in enumerate(list_ids_down):
                 if (my_id in self.hierarchy.dict_aux_by_id.keys()):
                     aux_down = self.hierarchy.dict_aux_by_id[my_id]
                     F2_filter[list(self.mode.list_absindex_mode).index(list_mode_connects[
-                                                                  rel_ind]), aux_down._index] = 1
+                                                                  rel_ind]), aux_down._index] = True
         return F2_filter
 
     def construct_filter_markov_up(self):
         """
-        This is a method for building the markov filter appropriate for either
-        a flux_up or flux_down calculation.
-        NOTE:  This assumes that list_aux only contains legal auxiliaries with respect
-        to the Markovian filter.
+        Constructs a filter array that accounts for the fact that Markovian-filtered
+        modes only allow flux between first-order auxiliaries and the physical wave
+        function.
+
+        NOTE: Assumes that list_aux only contains legal auxiliaries with
+        respect to the Markovian filter.
 
         Parameters
         ----------
@@ -237,11 +247,12 @@ class HopsFluxFilters:
 
         Returns
         -------
-        1. F2_filter : np.array
-                       Array containing 0 for filtered fluxes and 1 for allowed
-                       fluxes [mode,aux].
+        1. F2_filter : np.array(bool)
+                       True indicates the associated flux is allowed (not
+                       filtered out) while False indicates otherwise
+                       (positioning is (mode, aux)).
         """
-        F2_filter = np.ones([self.n_hmodes, self.n_hier])
+        F2_filter = np.ones([self.n_hmodes, self.n_hier],dtype=bool)
 
         array2D_mark_param = np.array(
             [
@@ -258,7 +269,7 @@ class HopsFluxFilters:
             # Remove flux along Markovian Modes except
             # from the physical wave function
             # -----------------------------------------
-            F2_filter[array_mark_mode, 1:] = 0
+            F2_filter[array_mark_mode, 1:] = False
 
             # Remove flux from any mode for the fist order
             # wave functions along Markovian modes
@@ -268,7 +279,7 @@ class HopsFluxFilters:
                                   if mode in self.mode.list_absindex_mode[np.where(
                     array_mark_mode)[0]]])
             if len(mark_aux1) > 0:
-                F2_filter[:, mark_aux1] = 0
+                F2_filter[:, mark_aux1] = False
 
         return F2_filter
 

@@ -5,7 +5,7 @@ from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Storage Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 class HopsStorage:
@@ -17,7 +17,8 @@ class HopsStorage:
         Inputs
         ------
         1. adaptive : bool
-                      Boolean to describe is the calculation is adaptive or not.
+                      True indicates an adaptive calculation while False indicates
+                      otherwise.
 
         2. storage_dic : dict
                          Dictionary of storage parameters.

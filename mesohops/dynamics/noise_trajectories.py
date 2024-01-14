@@ -6,12 +6,12 @@ from scipy import interpolate
 
 __title__ = "Noise Trajectories"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 class NoiseTrajectory(ABC):
     """
-    This is the abstract base class for Noise objects.
+    Abstract base class for Noise objects.
 
     A noise object has two guaranteed functions:
     - get_noise(t_axis)
@@ -33,22 +33,23 @@ class NoiseTrajectory(ABC):
 
 class NumericNoiseTrajectory(NoiseTrajectory):
     """
-    This is the class for noise that is explicitly calculated.
+    Defines explicitly calculated noise.
     """
 
     def __init__(self, noise, t_axis, spline_interpolation=False):
         """
         Inputs
         ------
-        1. noise : list
-                   The noise trajectory.
+        1. noise : list(complex)
+                   Noise trajectory [units: cm^-1].
 
-        2. t_axis : list
-                    List of time points.
+        2. t_axis : list(float)
+                    List of time points [units: fs].
 
         3. spline_interpolation : bool
-                                  If True, then off-grid calls for noise values will be
-                                  determined by interpolation.
+                                  True indicates that off-grid calls for noise
+                                  values will be determined by interpolation while
+                                  False indicates otherwise (options: False).
 
         Returns
         -------
@@ -69,18 +70,17 @@ class NumericNoiseTrajectory(NoiseTrajectory):
         """
         Returns the noise values for the selected times.
 
-        NOTE: INTERPOLATION SHOULD BE IMPLEMENTED BY DEFAULT. USE FCSPLINE
-              FROM RICHARD TO DO IT!
+        NOTE: INTERPOLATION IS CURRENTLY NOT IMPLEMENTED
 
         Parameters
         ----------
-        1. taxis_req : list
-                       List of requested time points.
+        1. taxis_req : list(float)
+                       List of requested time points [units: fs].
 
         Returns
         -------
-        1. noise : list
-                   List of lists of noise at the requested time points.
+        1. noise : list(complex)
+                   List of lists of noise at the requested time points [units: cm^-1].
         """
         # Check that to within 'precision' resolution, all timesteps
         # requested are present on the calculated t-axis.

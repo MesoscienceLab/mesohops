@@ -4,7 +4,7 @@ from mesohops.util.physical_constants import precision
 
 __title__ = "EOM Functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 def operator_expectation(oper, vec, flag_gcorr = False):
@@ -17,11 +17,13 @@ def operator_expectation(oper, vec, flag_gcorr = False):
               Dense or sparse operator.
 
     2. vec : np.array
-             An nx1 matrix.
+             nx1 matrix.
 
     3. flag_gcorr : bool
-                    Whether to correct the normalization for the inclusion of
-                    a ground state (in the dyadic equation governing absorption).
+                    True indictates that the normalization of the expectation value
+                    should be corrected  for the inclusion of a ground state (e.g.,
+                    in the linear absorption equation of motion) while False 
+                    indicates otherwise.
 
     Returns
     -------
@@ -69,10 +71,9 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_absindex_L2_by_mode
     Updates the memory term. The form of the equation depends on expanding the
     memory integral assuming an exponential expansion.
 
-    NOTE: THIS ASSUMES THE NOISE HAS EXPONENTIAL FORM.
+    NOTE: This asumes the noise has exponential form.
 
-    NOTE: Again this function mixes relative and absolute
-          indexing which makes it much more confusing.
+    NOTE: This function mixes relative and absolute indexing.
           z_mem : absolute
           list_avg_L2 : relative
           list_g : absolute
@@ -90,11 +91,11 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_absindex_L2_by_mode
                      Relative list of the expectation values of the L operators.
 
     3. list_g : list(complex)
-                List of pre exponential factors for bath correlation functions [unit:
+                List of pre exponential factors for bath correlation functions [units:
                 cm^-2].
 
     4. list_w :  list(complex)
-                 List of exponents for bath correlation functions (w = γ+iΩ) [unit:
+                 List of exponents for bath correlation functions (w = γ+iΩ) [units:
                  cm^-1].
 
     5. list_absindex_L2_by_mode : list(int)
@@ -134,10 +135,8 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_absindex_L2_by_mode
             - np.conj(list_w[absindex_mode]) * z_mem[absindex_mode]
         )
 
-    for absindex_mode in list_nonzero_zmem:
-        delta_z_mem[absindex_mode] -= (
-            np.conj(list_w[absindex_mode]) * z_mem[absindex_mode]
-        )
+    delta_z_mem[list_nonzero_zmem] -= np.conj(list_w[list_nonzero_zmem]) * z_mem[
+        list_nonzero_zmem]
 
     return delta_z_mem
 
@@ -195,97 +194,96 @@ def calc_norm_corr(
     return np.real(delta)
 
 def calc_LT_corr(
-    list_LT_coeff, list_L2, list_avg_L2, physical = False
-):
+    list_LT_coeff, list_L2, list_avg_L2, list_L2_sq):
     """
-    This function computes the low-temperature correction factor associated with each
-    member of the hierarchy in the nonlinear equation of motion. The factor is given by
-    the sum over the low-temperature correction coefficients and associated
-    L-operators c_n and L_n:
-    \sum_n (2<L_n>Re[c_n] - L_nc_n)L_n
-    Where c_n is the nth low-temperature correction factor, and L_n is the nth
-    L-operator associated with that factor.
+    Computes the low-temperature correction factor associated with each member of the
+    hierarchy in the nonlinear equation of motion. The factor is given by the sum over
+    the low-temperature correction coefficients and associated L-operators c_n and L_n:
+    \sum_n conj(c_n)<L_n>L_n
+    to all auxiliary wave functions and
+    \sum_n c_n(<L_n> - L_n)L_n
+    to the physical wave function, where c_n is the nth low-temperature correction
+    factor, and L_n is the nth L-operator associated with that factor.
 
-    PARAMETERS
+    Parameters
     ----------
-    1. list_LT_coeff : list
-                       relative list of low-temperature coefficients
-    2. list_L2 : list
-                 relative list of active L operators
-    3. list_avg_L2 : list
-                     relative list of the expectation values of the active L operators
-    4. physical : boolean
-                  Determines if this correction is to be applied to the physical
-                  wavefunction or elsewhere
-    RETURNS
+    1. list_LT_coeff : list(complex)
+                       Relative list of low-temperature coefficients [units: cm^-1].
+    2. list_L2 : list(sparse matrix)
+                 Relative list of active L operators.
+    3. list_avg_L2 : list(float)
+                     Relative list of the expectation values of the active L operators.
+    4. list_L2_sq: list(sparse matrix)
+                   Relative list of active L operators squared.
+
+    Returns
     -------
-    1. C2_corr : np.array
-                 the low-temperature correction self-derivative term
+    1. C2_LT_corr_physical : np.array(complex)
+                             Low-temperature correction self-derivative term applied to the
+                             physical wave function only to account for the terminator
+                             correction [units: cm^-1].
+    2. C2_LT_corr_hier : np.array(complex)
+                         Low-temperature correction self-derivative term applied to
+                         all auxiliary wave functions to account for the noise memory
+                         drift [units: cm^-1].
+
     """
-    # Adds the terminated flux from above to the physical wavefunction
-    if physical:
-        return np.sum(np.array([(list_LT_coeff[n]*list_avg_L2[n]*np.eye(
-        list_L2[n].shape[0]) - list_LT_coeff[n]*list_L2[n])@list_L2[n] for n in
-                            range(len(list_LT_coeff))]), axis=0)
-    # Adds the delta-approximated noise memory drift to all members of the hierarchy
-    else:
-        return np.sum(np.array([(np.conj(list_LT_coeff[n])*list_avg_L2[n]*np.eye(
-        list_L2[n].shape[0]))@list_L2[n] for n in range(len(list_LT_coeff))]), axis=0)
+    # Cast everything to arrays for easy multiplication
+    G1_LT_coeff = np.array(list_LT_coeff)
+    L1_avg_L2 = np.array(list_avg_L2)
+    return np.sum((G1_LT_coeff * L1_avg_L2) * list_L2 -
+                  G1_LT_coeff * list_L2_sq, axis=0), \
+           np.sum((np.conj(G1_LT_coeff)*L1_avg_L2)*list_L2, axis=0)
 
 def calc_LT_corr_to_norm_corr(
     list_LT_coeff, list_avg_L2, list_avg_L2_sq
 ):
     """
-    This function computes the low-temperature correction to the normalization factor in
-    the normalized nonlinear equation of motion. The correction is given by the sum
-    over the low-temperature correction coefficients and associated L-operators c_n
-    and L_n:
-    \sum_n Re[c_n](2<L_n>^2 - <L_n^2>)
-    Where c_n is the nth low-temperature correction factor, and L_n is the nth
-    L-operator associated with that factor.
+    Computes the low-temperature correction to the normalization factor in the
+    normalized nonlinear equation of motion. The correction is given by the sum over
+    the low-temperature correction coefficients and associated L-operators c_n and L_n:
+    \sum_n Re[c_n](2<L_n>^2 - <L_n^2>),
+    where c_n is the nth low-temperature correction
+    factor, and L_n is the nth L-operator associated with that factor.
 
-    PARAMETERS
+    Parameters
     ----------
-    1. list_LT_coeff : list
-                       relative list of low-temperature coefficients
-    2. list_avg_L2 : list
-                     relative list of the expectation values of the L operators
-    3. list_avg_L2_sq : list
-                        relative list of the expectation values of the squared L
-                       operators
-    RETURNS
+    1. list_LT_coeff : list(complex)
+                       Relative list of low-temperature coefficients [units: cm^-1].
+    2. list_avg_L2 : list(float)
+                     Relative list of the expectation values of the L operators.
+    3. list_avg_L2_sq : list(float)
+                        Relative list of the expectation values of the squared L
+                        operators.
+    Returns
     -------
     1. delta_corr : float
-                    the low-temperature correction to the normalization correction
-                    factor
+                    Low-temperature correction to the normalization correction factor.
     """
-    return np.sum(np.array([
-    np.real(list_LT_coeff[j])*(2*list_avg_L2[j]**2 - list_avg_L2_sq[j])
-        for j in range(len(list_LT_coeff))]))
+    return np.sum(np.real(np.array(list_LT_coeff))*(2*np.array(list_avg_L2)**2 -
+                                                    np.array(list_avg_L2_sq)))
 
 def calc_LT_corr_linear(
-    list_LT_coeff, list_L2
+    list_LT_coeff, list_L2_sq
 ):
     """
-    This function computes the low-temperature correction factor associated with each
-    member of the hierarchy in the linear equation of motion. The factor is given by
-    the sum over the low-temperature correction coefficients and associated
-    L-operators c_n and L_n:
-    -\sum_n c_nL_n^2
-    Where c_n is the nth low-temperature correction factor, and L_n is the nth
-    L-operator associated with that factor.
-    NOTE: this correction should only be applied to the physical wavefunction.
+    Computes the low-temperature correction factor associated with each member of the
+    hierarchy in the linear equation of motion. The factor is given by the sum over the
+    low-temperature correction coefficients and associated L-operators c_n and L_n:
+    -\sum_n c_nL_n^2,
+    where c_n is the nth low-temperature correction factor, and L_n is
+    the nth L-operator associated with that factor.
+    NOTE: This correction should only be applied to the physical wavefunction.
 
-    PARAMETERS
+    Parameters
     ----------
-    1. list_LT_coeff : list
-                       relative list of low-temperature coefficients
-    2. list_L2 : list
-                 relative list of L operators
-    RETURNS
+    1. list_LT_coeff : list(complex)
+                       Relative list of low-temperature coefficients [units: cm^-1].
+    2. list_L2_sq : np.array(sparse matrix)
+                    Relative list of squared L operators, cast to array.
+    Returns
     -------
-    1. C2_corr : np.array
-                 the low-temperature correction self-derivative term
+    1. C2_LT_corr : np.array(complex)
+                    Low-temperature correction self-derivative term [units: cm^-1].
     """
-    return -1*np.sum(np.array([(list_LT_coeff[n])*list_L2[n]@list_L2[n] for n in
-                            range(len(list_LT_coeff))]),axis=0)
+    return -1 * np.sum(np.array(list_LT_coeff)*list_L2_sq, axis=0)

@@ -9,7 +9,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Test of FFT_FILTER noise model"
 __author__ = "J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = "Jan 17 2023"
 
 g1 = 10000.0-1000.0j

@@ -5,7 +5,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Adaptive Basis Functions"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 def error_sflux_hier(Φ, list_s0, n_state, n_hier, H2_sparse_hamiltonian):
@@ -33,7 +33,7 @@ def error_sflux_hier(Φ, list_s0, n_state, n_hier, H2_sparse_hamiltonian):
 
     Returns
     -------
-    1. E2_flux_state : array
+    1. E2_flux_state : np.array
                        Error introduced by losing flux within k from S_t to S_t^C
                        for each k in A_t.
     """
@@ -147,33 +147,28 @@ def error_flux_up(Φ, n_state, n_hier, n_hmodes, list_w, K2_aux_bymode,
     5. list_w : list
                 List of exponents for bath correlation functions.
 
-    6. list_absindex_mode : list
-                            List of the absolute indices  of the modes in current basis.
-
-    7. K2_aux_by_mode : np.array
+    6. K2_aux_by_mode : np.array
                          Mode values of each auxiliary in the space of [mode,k].
 
-    8. M2_mode_from_state : np.array
+    7. M2_mode_from_state : np.array
                             The L_m[s,s] value in the space of [mode,s].
 
-    9. static_filter_param : dict
-                              a dictionary of parameters for the static filter.
-
-    10. type : str
+    8. type : str
                Hierarchy or State basis ("H" or "S").
 
-    11. F2_filter : np.array
+    9. F2_filter : np.array
                     Filters out unwanted auxiliary connections in the space of [mode,k].
 
     Returns
     -------
-    1. E2_flux_up_error : np. array
+    1. E2_flux_up_error : np.array
                           Error induced by neglecting flux from A_t (or A_S)
                           to auxiliaries with lower summed index in A_t^C.
     """
     # Get flux factors
     # ----------------
-    W2_bymode = np.tile(list_w,[1,n_hier]).reshape([n_hmodes, n_hier], order="F")
+    list_w = np.abs(list_w)
+    W2_bymode = list_w.reshape([n_hmodes,1], order="F")
 
     # Reshape hierarchy (to matrix)
     # ------------------------------
@@ -182,13 +177,13 @@ def error_flux_up(Φ, n_state, n_hier, n_hmodes, list_w, K2_aux_bymode,
         # \sum_s |L_m[s,s] \psi_k[s]|^2 = \sum_s |M2[m,s] * \psi_k[s]|^2
         # \sum_s |M2[m,s]|^2 * |\psi_k[s]|^2
         P2_pop_modes = (np.abs(M2_mode_from_state).power(2) @ (np.abs(C2_phi) ** 2))
-        E2_error = np.abs(W2_bymode) ** 2 * (1 + K2_aux_bymode) ** 2 * P2_pop_modes / hbar ** 2
+        E2_error = (W2_bymode ** 2) * (1 + K2_aux_bymode) ** 2 * P2_pop_modes / hbar ** 2
         if F2_filter is not None:
             E2_error = F2_filter*E2_error
 
     elif (type == "S"):
         P2_pop_state = np.abs(C2_phi) ** 2
-        E2_error = np.abs(np.abs(W2_bymode) * (1 + K2_aux_bymode)) ** 2
+        E2_error = np.abs(W2_bymode * (1 + K2_aux_bymode)) ** 2
         if F2_filter is not None:
             E2_error *= F2_filter
         E2_error = np.transpose(M2_mode_from_state.power(2)) @ E2_error
@@ -231,13 +226,14 @@ def error_flux_down(Φ, n_state, n_hier, n_hmodes, list_g, list_w, M2_mode_from_
                 List of exponents for bath correlation functions.
 
     7. M2_mode_from_state : np.array
-                            The L_m[s,s] value in the space of [mode,s].
+                            L_m[s,s] value in the space of [mode,s].
 
     8. type : str
               Hierarchy or State basis ("H" or "S").
 
     9. flag_gcorr : bool
-                    True if using linear absorption EOM False otherwise.
+                    True indicates the use of linear absorption EOM while False
+                    indicates otherwise.
 
     10. F2_filter : np.array
                    Filters out unwanted auxiliary connections in the space of [mode,k]
@@ -250,27 +246,23 @@ def error_flux_down(Φ, n_state, n_hier, n_hmodes, list_g, list_w, M2_mode_from_
     """
     # Constants
     # ---------
-    C2_phi = np.asarray(Φ).reshape([n_state, n_hier], order="F")
-    E1_Lm = M2_mode_from_state @ (np.abs(C2_phi[:, 0]) ** 2)  # This is the <L_m> term assuming psi_0 normalized
+    C2_phi_squared = np.abs(np.asarray(Φ).reshape([n_state, n_hier], order="F")) **2
+    E1_Lm = M2_mode_from_state @ C2_phi_squared[:, 0]  # This is the <L_m> term assuming psi_0 normalized
     if flag_gcorr:
         E1_Lm /= 2
 
     # Get flux factors
     # ----------------
-    G2_bymode = np.tile(list_g,[1,n_hier]).reshape([n_hmodes, n_hier], order="F")
-    W2_bymode = np.tile(list_w,[1,n_hier]).reshape([n_hmodes, n_hier], order="F")
+    list_g_div_w = np.square(np.abs(list_g/list_w))
+    G2_div_W2_bymode = list_g_div_w.reshape([n_hmodes,1], order="F")
     if type == "H":
         # Hierarchy Type Downward Flux
         # ============================
         D2_mode_from_state = np.zeros([n_hmodes,n_state])
         D2_mode_from_state[:,:] = M2_mode_from_state.toarray() - E1_Lm.reshape([len(E1_Lm),1])
-        E2_flux_down_error = (
-                np.real(
-                    (np.abs(G2_bymode / W2_bymode) ** 2)
-                    * ((np.abs(D2_mode_from_state) ** 2) @ (np.abs(C2_phi) ** 2))
-                )
-                / hbar**2
-        )
+        D2_mode_from_state = np.abs(D2_mode_from_state) ** 2
+        E2_flux_down_error = D2_mode_from_state @ C2_phi_squared
+        E2_flux_down_error *= G2_div_W2_bymode / hbar**2
         if F2_filter is not None:
             E2_flux_down_error = F2_filter * E2_flux_down_error
 
@@ -279,12 +271,13 @@ def error_flux_down(Φ, n_state, n_hier, n_hmodes, list_g, list_w, M2_mode_from_
         # ========================
         D2_state_from_mode = np.zeros([n_state,n_hmodes])
         D2_state_from_mode[:,:] = np.transpose(M2_mode_from_state).toarray() - E1_Lm
-        E2_flux_down_error = np.abs(G2_bymode / W2_bymode)**2
+        D2_state_from_mode = np.abs(D2_state_from_mode) ** 2
+        E2_flux_down_error = G2_div_W2_bymode
         if F2_filter is not None:
-            E2_flux_down_error *= F2_filter
+            E2_flux_down_error = F2_filter * E2_flux_down_error
         E2_flux_down_error = (
-                (np.abs(D2_state_from_mode) ** 2) @ (E2_flux_down_error)
-                * (np.abs(C2_phi) ** 2)/hbar**2
+                C2_phi_squared *
+                (D2_state_from_mode @ E2_flux_down_error)/hbar**2
         )
     else:
         E2_flux_down_error = 0
@@ -323,7 +316,7 @@ def error_sflux_stable_state(Φ, n_state, n_hier, H2_sparse_hamiltonian,
 
     Returns
     -------
-    1. E1_state_flux : array
+    1. E1_state_flux : np.array
                        Error associated with flux out of each state in S_t.
     """
     C2_phi = np.asarray(Φ).reshape([n_state, n_hier], order="F")[

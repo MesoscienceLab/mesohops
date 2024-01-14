@@ -10,7 +10,7 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_ex
 
 __title__ = "test of low-temperature correction "
 __author__ = "J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 noise_param = {
     "SEED": 0,
@@ -294,46 +294,52 @@ def test_calc_lt_corr():
     )
     test_ltc_flux_from_above_only = test_ltc_full - test_ltc_not_physical
     assert np.allclose(
-        calc_LT_corr([10 + 10j, -10 -10j], [loperator[0], loperator[1]], [0.25,
-                                                                          0.25], True),
+        calc_LT_corr([10 + 10j, -10 -10j], [sparse_l0, sparse_l1],
+        [0.25, 0.25], [sparse_l0@sparse_l0, sparse_l1@sparse_l1])[0].todense(),
         test_ltc_flux_from_above_only
     )
     assert np.allclose(
-        calc_LT_corr([0,0], [loperator[0], loperator[1]], [0.25, 0.25], True),
-        np.zeros([2,2])
-    )
-    assert np.allclose(
-        calc_LT_corr([10, -10], [loperator[0], loperator[1]], [0.5, 0.5], True),
-        -1*calc_LT_corr([10, -10], [loperator[0], loperator[1]],
-                        [0.5, 0.5], False)
-    )
-    assert np.allclose(
-        calc_LT_corr([10+10j, -10 - 10j], [np.zeros([2, 2]), np.zeros([2, 2])],
-        [0.25, 0.25], True), np.zeros([2, 2])
-    )
-    assert np.allclose(
-        calc_LT_corr([], [], [], True),
-        np.zeros([])
-    )
-    assert np.allclose(
-        calc_LT_corr([10 + 10j, -10 - 10j], [loperator[0], loperator[1]], [0.25,
-                                                                           0.25], False),
+        calc_LT_corr([10 + 10j, -10 - 10j], [sparse_l0, sparse_l1],
+        [0.25, 0.25], [sparse_l0 @ sparse_l0, sparse_l1 @ sparse_l1])[1].todense(),
         test_ltc_not_physical
     )
     assert np.allclose(
-        calc_LT_corr([0, 0], [loperator[0], loperator[1]], [0.25, 0.25], False),
+        calc_LT_corr([0,0], [sparse_l0, sparse_l1],
+                     [0.25, 0.25], [sparse_l0 @ sparse_l0, sparse_l1 @ sparse_l1])[0].todense(),
+        np.zeros([2,2])
+    )
+    assert np.allclose(
+        calc_LT_corr([10, -10], [sparse_l0, sparse_l1],
+                     [0.5, 0.5], [sparse_l0 @ sparse_l0, sparse_l1 @ sparse_l1])[0].todense(),
+        -1*calc_LT_corr([10, -10], [sparse_l0, sparse_l1],
+                     [0.5, 0.5], [sparse_l0 @ sparse_l0, sparse_l1 @ sparse_l1])[1].todense()
+    )
+    assert np.allclose(
+        calc_LT_corr([10+10j, -10 - 10j], [np.zeros([2, 2]), np.zeros([2, 2])],
+        [0.25, 0.25], [np.zeros([2, 2]), np.zeros([2, 2])])[0],
         np.zeros([2, 2])
     )
     assert np.allclose(
-        calc_LT_corr([10, -10], [loperator[0], loperator[1]], [0, 0], False),
+        calc_LT_corr([], [], [], [])[0],
+        np.zeros([])
+    )
+    assert np.allclose(
+        calc_LT_corr([0, 0], [sparse_l0, sparse_l1],
+                     [0.25, 0.25], [sparse_l0 @ sparse_l0, sparse_l1 @ sparse_l1])[1].todense(),
+        np.zeros([2, 2])
+    )
+    assert np.allclose(
+        calc_LT_corr([10, -10], [sparse_l0, sparse_l1],
+                     [0, 0], [sparse_l0 @ sparse_l0, sparse_l1 @ sparse_l1])[1].todense(),
         np.zeros([2, 2])
     )
     assert np.allclose(
         calc_LT_corr([10 + 10j, -10 - 10j], [np.zeros([2, 2]), np.zeros([2, 2])],
-                     [0.25, 0.25], False), np.zeros([2, 2])
+                     [0.25, 0.25], [np.zeros([2, 2]), np.zeros([2, 2])])[1],
+        np.zeros([2, 2])
     )
     assert np.allclose(
-        calc_LT_corr([], [], [], False),
+        calc_LT_corr([], [], [], [])[1],
         np.zeros([])
     )
 

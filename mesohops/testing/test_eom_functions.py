@@ -9,7 +9,7 @@ from mesohops.dynamics.eom_functions import (
 
 __title__ = "Test of eom_functions"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = ""
 
 # TEST PARAMETERS
@@ -87,7 +87,7 @@ def test_l_avg_calculation():
     assert lavg_list[1] == 0.0
 
 
-def test_calc_deltz_zmem():
+def test_calc_delta_zmem():
     """
     This is a test to ensure that memory-effects
     in the noise are properly taken into account
@@ -113,6 +113,23 @@ def test_calc_deltz_zmem():
     assert d_zmem[1] == 5.0
     assert d_zmem[2] == 0
     assert d_zmem[3] == 0
+    assert type(d_zmem) == type(np.array([]))
+
+    z_mem = np.array([5.0, 0.0, 0.0, 3.0])
+    d_zmem = calc_delta_zmem(
+        z_mem,
+        [1, 1],
+        g_list,
+        w_list,
+        hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
+        np.array([0, 1]),
+        list(np.arange(len(lavg_list)))
+    )
+    assert len(d_zmem) == len(g_list)
+    assert d_zmem[0] == 10.0 - (5.0*10.0)
+    assert d_zmem[1] == 5.0
+    assert d_zmem[2] == 0.0
+    assert d_zmem[3] == -3.0*5.0
     assert type(d_zmem) == type(np.array([]))
 
 

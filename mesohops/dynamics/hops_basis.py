@@ -6,13 +6,13 @@ from mesohops.dynamics.basis_functions_adaptive import (error_sflux_hier,
                                                       error_flux_down,
                                                       error_sflux_stable_state,
                                                       error_sflux_boundary_state)
-from mesohops.dynamics.basis_functions import determine_error_thresh
+from mesohops.dynamics.basis_functions import determine_error_thresh, calculate_delta_bound
 from mesohops.dynamics.hops_fluxfilters import HopsFluxFilters
 from mesohops.dynamics.hops_modes import HopsModes
 from scipy import sparse
 __title__ = "Basis Class"
 __author__ = "D. I. G. Bennett, Brian Citty"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 class HopsBasis:
@@ -25,31 +25,33 @@ class HopsBasis:
 
     def __init__(self, system, hierarchy, eom):
         """
-        Sets the dictionaries of user-defined parameters that will describe the HOPS
-        simulation.
-
         Inputs
         ------
-        1. system: dictionary of user inputs
-            [see hops_system.py]
+        1. system: dict
+                   dictionary of user inputs.
+                   [see hops_system.py]
             a. HAMILTONIAN
             b. GW_SYSBATH
             c. CORRELATION_FUNCTION_TYPE
             d. LOPERATORS
             e. CORRELATION_FUNCTION
-        2. hierarchy: dictionary of user inputs
-            [see hops_hierarchy.py]
-            f. MAXHIER
-            g. TERMINATOR
-            h. STATIC_FILTERS
-        3. eom: dictionary of user inputs
-            [see hops_eom.py]
-            i. TIME_DEPENDENCE
-            j. EQUATION_OF_MOTION
-            k. ADAPTIVE_H
-            l. ADAPTIVE_S
-            m. DELTA_H
-            n. DELTA_S
+
+        2. hierarchy: dict
+                      dictionary of user inputs.
+                      [see hops_hierarchy.py]
+            a. MAXHIER
+            b. TERMINATOR
+            c. STATIC_FILTERS
+
+        3. eom: dict
+                dictionary of user inputs.
+                [see hops_eom.py]
+            a. TIME_DEPENDENCE
+            b. EQUATION_OF_MOTION
+            c. ADAPTIVE_H
+            d. ADAPTIVE_S
+            e. DELTA_H
+            f. DELTA_S
 
         Returns
         -------
@@ -78,8 +80,8 @@ class HopsBasis:
         Returns
         -------
         1. dsystem_dt : function
-                       The core function for calculating the time-evolution of
-                       the wave function.
+                        Core function for calculating the time-evolution of the wave
+                        function.
         """
         self.hierarchy.initialize(self.adaptive_h)
         self.system.initialize(self.adaptive_s, psi_0)
@@ -110,10 +112,10 @@ class HopsBasis:
         Returns
         -------
         1. list_state_new : list
-                                List of states in the new basis (S_1).
+                            List of states in the new basis (S_1).
 
         2. list_aux_new : list
-                              List of auxiliaries in new basis (H_1).
+                          List of auxiliaries in new basis (H_1).
 
         """
         # ==========================================
@@ -161,10 +163,10 @@ class HopsBasis:
                Current full hierarchy.
 
         2. list_state_new: list
-                           New list of states.
+                           List of states in the new basis (S_1).
 
         3. list_aux_new : list
-                           New list of auxiliaries.
+                          List of auxiliaries in new basis (H_1).
 
         Returns
         -------
@@ -178,7 +180,7 @@ class HopsBasis:
         # =================
         flag_update_state = False
         if set(list_state_new) != set(self.system.state_list): flag_update_state = True
-        self.system.state_list = np.array(list_state_new)
+        self.system.state_list = np.array(list_state_new, dtype=int)
 
         # Update Hierarchy List
         # =====================
@@ -279,29 +281,29 @@ class HopsBasis:
 
         Returns
         -------
-        1. list_state_stable : list
-                               List of stable states (absolute state index, S_S).
+        1. list_state_stable : np.array
+                               Array of stable states (absolute state index, S_S).
 
-        2. list_state_boundary : list
-                                 List of the boundary states (absolute state index, S_B).
+        2. list_state_boundary : np.array
+                                 Array of the boundary states (absolute state index, S_B).
         """
         # Define Constants
         # ----------------
-        delta_state = self.delta_s
+        delta_state_sq = self.delta_s ** 2
 
         # CONSTRUCT STABLE STATE (S_S)
         # ============================
 
         # Construct Error For Excluding Member of S_t
         # -------------------------------------------
-        error_by_state = self.state_stable_error(
+        error_by_state_sq = self.state_stable_error(
             Φ, delta_t, z_step, list_index_aux_stable, list_aux_bound
         )
 
         # Determine the Stable States (S_S)
         # ---------------------------------
         list_relindex_state_stable, list_state_stable = self._determine_basis_from_list(
-            error_by_state, delta_state / 2, self.system.state_list
+            error_by_state_sq, delta_state_sq / 2.0, self.system.state_list
         )
 
         # CONSTRUCT BOUNDARY STATE (S_B)
@@ -309,13 +311,11 @@ class HopsBasis:
 
         # Establish the error available for the boundary states
         # -----------------------------------------------------
-        stable_error = np.sqrt(
-            np.max([
-                np.sum(error_by_state ** 2) - np.sum(error_by_state[list_relindex_state_stable] ** 2),
-                0])
-        )
-        bound_error = delta_state - stable_error
-
+        list_index_state_unstable = np.setdiff1d(np.arange(self.n_state), list_relindex_state_stable)
+        stable_error_sq = np.sum(error_by_state_sq[list_index_state_unstable])
+        
+        delta_bound_sq = calculate_delta_bound(delta_state_sq, stable_error_sq)
+        
         # Construct Error for Excluding Member of S_t^C
         # ---------------------------------------------
         list_sc = np.setdiff1d(np.arange(self.system.param["NSTATES"]),
@@ -327,12 +327,11 @@ class HopsBasis:
             list_relindex_state_stable,
             list_index_aux_stable
         )
-
         # Determine Boundary States
         # -------------------------
         if len(list_error_nonzero) > 0:
             _, list_state_boundary = self._determine_basis_from_list(
-                np.sqrt(list_error_nonzero), bound_error, list_index_nonzero
+                list_error_nonzero, delta_bound_sq, list_index_nonzero
             )
         else:
             list_state_boundary = []
@@ -376,19 +375,21 @@ class HopsBasis:
         """
         # Define Constants
         # ----------------
-        delta_hier = self.delta_h
+        delta_hier_sq = self.delta_h ** 2
 
         # CONSTRUCT STABLE HIERARCHY
         # ==========================
 
         # Construct Error For Excluding Member of A_t
         # --------------------------------------------
-        error_by_aux, list_e2_kflux = self.hier_stable_error(Φ, delta_t, z_step)
+        error_by_aux_sq, list_e2_kflux = self.hier_stable_error(Φ, delta_t, z_step)
+        
+        
         
         # Determine the Stable Auxiliaries (A_S)
         # --------------------------------------------------
         list_index_aux_stable, list_aux_stable = self._determine_basis_from_list(
-            error_by_aux, 0.5*delta_hier, self.hierarchy.auxiliary_list
+            error_by_aux_sq, delta_hier_sq/2.0, self.hierarchy.auxiliary_list
         )
         
         # CONSTRUCT BOUNDARY HIERARCHY
@@ -396,17 +397,15 @@ class HopsBasis:
 
         # Establish the error available for the boundary auxiliaries
         # ----------------------------------------------------------
-        stable_error = np.sqrt(
-            np.max([
-                np.sum(error_by_aux ** 2) - np.sum(error_by_aux[list_index_aux_stable] ** 2),
-                0])
-        )
-        bound_error = delta_hier - stable_error
-
+        list_index_aux_unstable = np.setdiff1d(np.arange(self.n_hier), list_index_aux_stable)
+        stable_error_sq = np.sum(error_by_aux_sq[list_index_aux_unstable])
+        
+        delta_bound_sq = calculate_delta_bound(delta_hier_sq, stable_error_sq)
+        
         # Determine the Boundary Auxiliaries (A_B)
         # -----------------------------------------------------
         list_aux_boundary = self._determine_boundary_hier(
-            list_e2_kflux, list_index_aux_stable, bound_error
+            list_e2_kflux, list_index_aux_stable, delta_bound_sq, self.f_discard
         )
 
         # Filter Boundary Set for Auxiliaries That Are Not Part of A_T
@@ -448,22 +447,10 @@ class HopsBasis:
         # ===    Build Array Constructions    ===
         # =======================================
 
-        # Filter for Stable Hierarchy, Flux Up
-        # -------------------------------------
-        F2_filter_any_up = self.flux_filters.construct_filter_auxiliary_stable_up()
-        F2_filter_any_up *= self.flux_filters.construct_filter_markov_up()
-
-        # Filter for Stable Hierarchy, Flux Down
-        # --------------------------------------
-        F2_filter_any_down = self.flux_filters.construct_filter_auxiliary_stable_down()
-
+       
         # Construct the L_m[s,s] values in the space of [mode, states]
         # ------------------------------------------------------------
         M2_mode_from_state = self.M2_mode_from_state
-
-        # Construct the array values of k[n] in the space of [mode, aux]
-        # --------------------------------------------------------------
-        K2_aux_by_mode = self.K2_aux_by_mode
 
         # ===================================
         # ===    Calculate Error Terms    ===
@@ -471,39 +458,43 @@ class HopsBasis:
 
         # Calculate the error term by term
         # --------------------------------
-        E2_deriv_self = error_deriv(self.eom.dsystem_dt, Φ, z_step,
-                                    self.n_state, self.n_hier, delta_t)
+        E1_error = np.sum(error_deriv(self.eom.dsystem_dt, Φ, z_step,
+                                    self.n_state, self.n_hier, delta_t), axis=0)
 
-        E1_flux_state = error_sflux_hier(Φ, self.system.state_list,
+        E1_error += error_sflux_hier(Φ, self.system.state_list,
                                          self.n_state, self.n_hier,
                                          self.system.param["SPARSE_HAMILTONIAN"])
 
         E2_flux_up_nofilter = error_flux_up(Φ, self.n_state, self.n_hier,
                                             self.n_hmodes, self.w,
-                                            K2_aux_by_mode,
+                                            self.K2_aux_by_mode,
                                             M2_mode_from_state,
                                             "H")
-        E2_flux_up = F2_filter_any_up * E2_flux_up_nofilter
+        # Filter for Stable Hierarchy, Flux Up
+        # -------------------------------------
+        F2_filter = self.flux_filters.construct_filter_auxiliary_stable_up()
+        F2_filter *= self.flux_filters.construct_filter_markov_up()
+        
+        E1_error += np.sum(F2_filter * E2_flux_up_nofilter,axis=0)
 
         E2_flux_down_nofilter = error_flux_down(Φ, self.n_state, self.n_hier, self.n_hmodes,
                                                 self.g, self.w,
                                                 M2_mode_from_state, "H",
                                                 flag_gcorr=self.flag_gcorr)
-        E2_flux_down = F2_filter_any_down * E2_flux_down_nofilter
+                                                
+        # Filter for Stable Hierarchy, Flux Down
+        # --------------------------------------
+        F2_filter = self.flux_filters.construct_filter_auxiliary_stable_down()                                        
+        E1_error += np.sum(F2_filter * E2_flux_down_nofilter,axis=0)
+        
 
-        # Compress the error onto the aux axis
-        # ------------------------------------
         return (
-            np.sqrt(
-                np.sum(E2_deriv_self, axis=0)
-                + np.sum(E2_flux_down, axis=0)
-                + np.sum(E2_flux_up, axis=0)
-                + E1_flux_state
-            ),
+            E1_error,
             [E2_flux_up_nofilter, E2_flux_down_nofilter],
         )
 
-    def _determine_boundary_hier( self, list_e2_kflux, list_index_aux_stable, bound_error):
+    def _determine_boundary_hier( self, list_e2_kflux_up_down, list_index_aux_stable,
+                                  delta_bound_sq, f_discard):
         """
         Determines the set of boundary auxiliaries for the next time step.
 
@@ -516,42 +507,53 @@ class HopsBasis:
         2. list_index_aux_stable : list
                                    List of the indices for stable auxiliaries.
 
-        3. bound_error : float
-                         Boundary error value.
+        3. delta_bound_sq : float
+                            Boundary error tolerance value.
+
+        4. f_discard : float
+                       Fraction of the boundary error devoted to removing error
+                       terms from list_e2_kflux for memory conservation.
+
 
         Returns
         -------
         1. list_aux_boundary : list
                                List of the flux up and flux down auxiliaries.
         """
-        # Construct constants
-        # ====================
-        E2_flux_up = list_e2_kflux[0]
-        E2_flux_down = list_e2_kflux[1]
-
-        # Construct Filters
-        # =================
-
         # Filter for Boundary Auxiliary, Flux Up
         # --------------------------------------
-        F2_filter_p1 = self.flux_filters.construct_filter_auxiliary_boundary_up()
-
-        F2_filter_p1 *= self.flux_filters.construct_filter_markov_up()
-
+        F2_filter = self.flux_filters.construct_filter_auxiliary_boundary_up()
+        F2_filter *= self.flux_filters.construct_filter_markov_up()
+        list_e2_kflux_up_down[0] = list_e2_kflux_up_down[0] * F2_filter
+        
         # Filter for Boundary Auxiliary, Flux Up
         # --------------------------------------
-        F2_filter_m1 = self.flux_filters.construct_filter_auxiliary_boundary_down()
-
-        # Apply filters: flux to auxiliaries in A_t^c
-        # -------------------------------------------
-        E2_flux_up = E2_flux_up * F2_filter_p1
-        E2_flux_down = E2_flux_down * F2_filter_m1
-
+        F2_filter = self.flux_filters.construct_filter_auxiliary_boundary_down()
+        list_e2_kflux_up_down[1] = list_e2_kflux_up_down[1] * F2_filter
+        
+        
         # Apply filters: flux from stable auxiliaries (A_s)
         # -------------------------------------------------
-        E2_flux_up = np.sqrt(E2_flux_up[:,list_index_aux_stable])
-        E2_flux_down = np.sqrt(E2_flux_down[:, list_index_aux_stable])
+        list_e2_kflux_up_down[0] = list_e2_kflux_up_down[0][:,list_index_aux_stable]
+        list_e2_kflux_up_down[1] = list_e2_kflux_up_down[1][:, list_index_aux_stable]
 
+        # Filter out small errors
+        # -----------------------
+        E1_nonzero_flux = list_e2_kflux_up_down[0][list_e2_kflux_up_down[0] != 0]
+        
+        sorted_error = np.sort(
+            np.append(E1_nonzero_flux, list_e2_kflux_up_down[1][list_e2_kflux_up_down[1] != 0])
+        )
+        
+        error_thresh = determine_error_thresh(sorted_error, delta_bound_sq*f_discard*f_discard)
+        
+        
+        discarded_error = np.sum(list_e2_kflux_up_down[0][list_e2_kflux_up_down[0] <= error_thresh])
+        discarded_error += np.sum(list_e2_kflux_up_down[1][list_e2_kflux_up_down[1] <= error_thresh])
+
+        list_e2_kflux_up_down[0][list_e2_kflux_up_down[0] <= error_thresh] = 0
+        list_e2_kflux_up_down[1][list_e2_kflux_up_down[1] <= error_thresh] = 0
+        
         # Find the error threshold for edge auxiliaries
         # ---------------------------------------------
         boundary_aux_dict = {}
@@ -564,38 +566,38 @@ class HopsBasis:
         for (i_aux,aux) in enumerate(list_stable_aux):
 
             # Flux Up Error
-            nonzero_modes_up = E2_flux_up[:,i_aux].nonzero()[0]
+            nonzero_modes_up = list_e2_kflux_up_down[0][:,i_aux].nonzero()[0]
             if(len(nonzero_modes_up) > 0):
                 #Get the id values for boundary auxiliaries up along modes with nonzero flux
-                for mode in nonzero_modes_up:
-                    list_id_up, list_value_connect,list_mode_connect = aux.get_list_id_up([self.list_absindex_mode[mode]])
-                    #For each id up, add the flux error to its entry in the boundary_aux_dict dictionary.
-                    #We assume that the filter is constructed correctly and that these are all indeed boundary auxiliaries.
-                    #If it is the first flux for a boundary auxiliary, we keep track of the connection in the boundary_connect_dict, so we can use the 
-                    #e_step method to construct the new Auxiliary as before.
+                list_id_up, list_value_connect,list_mode_connect = aux.get_list_id_up(self.list_absindex_mode[nonzero_modes_up])
+                #For each id up, add the flux error to its entry in the boundary_aux_dict dictionary.
+                #We assume that the filter is constructed correctly and that these are all indeed boundary auxiliaries.
+                #If it is the first flux for a boundary auxiliary, we keep track of the connection in the boundary_connect_dict, so we can use the 
+                #e_step method to construct the new Auxiliary as before.
+                for (id_ind,my_id) in enumerate(list_id_up):
                     try: 
-                        boundary_aux_dict[list_id_up[0]] += E2_flux_up[mode,i_aux]
+                        boundary_aux_dict[my_id] += list_e2_kflux_up_down[0][nonzero_modes_up[id_ind],i_aux]
                     except:
-                        boundary_aux_dict[list_id_up[0]] = E2_flux_up[mode,i_aux] 
-                        boundary_connect_dict[list_id_up[0]] = [aux, list_mode_connect[0], 1]
+                        boundary_aux_dict[my_id] = list_e2_kflux_up_down[0][nonzero_modes_up[id_ind],i_aux]
+                        boundary_connect_dict[my_id] = [aux, list_mode_connect[id_ind], 1]
 
             # Flux Down Error
-            nonzero_modes_down = self.list_absindex_mode[E2_flux_down[:,i_aux].nonzero()[0]]
+            nonzero_modes_down = self.list_absindex_mode[list_e2_kflux_up_down[1][:,i_aux].nonzero()[0]]
             if(len(nonzero_modes_down) > 0):
                 list_id_down, list_value_connects, list_mode_connects = aux.get_list_id_down()
                 for (id_ind,my_id) in enumerate(list_id_down):
                     if(list_mode_connects[id_ind] in nonzero_modes_down):
                         try: 
-                            boundary_aux_dict[my_id] += E2_flux_down[list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux]
+                            boundary_aux_dict[my_id] += list_e2_kflux_up_down[1][list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux]
                         except:
-                            boundary_aux_dict[my_id] = E2_flux_down[list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux] 
-                            boundary_connect_dict[my_id] = [aux,list_mode_connects[id_ind],-1]
-                        
+                            boundary_aux_dict[my_id] = list_e2_kflux_up_down[1][list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux]
+                            boundary_connect_dict[my_id] = [aux,list_mode_connects[id_ind],-1]                
         # Sort the errors and find the error threshold
-        # --------------------------------------------                
+        # --------------------------------------------
+                        
         sorted_error = np.sort(np.array(list(boundary_aux_dict.values())))
-        error_thresh = determine_error_thresh(sorted_error, bound_error)
-
+        error_thresh = determine_error_thresh(sorted_error, delta_bound_sq, offset=discarded_error)
+        
         # Identify and construct boundary auxiliaries
         # -------------------------------------------
         list_aux_updown = [boundary_connect_dict[aux_id][0].e_step(boundary_connect_dict[aux_id][1],
@@ -633,51 +635,44 @@ class HopsBasis:
         1. error : np.array
                    List of error associated with removing each state.
         """
-        # Construct Filters
-        # =================
-        # Filter for Stable State, Flux Up
-        # --------------------------------
-        F2_filter_boundary_flux_m1 = self.flux_filters.construct_filter_state_stable_down(
-            list_aux_bound)
-
-        # Filter for Stable State, FLux Down
-        # ----------------------------------
-        F2_filter_boundary_flux_p1 = self.flux_filters.construct_filter_state_stable_up(
-            list_aux_bound)
+ 
 
         # Construct Array Inputs
         # ======================
         # Construct the L_m[s,s] values in the space of [mode, states]
         # ------------------------------------------------------------
         M2_mode_from_state = self.M2_mode_from_state
-
-        # Construct the array values of k[n] in the space of [mode, aux]
-        # --------------------------------------------------------------
-        K2_aux_by_mode = self.K2_aux_by_mode
         
         # Construct the Error Terms
         # =========================
-        E2_deriv_state = error_deriv(self.eom.dsystem_dt, Φ, z_step,
+        E1_error = np.sum(error_deriv(self.eom.dsystem_dt, Φ, z_step,
                                      self.n_state, self.n_hier, delta_t,
-                                     list_index_aux_stable)
-        E1_state_flux = error_sflux_stable_state(Φ, self.n_state, self.n_hier,
+                                     list_index_aux_stable),axis=1)
+        E1_error += error_sflux_stable_state(Φ, self.n_state, self.n_hier,
                                           self.system.param["SPARSE_HAMILTONIAN"],
                                           list_index_aux_stable,
                                           self.system.state_list)
-        E2_flux_down = error_flux_down(Φ, self.n_state, self.n_hier, self.n_hmodes, self.g, self.w,
+                                          
+        # Filter for Stable State, Flux Up
+        # --------------------------------
+        F2_filter_boundary = self.flux_filters.construct_filter_state_stable_down(
+            list_aux_bound)   
+        E1_error += np.sum(error_flux_down(Φ, self.n_state, self.n_hier, self.n_hmodes, self.g, self.w,
                                        M2_mode_from_state, "S", flag_gcorr=self.flag_gcorr,
-                                       F2_filter=F2_filter_boundary_flux_m1)[:, list_index_aux_stable]
-        E2_flux_up = error_flux_up(Φ, self.n_state, self.n_hier, self.n_hmodes, self.w, K2_aux_by_mode,
-                                   M2_mode_from_state, "S", F2_filter=F2_filter_boundary_flux_p1)[:, list_index_aux_stable]
+                                       F2_filter=F2_filter_boundary)[:, list_index_aux_stable],axis=1)
+                                     
+        # Filter for Stable State, Flux Down
+        # ----------------------------------
+        F2_filter_boundary = self.flux_filters.construct_filter_state_stable_up(
+            list_aux_bound)                                 
+        E1_error += np.sum(error_flux_up(Φ, self.n_state, self.n_hier, self.n_hmodes,
+                                         self.w, self.K2_aux_by_mode,
+                                         M2_mode_from_state, "S",
+                                         F2_filter=F2_filter_boundary)[:, list_index_aux_stable],axis=1)
 
         # Compress the error onto the state/mode axis
         # -------------------------------------------
-        return np.sqrt(
-            np.sum(E2_deriv_state, axis=1)
-            + np.sum(E2_flux_up, axis=1)
-            + np.sum(E2_flux_down, axis=1)
-            + E1_state_flux
-        )
+        return E1_error
 
     @staticmethod
     def _determine_basis_from_list(error_by_member, max_error, list_member):
@@ -688,18 +683,18 @@ class HopsBasis:
         Parameters
         ----------
         1. error_by_member : np.array
-                             List of error values.
+                             Array of error values.
 
         2. max_error : float
                        Maximum error value.
 
         3. list_member : np.array
-                         List of members.
+                         Array of members.
 
         Returns
         -------
         1. list_index : np.array
-                        List of indices for the members.
+                        Array of indices for the members.
 
         2. list_new_member : list
                              List of the members.
@@ -724,13 +719,14 @@ class HopsBasis:
 
     @property
     def K2_aux_by_mode(self):
-        K2_aux_by_mode = np.zeros([self.n_hmodes, self.n_hier])
+        # Construct the array values of k[n] in the space of [mode, aux]
+        K2_aux_by_mode = np.zeros([self.n_hmodes, self.n_hier], dtype=np.uint8)
         for aux in self.hierarchy.auxiliary_list:
             array_index = np.array([list(self.list_absindex_mode).index(mode)
                                     for (mode, value) in aux.tuple_aux_vec
                                     if mode in self.list_absindex_mode],
                                    dtype=int)
-            array_values = [value for (mode, value) in aux.tuple_aux_vec
+            array_values = [np.uint8(value) for (mode, value) in aux.tuple_aux_vec
                             if mode in self.list_absindex_mode]
             K2_aux_by_mode[array_index, aux._index] = array_values
         return K2_aux_by_mode
@@ -766,6 +762,10 @@ class HopsBasis:
     @property
     def delta_s(self):
         return self.eom.param["DELTA_S"]
+    
+    @property
+    def f_discard(self):
+        return self.eom.param["F_DISCARD"]
 
     @property
     def list_absindex_mode(self):

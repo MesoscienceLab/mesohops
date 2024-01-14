@@ -14,7 +14,7 @@ from mesohops.dynamics.eom_hops_ksuper import (
 
 __title__ = "Test of eom_hops_ksuperr"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = ""
 
 # NOTE: NEED TO TEST WHAT HAPPENS WHEN THE NUMBER OF LOPERATORS
@@ -1389,7 +1389,7 @@ def test_update_super_remove_aux():
     
     hops2.basis.hierarchy.auxiliary_list = hops.basis.hierarchy.auxiliary_list
     
-    K0, Kp1, Zp1, Km1 = update_ksuper(
+    K0, Kp1, Zp1, Km1, masks = update_ksuper(
         K0_new,
         Kp1_new,
         Zp1_new,
@@ -1497,7 +1497,7 @@ def test_update_super_remove_aux_and_state():
     hops2.basis.system.state_list = [0,1]
     hops2.basis.mode.list_absindex_mode = [0,1,2,3]
     
-    K0, Kp1, Zp1, Km1 = update_ksuper(
+    K0, Kp1, Zp1, Km1, masks = update_ksuper(
         K0_new,
         Kp1_new,
         Zp1_new,

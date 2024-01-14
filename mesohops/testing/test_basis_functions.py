@@ -9,12 +9,13 @@ def test_determine_error_thresh():
     """
 
     # Cumulative sum of error will be [1, sqrt(5), sqrt(14), sqrt(30), sqrt(55)]
-    test_error = np.array([1,2,3,4,5])  # change test error to be floats and non sequential values
+    test_error = np.array([1,2,3,4,5]) ** 2  # change test error to be floats and non sequential values
 
     assert determine_error_thresh([], 100) == 0.0
-    assert determine_error_thresh(test_error, 8) == np.inf
-    assert determine_error_thresh(test_error, 6) == 4
-    assert determine_error_thresh(test_error, np.sqrt(30)) == 4
-    assert determine_error_thresh(test_error, np.sqrt(29.99)) == 3
-    assert determine_error_thresh(test_error, 1) == 1
-    assert determine_error_thresh(test_error, 0.5) == 0
+    assert determine_error_thresh(test_error, 8*8) == np.inf
+    assert determine_error_thresh(test_error, 6*6) == 4*4
+    assert determine_error_thresh(test_error, 30.01) == 4*4
+    assert determine_error_thresh(test_error, 30) == 3*3
+    assert determine_error_thresh(test_error, 29.99) == 3*3
+    assert determine_error_thresh(test_error, 1) == 0.0
+    assert determine_error_thresh(test_error, 0.5*0.5) == 0

@@ -9,9 +9,9 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_ex
 from mesohops.dynamics.hops_aux import AuxiliaryVector
 from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
 
-__title__ = "test of low-temperature correction "
+__title__ = "Test of low-temperature correction"
 __author__ = "J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 noise_param = {
     "SEED": 0,
@@ -123,13 +123,11 @@ def test_LTC_linear_eom():
 
     list_lt_corr_coeff = [250.0/1000.0, 250.0/2000.0, 250.0/3000.0]
     list_l_op = [loperator[0], loperator[1], loperator[2]]
-    list_l_op_exp = [np.conj(psi_0)@l_op@psi_0/(np.conj(psi_0)@psi_0) for l_op in
-                     list_l_op]
-    list_l_op_exp_sq = [np.conj(psi_0)@l_op@l_op@psi_0/(np.conj(psi_0)@psi_0) for
-                        l_op in list_l_op]
+    list_l_op_sq = np.array([l_op@l_op for l_op in list_l_op])
 
     C2_LT_corr_total = np.zeros([len(phi_0), len(phi_0)])
-    C2_LT_corr_total[:len(psi_0), :len(psi_0)] = calc_LT_corr_linear(list_lt_corr_coeff, list_l_op)
+    C2_LT_corr_total[:len(psi_0), :len(psi_0)] = calc_LT_corr_linear(
+        list_lt_corr_coeff, list_l_op_sq)
     C1_LT_corr_to_deriv = C2_LT_corr_total@phi_0
 
     assert(np.allclose(C1_LT_corr_to_deriv,
@@ -192,11 +190,13 @@ def test_LTC_non_adaptive_nonlinear_norm_eom():
     list_l_op = [loperator[0], loperator[1], loperator[2]]
     list_l_op_exp = [np.conj(psi_0)@l_op@psi_0/(np.conj(psi_0)@psi_0) for l_op in
                      list_l_op]
+    list_l_op = [sp.sparse.csr_matrix(l_op) for l_op in list_l_op]
+    list_l_op_sq = [l_op @ l_op for l_op in list_l_op]
     list_l_op_exp_sq = [np.conj(psi_0)@l_op@l_op@psi_0/(np.conj(psi_0)@psi_0) for
                         l_op in list_l_op]
 
-    C2_LT_corr_physical = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp, True)
-    C2_LT_corr_hier = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp, False)
+    C2_LT_corr_physical, C2_LT_corr_hier = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp,
+                                       list_l_op_sq)
     G2_norm_corr_correction = calc_LT_corr_to_norm_corr(list_lt_corr_coeff,
                                                         list_l_op_exp, list_l_op_exp_sq)
 
@@ -268,11 +268,13 @@ def test_LTC_nonlinear_eom():
     list_l_op = [loperator[0], loperator[1], loperator[2]]
     list_l_op_exp = [np.conj(psi_0)@l_op@psi_0/(np.conj(psi_0)@psi_0) for l_op in
                      list_l_op]
+    list_l_op = [sp.sparse.csr_matrix(l_op) for l_op in list_l_op]
+    list_l_op_sq = [l_op@l_op for l_op in list_l_op]
     list_l_op_exp_sq = [np.conj(psi_0)@l_op@l_op@psi_0/(np.conj(psi_0)@psi_0) for
                         l_op in list_l_op]
 
-    C2_LT_corr_physical = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp, True)
-    C2_LT_corr_hier = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp, False)
+    C2_LT_corr_physical, C2_LT_corr_hier = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp,
+                                       list_l_op_sq)
     G2_norm_corr_correction = 0
 
     C2_LT_corr_total = np.eye(len(phi_0))*(-1*G2_norm_corr_correction)
@@ -342,11 +344,13 @@ def test_LTC_nonlinear_absorption_eom():
     list_l_op = [loperator[0], loperator[1], loperator[2]]
     list_l_op_exp = [np.conj(psi_0)@l_op@psi_0/(1 + (np.conj(psi_0)@psi_0)) for l_op in
                      list_l_op]
+    list_l_op = [sp.sparse.csr_matrix(l_op) for l_op in list_l_op]
+    list_l_op_sq = [l_op@l_op for l_op in list_l_op]
     list_l_op_exp_sq = [np.conj(psi_0)@l_op@l_op@psi_0/(1 + (np.conj(psi_0)@psi_0)) for
                         l_op in list_l_op]
 
-    C2_LT_corr_physical = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp, True)
-    C2_LT_corr_hier = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp, False)
+    C2_LT_corr_physical, C2_LT_corr_hier = calc_LT_corr(list_lt_corr_coeff, list_l_op, list_l_op_exp,
+                                       list_l_op_sq)
     G2_norm_corr_correction = 0
 
     C2_LT_corr_total = np.eye(len(phi_0))*(-1*G2_norm_corr_correction)
@@ -446,6 +450,8 @@ def test_LTC_adaptive_nonlinear_norm_eom():
     psi_0_red = psi_0[adap_state_list]
     list_l_op_exp = [np.conj(psi_0_red) @ l_op @ psi_0_red / (np.conj(psi_0_red) @
                                     psi_0_red) for l_op in list_l_op_reduced]
+    list_l_op_reduced = [sp.sparse.csr_matrix(l_op) for l_op in list_l_op_reduced]
+    list_l_op_sq = [l_op@l_op for l_op in list_l_op_reduced]
     list_l_op_exp_sq = [np.conj(psi_0_red) @ l_op @ l_op @ psi_0_red /
                         (np.conj(psi_0_red) @ psi_0_red) for l_op in list_l_op_reduced]
 
@@ -453,12 +459,13 @@ def test_LTC_adaptive_nonlinear_norm_eom():
     list_lt_corr_coeff_adap = np.array(list_lt_corr_coeff)[adap_state_list]
     list_l_op_reduced_adap = np.array(list_l_op_reduced)[adap_state_list]
     list_l_op_exp_adap = np.array(list_l_op_exp)[adap_state_list]
+    list_l_op_reduced_adap = [sp.sparse.csr_matrix(l_op) for l_op in list_l_op_reduced_adap]
+    list_l_op_reduced_adap_sq = [l_op@l_op for l_op in list_l_op_reduced_adap]
     list_l_op_exp_sq_adap = np.array(list_l_op_exp_sq)[adap_state_list]
 
-    C2_LT_corr_physical_adap = calc_LT_corr(list_lt_corr_coeff_adap, list_l_op_reduced_adap,
-                                       list_l_op_exp_adap, True)
-    C2_LT_corr_hier_adap = calc_LT_corr(list_lt_corr_coeff_adap, list_l_op_reduced_adap,
-                                   list_l_op_exp_adap, False)
+    C2_LT_corr_physical_adap, C2_LT_corr_hier_adap = calc_LT_corr(list_lt_corr_coeff_adap,
+                                             list_l_op_reduced_adap,
+                                       list_l_op_exp_adap, list_l_op_reduced_adap_sq)
     G2_norm_corr_correction_adap = calc_LT_corr_to_norm_corr(list_lt_corr_coeff_adap,
                                                         list_l_op_exp_adap, list_l_op_exp_sq_adap)
 
@@ -616,6 +623,7 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
     psi_0_red = psi_0[adap_state_list]
     list_l_op_exp = [np.conj(psi_0_red) @ l_op @ psi_0_red / (np.conj(psi_0_red) @
                                     psi_0_red) for l_op in list_l_op_reduced]
+    list_l_op_sq = [l_op@l_op for l_op in list_l_op_reduced]
     list_l_op_exp_sq = [np.conj(psi_0_red) @ l_op @ l_op @ psi_0_red /
                         (np.conj(psi_0_red) @ psi_0_red) for l_op in list_l_op_reduced]
 
@@ -624,12 +632,14 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
     list_lt_corr_coeff_adap = np.array(list_lt_corr_coeff)[active_l_list]
     list_l_op_reduced_adap = np.array(list_l_op_reduced)[active_l_list]
     list_l_op_exp_adap = np.array(list_l_op_exp)[active_l_list]
+    list_l_op_reduced_adap = [sp.sparse.csr_matrix(l_op) for l_op in list_l_op_reduced_adap]
+    list_l_op_reduced_adap_sq = np.array(
+        [l_op @ l_op for l_op in list_l_op_reduced_adap])
     list_l_op_exp_sq_adap = np.array(list_l_op_exp_sq)[active_l_list]
 
-    C2_LT_corr_physical_adap = calc_LT_corr(list_lt_corr_coeff_adap, list_l_op_reduced_adap,
-                                       list_l_op_exp_adap, True)
-    C2_LT_corr_hier_adap = calc_LT_corr(list_lt_corr_coeff_adap, list_l_op_reduced_adap,
-                                   list_l_op_exp_adap, False)
+    C2_LT_corr_physical_adap, C2_LT_corr_hier_adap = calc_LT_corr(list_lt_corr_coeff_adap,
+                                             list_l_op_reduced_adap,
+                                       list_l_op_exp_adap, list_l_op_reduced_adap_sq)
     G2_norm_corr_correction_adap = calc_LT_corr_to_norm_corr(list_lt_corr_coeff_adap,
                                                         list_l_op_exp_adap, list_l_op_exp_sq_adap)
 

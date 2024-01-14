@@ -3,10 +3,8 @@ import numpy as np
 
 class HopsModes:
     """
-    This is a class that will be responsible for managing the modes basis
-    in a adaptive HOPS calculation. At the moment, the logic here is fairly
-    minimal, however, it will act as a compartment for the logic which will
-    make it easier to thread information through the adaptive calculations.
+    Manages the mode basis in an adaptive HOPS calculation, facilitating communication
+    between the state and auxiliary wave function bases.
     """
 
     def __init__(self, system, hierarchy):
@@ -29,8 +27,12 @@ class HopsModes:
         return self._list_L2_coo
 
     @property
-    def list_L2_csc(self):
-        return self._list_L2_csc
+    def list_L2_csr(self):
+        return self._list_L2_csr
+
+    @property
+    def list_L2_sq_csr(self):
+        return self._list_L2_sq_csr
 
     @property
     def list_L2_diag(self):
@@ -70,6 +72,10 @@ class HopsModes:
     @property
     def list_absindex_mode(self):
         return self.__list_absindex_mode
+        
+    @property
+    def list_L2_masks(self):
+        return self._list_L2_masks
 
     @list_absindex_mode.setter
     def list_absindex_mode(self, list_absindex_mode):
@@ -114,8 +120,16 @@ class HopsModes:
             ]
         )
 
+        self._list_L2_masks = [
+            [list(set(self._list_L2_coo[i].row)),list(set(self._list_L2_coo[i].col)), np.ix_(list(set(self._list_L2_coo[i].row)),list(set(self._list_L2_coo[i].col)))]
+            for i in range(len(self._list_L2_coo))
+        ]
+
         self._n_l2 = len(self._list_absindex_L2)
-        self._list_L2_csc = [self._list_L2_coo[i].tocsr() for i in range(self._n_l2)]
-        self._list_L2_diag = [self._list_L2_coo[i].diagonal() for i in range(self._n_l2)] #only works for diagonal L operators
+        self._list_L2_csr = np.array([self._list_L2_coo[i].tocsr() for i in range(
+                self._n_l2)])
+        self._list_L2_sq_csr = np.array([L2@L2 for L2 in self._list_L2_csr])
+        #only works for diagonal L operators
+        self._list_L2_diag = [self._list_L2_coo[i].diagonal() for i in range(self._n_l2)]
         
         

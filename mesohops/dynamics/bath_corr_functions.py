@@ -3,7 +3,7 @@ from mesohops.util.physical_constants import kB, hbar
 
 __title__ = "bath_corr_functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 # Bath Correlation Functions
 # --------------------------
@@ -14,23 +14,23 @@ __version__ = "1.2"
 
 def bcf_exp(t_axis, g, w):
     """
-    This is the form of the correlation function
+    This is the form of the correlation function:
     alpha(t) = \displastyle\ g exp(-w*t)
 
     Parameters
     ----------
-    1. t_axis : array
-                Array of time points.
+    1. t_axis : np.array(float)
+                Time axis [units: fs].
 
-    2. g : complex floating point number
-           Exponential prefactor units[cm^-2].
+    2. g : complex
+           Exponential prefactor [units: cm^-2].
 
-    3. w : complex floating point number
-           Exponent units[cm^-1].
+    3. w : complex
+           Exponent [units: cm^-1].
 
     Returns
     -------
-    1. bcf : array
+    1. bcf : np.array(complex)
              Exponential bath correlation function sampled on t_axis.
     """
     return g * np.exp(-w * t_axis / hbar)
@@ -46,25 +46,25 @@ def bcf_convert_sdl_to_exp(lambda_sdl, gamma_sdl, omega_sdl, temp):
 
     Parameters
     ----------
-    1. lambda_sdl : float [unit: cm^-1]
-                    Reorganization energy.
+    1. lambda_sdl : float
+                    Reorganization energy [units: cm^-1].
 
-    2. gamma_sdl : float [unit: cm^-1]
-                   Reorganization time scale.
+    2. gamma_sdl : float
+                   Reorganization time scale [units: cm^-1].
 
-    3. omega_sdl : float [unit: cm^-1]
-                   Vibrational frequency.
+    3. omega_sdl : float
+                   Vibrational frequency [units: cm^-1].
 
-    4. temp : float [unit: K]
-              Temperature.
+    4. temp : float
+              Temperature [units: K].
 
     Returns
     -------
-    1. g_exp : complex [unit: cm^-2]
-               Exponential prefactor.
+    1. g_exp : complex
+               Exponential prefactor [units: cm^-2].
 
-    2. w_exp : complex [unit: cm^-1]
-               Exponent.
+    2. w_exp : complex
+               Exponent [units: cm^-1].
     """
     beta = 1 / (kB * temp)
     g_exp = 2 * lambda_sdl / beta - 1j * lambda_sdl * gamma_sdl
@@ -80,17 +80,17 @@ def bcf_convert_dl_ud_to_exp(lambda_dl, gamma_dl, omega_dl, temp):
 
     Parameters
     ----------
-    1. lambda_sdl : float [unit: cm^-1]
-                    Reorganization energy.
+    1. lambda_sdl : float
+                    Reorganization energy [units: cm^-1].
 
-    2. gamma_sdl : float [unit: cm^-1]
-                   Reorganization time scale.
+    2. gamma_sdl : float
+                   Reorganization time scale [units: cm^-1].
 
-    3. omega_sdl : float [unit: cm^-1]
-                   Vibrational frequency.
+    3. omega_sdl : float
+                   Vibrational frequency [units: cm^-1].
 
-    4. temp : float [unit: K]
-              Temperature.
+    4. temp : float
+              Temperature [units: K].
 
     Returns
     -------
@@ -128,31 +128,30 @@ def bcf_convert_dl_ud_to_exp(lambda_dl, gamma_dl, omega_dl, temp):
 
 def bcf_convert_dl_to_exp_with_Matsubara(lambda_dl, gamma_dl, temp, k_matsubara):
     """
-    This function gives the high temperature mode from the Drude-Lorentz spectral
-    density with a user-selected number of Matsubara frequencies and the
-    corresponding corrections to the high-temperature mode.
+    Gives the high temperature mode from the Drude-Lorentz spectral density with a
+    user-selected number of Matsubara frequencies and the corresponding corrections to
+    the high-temperature mode.
 
     Parameters
     ----------
-    1. lambda_dl : float [unit: cm^-1]
-                    Reorganization energy.
+    1. lambda_dl : float
+                    Reorganization energy [units: cm^-1].
 
-    2. gamma_dl : float [unit: cm^-1]
-                   Reorganization time scale.
+    2. gamma_dl : float
+                   Reorganization time scale [units: cm^-1].
 
-    3. temp : float [unit: K]
-              Temperature.
+    3. temp : float
+              Temperature [units: K].
 
     4. k_matsubara : int
                      Number of Matsubara frequencies.
 
     Returns
     -------
-    1. list_modes: list
-                   List of the exponential modes that comprise the correlation
-                   function, alternating gs and ws (complex, [cm^-2] and [cm^-1],
-                   representing the constant prefactor and exponential decay rate,
-                   respectively)
+    1. list_modes: list(complex)
+                   Exponential modes that comprise the correlation function, alternating
+                   gs and ws ([units: cm^-2] and [units: cm^-1], representing the
+                   constant prefactor and exponential decay rate, respectively).
 
     """
     beta = 1 / (kB * temp)
@@ -179,31 +178,31 @@ def ishizaki_decomposition_bcf_dl(lambda_dl, gamma_dl, temp, k_matsubara, epsilo
 
     Parameters
     ----------
-    1. lambda_dl : float [unit: cm^-1]
-                    Reorganization energy.
+    1. lambda_dl : float
+                    Reorganization energy [units: cm^-1].
 
-    2. gamma_dl : float [unit: cm^-1]
-                  Reorganization time scale.
+    2. gamma_dl : float
+                  Reorganization time scale [units: cm^-1].
 
-    3. temp : float [unit: K]
-              Temperature.
+    3. temp : float
+              Temperature [units: K].
 
     4. k_matsubara : int
                      Number of Matsubara frequencies.
 
-    5. epsilon : float [unit: cm^-1]
-                     A mathematical fudge factor allowing for Gaussian-like behavior
+    5. epsilon : float
+                     Mathematical fudge factor allowing for Gaussian-like behavior
                      of the correlation function that must be significantly smaller
-                     than gamma_dl.
+                     than gamma_dl [units: cm^-1].
 
 
     Returns
     -------
-    1. list_modes: list
+    1. list_modes: list(complex)
                    List of the exponential modes that comprise the correlation
-                   function, alternating gs and ws (complex, [cm^-2] and [cm^-1],
+                   function, alternating gs and ws ([units: cm^-2] and [units: cm^-1],
                    representing the constant prefactor and exponential decay rate,
-                   respectively)
+                   respectively).
 
     """
     # Epsilon automatically set to gamma_dl/10

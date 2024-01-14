@@ -3,17 +3,19 @@ from math import factorial
 from collections.abc import Mapping
 from mesohops.util.exceptions import AuxError
 from scipy.special import binom
+from numba import njit
+from numba.typed import List
 
 __title__ = "AuxiliaryVector Class"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 class AuxiliaryVector(Mapping):
     """
-    This is a class that encodes a sparse representation of auxiliary vectors
-    with some extra helper functions to simplify some common actions, such as:
-    determining the absolute index, adding a unit vector, and calculating the sum.
+    Encodes a sparse representation of auxiliary vectors with some extra helper
+    functions to simplify some common actions, such as: determining the absolute
+    index, adding a unit vector, and calculating the sum.
     The class is not mutable - which is to say, once an auxiliary vector is defined,
     it cannot be changed.
     """
@@ -33,8 +35,8 @@ class AuxiliaryVector(Mapping):
                        auxiliary vector.
 
         2. nmodes : int
-                   Number of modes in the hierarchy which is the length of the dense
-                   auxiliary vector.
+                    Number of modes in the hierarchy which is the length of the dense
+                    auxiliary vector.
 
         RETURNS
         -------
@@ -91,7 +93,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. keys : array
+        1. keys : np.array
                   Array of mode indices with nonzero auxiliary index.
         """
         if len(self.dict_aux_vec) > 0:
@@ -109,7 +111,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. values : array
+        1. values : np.array
                     Array of nonzero auxiliary index values.
         """
         if len(self.dict_aux_vec) > 0:
@@ -135,8 +137,8 @@ class AuxiliaryVector(Mapping):
 
         Parameters
         ----------
-        1. other : array
-                   Array you want to compare.
+        1. other : np.array
+                   Array compared with self.
 
         2. comparison_function : function
                                  Comparison function.
@@ -194,7 +196,7 @@ class AuxiliaryVector(Mapping):
         Parameters
         ----------
         1. vec : np.array
-                 A vector.
+                 Represents a vector.
 
         Returns
         -------
@@ -234,7 +236,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. output : array
+        1. output : np.array
                     Dense vector.
         """
         output = np.zeros(self.__len)
@@ -253,7 +255,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. array : array
+        1. array : np.array
                    Dict in an array form.
         """
         return self.array_aux_vec
@@ -269,7 +271,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. values : array
+        1. values : np.array
                     Array of values at the given indices.
         """
         return np.array([self.__getitem__(key) for key in index_slice])
@@ -287,7 +289,7 @@ class AuxiliaryVector(Mapping):
 
         Returns
         -------
-        1. values : array
+        1. values : np.array
                     Sparse array of the non-zero auxiliary vector values.
         """
         return np.array(
@@ -522,23 +524,26 @@ class AuxiliaryVector(Mapping):
                                 List of modes of auxiliary connections corresponding
                                 to list_id_up.
         """
+        
         keys = self.keys()
+        values = self.values() #get these simultaneously
         ref_id = self.id
-        list_modes = list(set(modes_in_use) | set(keys))
-        list_modes.sort()
-        list_index_modes_in_use = [list_modes.index(mode) for mode in modes_in_use]
-        list_insert_index = np.cumsum([self.__mode_digits * self.dict_aux_vec[mode] if mode in keys
-                                       else 0
-                                       for mode in list_modes])[list_index_modes_in_use]
-        list_value_connects = np.array([self.dict_aux_vec[mode] if mode in keys
-                           else 0
-                           for mode in list_modes])[list_index_modes_in_use]
-        list_id_up = [(ref_id[0:insertindex]
-                                  + ((self.__mode_digits - len(str(mode))) * "0" + str(mode))
-                                  + ref_id[insertindex:])
-                     for (mode, insertindex) in zip(modes_in_use, list_insert_index)]
-        list_mode_connects = np.array(list_modes)[list_index_modes_in_use]
-        return list_id_up, list_value_connects, list_mode_connects
+        modes_in_use = np.array(modes_in_use)
+        if(len(modes_in_use) > 0):
+            id_up, value_connect, mode_connect = numba_get_list_id_up(keys,values,
+                                                                  modes_in_use,ref_id,
+                                                                  self.__mode_digits)
+        else:
+            value_connect = []
+            mode_connect = []
+            id_up = []
+            
+        list_value_connect = list(value_connect)
+        list_mode_connect = list(mode_connect)
+        list_id_up = list(id_up)
+        
+        return list_id_up, list_value_connect, list_mode_connect
+        
 
     @property
     def hash(self):
@@ -556,3 +561,26 @@ class AuxiliaryVector(Mapping):
     def dict_aux_m1(self):
         return self._dict_aux_m1
 
+@njit
+def numba_get_list_id_up(keys,values,mode_insert,ref_id,num_mode_digits): 
+    # Only works when mode_insert is a single number
+    # Need to make it work for ordered list of modes to take full advantage of algorithm
+    insert_index = 0 #index of string insertion
+    key_index = 0 #index of key in keys
+    value_connect = 0
+    id_up = [""] * len(mode_insert)
+    value_connect = [0] * len(mode_insert)
+    mode_connect = [0] * len(mode_insert)
+    for (ins_index,mode_ins) in enumerate(mode_insert): 
+        
+        while(key_index < len(keys)): #Find string insertion index
+            if(keys[key_index] < mode_ins):
+                insert_index += values[key_index] * num_mode_digits
+                key_index = key_index + 1
+            else:
+                break
+        if (keys[key_index] == mode_ins):
+            value_connect[ins_index] = values[key_index]
+        id_up[ins_index] = ref_id[0:insert_index] + ((num_mode_digits - len(str(mode_ins))) * "0" + str(mode_ins)) + ref_id[insert_index:]
+        mode_connect[ins_index] = mode_ins
+    return id_up, value_connect, mode_connect

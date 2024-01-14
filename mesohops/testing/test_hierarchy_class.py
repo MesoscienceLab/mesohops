@@ -5,7 +5,7 @@ from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 
 __title__ = "test of hops hierarchy"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 __date__ = "Jan. 14, 2020"
 
 
@@ -87,7 +87,7 @@ def test_filter_aux_list_triangular():
     # initializing hops_hierarchy class
     hierarchy_param = {
         "MAXHIER": 2,
-        "STATIC_FILTERS": [("Triangular", [[False, True], [1, 1]])],
+        "STATIC_FILTERS": [("Triangular", [[False, True], 1])],
     }
     system_param = {"N_HMODES": 2}
     HH = HHier(hierarchy_param, system_param)
@@ -106,12 +106,13 @@ def test_filter_aux_list_triangular():
         AuxVec([(0, 1)], 2),
         AuxVec([(1, 1)], 2),
         AuxVec([(0, 2)], 2),
+        AuxVec([(0, 1), (1, 1)], 2),
     ]
     assert aux_list == known_triangular_tuple
-    assert HH.param["STATIC_FILTERS"] == [("Triangular", [[False, True], [1, 1]])]
+    assert HH.param["STATIC_FILTERS"] == [("Triangular", [[False, True], 1])]
 
 
-def test_filer_aux_list_longedge():
+def test_filter_aux_list_longedge():
     """
     Tests that the LONGEDGE filter is being properly applied.
     """
@@ -134,9 +135,9 @@ def test_filer_aux_list_longedge():
         AuxVec([(0, 2)], 2),
         AuxVec([(1, 2)], 2),
     ]
-    aux_list = HH.apply_filter(aux_list, "LongEdge", [[False, True], [2, 1]])
+    aux_list = HH.apply_filter(aux_list, "LongEdge", [[False, True], 1])
     assert aux_list == known_aux_list
-    assert HH.param["STATIC_FILTERS"] == [("LongEdge", [[False, True], [2, 1]])]
+    assert HH.param["STATIC_FILTERS"] == [("LongEdge", [[False, True], 1])]
 
 
 def test_aux_index_relative():
@@ -372,55 +373,6 @@ def test_define_markovian_filtered_triangular_hierarchy():
     filtered_list_aux = HH.filter_aux_list(nonmark_list_aux)
     assert set(filtered_list_aux) == set(mark_list_aux)
     assert set(nonmark_list_aux) != set(mark_list_aux)
-
-def test_define_markovian_and_LE_filtered_triangular_hierarchy():
-    """
-    Tests that the define_markovian_and_LE_filtered_triangular_hierarchy function
-    that is automatically called to lower memory burdens when the first static filter is
-    Markovian and the second is LongEdge outputs the correct
-    Markovian-and-LongEdge-filtered hierarchy. Test cases: number of
-    modes equal to hierarchy depth, number of modes greater than the hierarchy depth,
-    number of modes less than the hierarchy depth.
-
-    NOTE: This is technically an integrated test! This function is never run without
-    being wrapped in HopsHierarchy.filter_aux_list, because it does not actually
-    filter out the longedge auxiliaries with total depth beyond the depth limit set
-    out by the parameter LE_depth.
-    """
-
-    hierarchy_param = {"MAXHIER": 10,
-                       "STATIC_FILTERS": [['Markovian', [False, True, False, True]],
-                                           ["LongEdge", [[False, False, True, True],
-                                                         [3, 1]
-                                                         ]]]}
-    system_param = {"N_HMODES": 10}
-    HH = HHier(hierarchy_param, system_param)
-    prefiltered_list_aux = HH.filter_aux_list(
-        HH.define_markovian_and_LE_filtered_triangular_hierarchy(4,
-             4, [False, True, True, True], [False, False, True, True], 1))
-    unfiltered_list_aux = HH.define_triangular_hierarchy(4, 4)
-    postfiltered_list_aux = HH.filter_aux_list(unfiltered_list_aux)
-    assert set(prefiltered_list_aux) == set(postfiltered_list_aux)
-    assert set(prefiltered_list_aux) != set(unfiltered_list_aux)
-
-    # Case: number of modes greater than depth
-    prefiltered_list_aux = HH.filter_aux_list(
-        HH.define_markovian_and_LE_filtered_triangular_hierarchy(4,
-             3, [False, True, True, True], [False, False, True, True], 1))
-    unfiltered_list_aux = HH.define_triangular_hierarchy(4, 3)
-    postfiltered_list_aux = HH.filter_aux_list(unfiltered_list_aux)
-    assert set(prefiltered_list_aux) == set(postfiltered_list_aux)
-    assert set(prefiltered_list_aux) != set(unfiltered_list_aux)
-
-    # Case: number of modes less than depth
-    prefiltered_list_aux = HH.filter_aux_list(
-        HH.define_markovian_and_LE_filtered_triangular_hierarchy(4,
-             5, [False, True, True, True], [False, False, True, True], 1))
-    unfiltered_list_aux = HH.define_triangular_hierarchy(4, 5)
-    postfiltered_list_aux = HH.filter_aux_list(unfiltered_list_aux)
-    assert set(prefiltered_list_aux) == set(postfiltered_list_aux)
-    assert set(prefiltered_list_aux) != set(unfiltered_list_aux)
-
 
 def test_add_connections():
     """

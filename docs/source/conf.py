@@ -12,8 +12,8 @@
 #
 # import os
 # import sys
-# sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/PythonLibrary/pyhopslib/pyhops'))
-#sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/Sphinx/copy_pyhops/pyhops'))
+# sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/PythonLibrary/mesohopslib/mesohops'))
+#sys.path.insert(0, os.path.abspath('/Users/leovarvelo/Documents/Sphinx/copy_mesohops/mesohops'))
 
 # -- Project information -----------------------------------------------------
 

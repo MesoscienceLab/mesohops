@@ -3,16 +3,16 @@ import scipy as sp
 from scipy import sparse
 import copy
 from collections import Counter
+from mesohops.util.helper_functions import array_to_tuple
 
 __title__ = "System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 class HopsSystem(object):
     """
-    HopsSystem is a class that stores the basic information about the system and
-    system-bath coupling.
+    Stores the basic information about the system and system-bath coupling.
     """
 
     def __init__(self, system_param):
@@ -20,75 +20,70 @@ class HopsSystem(object):
         Inputs
         ------
         1. system_param : dict
-                          A dictionary with the system and system-bath coupling
+                          Dictionary with the system and system-bath coupling
                           parameters defined.
-
-            =======================  HAMILTONIAN PARAMETERS  =======================
             a. HAMILTONIAN : np.array
-                             an np.array() that contains the system Hamiltonian
+                             Array that contains the system Hamiltonian.
+            b. GW_SYSBATH : list(complex)
+                            List of parameters (g,w) that define the exponential
+                            decomposition underlying the hierarchy.
+            c. L_HIER : list(sparse matrix)
+                        List of system-bath coupling operators associated with each
+                        hierarchy bath mode in the same order as GW_SYSBATH.
+            d. ALPHA_NOISE1 : function
+                              Calculates the correlation function given (t_axis,
+                              *PARAM_NOISE_1).
+            e. PARAM_NOISE1 : list
+                              List of parameters defining the decomposition of Noise1.
+            f. L_NOISE1 : list(sparse matrix)
+                          List of system-bath coupling operators associated with each
+                          hierarchy bath mode in the same order as
+                          PARAM_NOISE_1.
 
-            =======================  HIERARCHY PARAMETERS  =======================
-            b. GW_SYSBATH : list
-                            a list of parameters (g,w) that define the exponential
-                            decomposition underlying the hierarchy
-            c. L_HIER : list
-                        a list of system-bath coupling operators in the same order
-                        as GW_SYSBATH
+        Optional Parameters
+            a. ALPHA_NOISE2 : function
+                              Calculates the correlation function given (t_axis,
+                              *PARAM_NOISE_2).
+            b. PARAM_NOISE2 : list
+                              List of parameters defining the decomposition of Noise2.
+            c. L_NOISE2 : list(sparse matrix)
+                          List of system-bath coupling operators in the same order as
+                          PARAM_NOISE_2.
+            d. PARAM_LT_CORR : list(complex)
+                               List of low-temperature correction coefficients for each
+                               independent thermal environment [units: cm^-1].
+            e. L_LT_CORR : list(sparse matrix)
+                           System-bath coupling operators associated with each
+                           low-temperature correction coefficient in the same order as
+                           PARAM_LT_CORR.
 
-            =======================  NOISE PARAMETERS  =======================
-            d. L_NOISE1 : list
-                          A list of system-bath coupling operators in the same order
-                          as PARAM_NOISE_1
-            e. ALPHA_NOISE1 : function
-                              A function that calculates the
-                              correlation function given (t_axis, *PARAM_NOISE_1)
-            f. PARAM_NOISE1 : list
-                              A list of parameters defining the decomposition of Noise1
-
-        OPTIONAL PARAMETERS :
-            g. L_NOISE2 : list
-                          A list of system-bath coupling operators in the same order
-                          as PARAM_NOISE_2
-            h. ALPHA_NOISE2 : function
-                              A pointer to the function that calculates the
-                              correlation function given (t_axis, *PARAM_NOISE_2)
-            i. PARAM_NOISE2 : list
-                              A list of parameters defining the decomposition of Noise2
-            j. L_LT_CORR : list
-                           A list of system-bath coupling operators in the same order as
-                           PARAM_LT_CORR
-            k. PARAM_LT_CORR : list
-                               A list of low-temperature correction coefficients for
-                               each independent thermal environment
-
-         ======================= DERIVED PARAMETERS ===========================
+        Derived Parameters
         The result is a dictionary HopsSystem.param which contains all the above plus
         additional parameters that are useful for indexing the simulation:
-            l. 'NSTATES' : int
-                        The dimension of the system Hilbert Space
-            m. 'N_HMODES' : int
-                            The number of modes that will appear in the hierarchy
-            n. 'N_L2' : int
-                        The number of unique system-bath coupling operators
-            o. 'LIST_INDEX_L2_BY_NMODE1' : np.array
-                                           An array (list_absindex_noise1 --> index_L2)
-            p. 'LIST_INDEX_L2_BY_NMODE2' : np.array
-                                           An array (list_absindex_noise2 --> index_L2)
-            q. 'LIST_INDEX_L2_BY_LT_CORR' : np.array
-                                            An array (list_absindex_LT_CORR -->
-                                            index_L2)
-            q. 'LIST_INDEX_L2_BY_HMODE' : np.array
-                                          An array (list_absindex_by_hmode  --> index_L2)
-            r. 'LIST_STATE_INDICES_BY_HMODE' : np.array
-                                               An array (list_absindex_by_hmode   -->
-                                               list_absindex_states)
-            s. 'LIST_L2_COO' : np.array
-                               An array (list_absindex_L2 --> coo_sparse L2)
-            t. 'LIST_STATE_INDICES_BY_INDEX_L2 ' : np.array
-                                                   (list_absindex_L2 -->
-                                                   list_absindex_states)
-            u. 'SPARSE_HAMILTONIAN' : sp.sparse.csc_martix
-                                      the sparse representation of the Hamiltonian
+            a. NSTATES : int
+                         Dimension of the system Hilbert Space.
+            b. N_HMODES : int
+                          Number of modes that will appear in the hierarchy.
+            c. N_L2 : int
+                      Number of unique system-bath coupling operators.
+            d. LIST_INDEX_L2_BY_NMODE1 : np.array(int)
+                                         Maps list_absindex_noise1 to index_L2.
+            e. LIST_INDEX_L2_BY_NMODE2 : np.array(int)
+                                         Maps list_absindex_noise2 to index_L2.
+            f. LIST_INDEX_L2_BY_LT_CORR : np.array(int)
+                                          Maps list_absindex_LT_CORR to index_L2.
+            g. LIST_INDEX_L2_BY_HMODE : np.array(int)
+                                        Maps list_absindex_by_hmode to index_L2.
+            h. LIST_STATE_INDICES_BY_HMODE : np.array(int)
+                                             Maps list_absindex_by_hmode to
+                                             list_absindex_states.
+            i. LIST_L2_COO : np.array(sparse matrix)
+                             Maps list_absindex_L2 to coo_sparse.
+            j. LIST_STATE_INDICES_BY_INDEX_L2 : np.array(int)
+                                                Maps list_absindex_L2 to
+                                                list_absindex_states.
+            k. SPARSE_HAMILTONIAN : sp.sparse.csc_matrix(complex)
+                                    Sparse representation of the Hamiltonian.
 
 
         Returns
@@ -107,8 +102,7 @@ class HopsSystem(object):
 
     def _initialize_system_dict(self, system_param):
         """
-        This function is responsible for extending the user input to the
-        complete set of parameters defined above.
+        Extends the user input to the complete set of parameters defined above.
 
         Parameters
         ----------
@@ -119,7 +113,7 @@ class HopsSystem(object):
         Returns
         -------
         1. param_dict : dict
-                        Dictionary containing the user input and the derived parameters
+                        Dictionary containing the user input and the derived parameters.
         """
         param_dict = copy.deepcopy(system_param)
         if(sparse.issparse(system_param["HAMILTONIAN"])):
@@ -132,10 +126,16 @@ class HopsSystem(object):
         param_dict["LIST_STATE_INDICES_BY_HMODE"] = [
             self._get_states_from_L2(L2) for L2 in param_dict["L_HIER"]
         ]
+        param_dict["LIST_HMODE_INDICES_BY_STATE"] = [[] for i in range(param_dict["NSTATES"])]
+        for (hmode,state_indices) in enumerate(param_dict["LIST_STATE_INDICES_BY_HMODE"]):
+            for state in state_indices:
+                param_dict["LIST_HMODE_INDICES_BY_STATE"][state].append(hmode)
+        
+        
         param_dict["SPARSE_HAMILTONIAN"] = sparse.csc_matrix(param_dict["HAMILTONIAN"])
         param_dict["SPARSE_HAMILTONIAN"].eliminate_zeros()
 
-        # check for low-temperature correction terms - if there are none, initialize
+        # Checks for low-temperature correction terms - if there are none, initialize
         # empty lists as placeholders:
         if not "L_LT_CORR" in param_dict.keys():
             param_dict["L_LT_CORR"] = []
@@ -147,12 +147,12 @@ class HopsSystem(object):
         # into tuples in order to conveniently define a number of indexing
         # parameters.
 
-        # Create list of unique l2 tuples in order they appear in "L_HIER"
-        l2_as_tuples = [self._array_to_tuple(L2) for L2 in param_dict["L_HIER"]]
+        # Creates list of unique l2 tuples in order they appear in "L_HIER"
+        l2_as_tuples = [array_to_tuple(L2) for L2 in param_dict["L_HIER"]]
         list_unique_l2_as_tuples = list(Counter(l2_as_tuples))
         param_dict["N_L2"] = len(set(list_unique_l2_as_tuples))
 
-        # Create L2 indexing parameters
+        # Creates L2 indexing parameters
         param_dict["LIST_INDEX_L2_BY_HMODE"] = [
             None for i in range(param_dict["N_HMODES"])
         ]
@@ -178,8 +178,13 @@ class HopsSystem(object):
                             param_dict["LIST_STATE_INDICES_BY_HMODE"][j]
                         )
 
-        l2_LT_CORR_as_tuples = [self._array_to_tuple(l) for l in
+        l2_LT_CORR_as_tuples = [array_to_tuple(l) for l in
                                 param_dict["L_LT_CORR"]]
+                                
+        param_dict["LIST_INDEX_L2_BY_STATE_INDICES"] = [[] for i in range(param_dict["NSTATES"])]
+        for (index_L2,state_indices) in enumerate(param_dict["LIST_STATE_INDICES_BY_INDEX_L2"]):
+            for state in state_indices:
+                param_dict["LIST_INDEX_L2_BY_STATE_INDICES"][state].append(index_L2)
         # Build a list of low-temperature coefficients guaranteed to be in the same
         # order as the associated unique sparse L2 operators.
         for j in range(len(param_dict["L_LT_CORR"])):
@@ -200,12 +205,16 @@ class HopsSystem(object):
         param_dict["LIST_INDEX_L2_BY_NMODE1"] = [
             None for i in range(len(param_dict["PARAM_NOISE1"]))
         ]
-        l2_as_tuples = [self._array_to_tuple(l) for l in param_dict["L_NOISE1"]]
+        l2_as_tuples = [array_to_tuple(l) for l in param_dict["L_NOISE1"]]
         for (i, l) in enumerate(list_unique_L2):
             # i is the index of operator l in the unique list of operators
             for j in range(len(l2_as_tuples)):
                 if l2_as_tuples[j] == l:
                     param_dict["LIST_INDEX_L2_BY_NMODE1"][j] = i
+        if None in param_dict["LIST_INDEX_L2_BY_NMODE1"]:
+            print("WARNING: the list of noise 1 L-operators contains an L-operator "
+                  "not associated with any existing thermal environment. The noise "
+                  "associated with this L-operator will be discarded!")
 
         # Define the Noise2 Operator Values
         # ---------------------------------
@@ -213,12 +222,17 @@ class HopsSystem(object):
             param_dict["LIST_INDEX_L2_BY_NMODE2"] = [
                 None for i in range(len(param_dict["PARAM_NOISE2"]))
             ]
-            l2_as_tuples = [self._array_to_tuple(l) for l in param_dict["L_NOISE2"]]
+            l2_as_tuples = [array_to_tuple(l) for l in param_dict["L_NOISE2"]]
             for (i, l) in enumerate(list_unique_L2):
                 # i is the index of operator l in the unique list of operators
                 for j in range(len(l2_as_tuples)):
                     if l2_as_tuples[j] == l:
                         param_dict["LIST_INDEX_L2_BY_NMODE2"][j] = i
+            if None in param_dict["LIST_INDEX_L2_BY_NMODE2"]:
+                print("WARNING: the list of noise 2 L-operators contains an L-operator "
+                      "not associated with any existing thermal environment. The noise "
+                      "associated with this L-operator will be discarded!")
+
         return param_dict
 
     def initialize(self, flag_adaptive, psi_0):
@@ -227,9 +241,9 @@ class HopsSystem(object):
 
         Parameters
         ----------
-        1. flag_adaptive : boolean
-                           Boolean that defines the adaptivity
-                           True: Adaptive, False: Static.
+        1. flag_adaptive : bool
+                           True indicates an adaptive basis while False indicates a static
+                           basis.
 
         2. psi_0 : np.array
                    Initial user inputted wave function.
@@ -246,39 +260,13 @@ class HopsSystem(object):
             self.state_list = np.arange(self.__ndim)
 
     @staticmethod
-    def _array_to_tuple(array):
-        """
-        Converts an inputted array to a tuple.
-
-        Parameters
-        ----------
-        1. array : np.array
-                   Numpy array.
-
-        Returns
-        -------
-        1. tuple : tuple
-                   Array in tuple form.
-        """
-        if sp.sparse.issparse(array):
-            if array.getnnz() > 0:
-                return tuple([tuple(l) for l in np.nonzero(array)])
-            else:
-                return tuple([])
-        else:
-            if len(array) > 0:
-                return tuple([tuple(l) for l in np.nonzero(array)])
-            else:
-                return tuple([])
-
-    @staticmethod
     def _get_states_from_L2(lop):
         """
         Fetches the states that the L operators interacts with.
 
         Parameters
         ----------
-        1. lop : array
+        1. lop : np.array(complex)
                  L2 operator.
 
         Returns
@@ -322,30 +310,29 @@ class HopsSystem(object):
             # list_absindex_L2_active is the indexing system for L2 (takes i_rel --> i_abs)
             # list_absindex_state_modes is the indexing system for hierarchy modes (takes i_rel --> i_abs)
             self.__list_absindex_state_modes = np.array(
-                [
-                    i_mod
-                    for i_mod in range(self.param["N_HMODES"])
-                    if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod],
-                                  self.state_list)) != 0
+                [   
+                    self.param["LIST_HMODE_INDICES_BY_STATE"][state][mode]
+                    for state in self.state_list
+                    for mode in range(len(self.param["LIST_HMODE_INDICES_BY_STATE"][state]))
                 ], dtype=int
             )
+            self.__list_absindex_state_modes = np.sort(np.array(list(set(self.__list_absindex_state_modes))))
             self.__list_absindex_new_state_modes = np.array(
-                [
-                    i_mod
-                    for i_mod in range(self.param["N_HMODES"])
-                    if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_HMODE"][i_mod],
-                                  self.__list_add_state)) != 0
+                [   
+                    self.param["LIST_HMODE_INDICES_BY_STATE"][new_state][mode]
+                    for new_state in self.__list_add_state
+                    for mode in range(len(self.param["LIST_HMODE_INDICES_BY_STATE"][new_state]))
                 ], dtype=int
             )
+            self.__list_absindex_new_state_modes = np.sort(np.array(list(set(self.__list_absindex_new_state_modes))))
             self.__list_absindex_L2_active = np.array(
-                [
-                    i_lop
-                    for i_lop in range(self.param["N_L2"])
-                    if np.size(np.intersect1d(self.param["LIST_STATE_INDICES_BY_INDEX_L2"][i_lop],
-                                  self.state_list)) != 0
+                [   
+                    self.param["LIST_INDEX_L2_BY_STATE_INDICES"][state][L2]
+                    for state in self.state_list
+                    for L2 in range(len(self.param["LIST_INDEX_L2_BY_STATE_INDICES"][state]))
                 ], dtype=int
             )
-
+            self.__list_absindex_L2_active = np.sort(np.array(list(set(self.__list_absindex_L2_active)),dtype=int))
             self._lt_corr_param = np.array(self.param["LIST_LT_PARAM"])[
                  self.__list_absindex_L2_active]
 
@@ -390,7 +377,7 @@ class HopsSystem(object):
     def reduce_sparse_matrix(coo_mat, state_list):
         """
         Takes in a sparse matrix and list which represents the absolute
-        state to a new relative state represented in a sparse matrix
+        state to a new relative state represented in a sparse matrix.
 
         Parameters
         ----------
@@ -398,7 +385,7 @@ class HopsSystem(object):
                      Sparse matrix.
 
         2. state_list : list
-                       List of relative index.
+                        List of relative index.
 
         Returns
         -------

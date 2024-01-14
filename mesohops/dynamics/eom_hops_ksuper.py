@@ -5,7 +5,7 @@ from scipy import sparse
 
 __title__ = "HOPS Super Operator"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 def _permute_aux_by_matrix(K, Pkeep):
@@ -179,7 +179,11 @@ def _add_crossterms(
     l_sparse = [mode.list_L2_coo[i_lop] for i_lop in range(len(mode.list_L2_coo))]
     
     for (l_mod,l_mod_abs) in enumerate(mode.list_absindex_mode):
-        if(len(hierarchy.new_aux_index_conn_by_mode[l_mod_abs].keys()) > 0):
+        try:
+            num_conn = len(hierarchy.new_aux_index_conn_by_mode[l_mod_abs])
+        except:
+            continue
+        if(num_conn > 0):
             list_aux_indices, list_aux_conn_index_and_value = list(zip(*hierarchy.new_aux_index_conn_by_mode[
                 l_mod_abs].items()))
             list_aux_indices_p1, list_aux_mode_values = list(zip(*list_aux_conn_index_and_value))
@@ -187,7 +191,7 @@ def _add_crossterms(
             #The Kp1 term has value g/w * vec(L).  
             #The total number of Kp1 entries to add (for mode l_mod) is  #aux_indices * #nonzero(l_sparse[i_lop]) 
             Kp1_data.extend(np.repeat(np.ones(len(list_aux_indices)) * -(mode.g[l_mod] / mode.w[l_mod]),len(l_sparse[i_lop].data)) \
-                            * (list(l_sparse[i_lop].data) * len(list_aux_indices)))
+                        * (list(l_sparse[i_lop].data) * len(list_aux_indices)))
             #To add all the row and column indices, we perform the array addition as follows:
             #1. Take the aux indices and repeat them for how many values each aux has (just 1 or zero for 1-particle)
             # Multiply this by n_site to get the starting indices
@@ -207,7 +211,7 @@ def _add_crossterms(
             #                   for aux_index in aux_indices_p1]
             
             Km1_data.extend(np.repeat(np.array(list(list_aux_mode_values)) * mode.w[l_mod],len(l_sparse[i_lop].data)) \
-                            * (list(l_sparse[i_lop].data) * len(list_aux_mode_values)))     
+                        * (list(l_sparse[i_lop].data) * len(list_aux_mode_values)))     
     return (
      Kp1_data,
      Kp1_row,
@@ -481,7 +485,14 @@ def update_ksuper(
         ).tocsr()
         for i in range(n_lop)
     ]
-    return [K0, Kp1, Zp1, Km1]
+    
+    list_hierarchy_mask_Zp1 = [
+        [list(set(Zp1[i].nonzero()[0])),list(set(Zp1[i].nonzero()[1])), np.ix_(list(set(Zp1[i].nonzero()[0])),list(set(Zp1[i].nonzero()[1])))]
+        for i in range(n_lop)
+    ]
+    
+    
+    return [K0, Kp1, Zp1, Km1, list_hierarchy_mask_Zp1]
 
 
 def calculate_ksuper(system, 
@@ -572,6 +583,11 @@ def calculate_ksuper(system,
         for i in range(n_lop)
     ]
 
-    return [K0, Kp1, Zp1, Km1]
+    list_hierarchy_mask_Zp1 = [
+        [list(set(Zp1[i].nonzero()[0])),list(set(Zp1[i].nonzero()[1])), np.ix_(list(set(Zp1[i].nonzero()[0])),list(set(Zp1[i].nonzero()[1])))]
+        for i in range(n_lop)
+    ]
+
+    return [K0, Kp1, Zp1, Km1, list_hierarchy_mask_Zp1]
 
 

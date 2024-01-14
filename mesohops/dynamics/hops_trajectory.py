@@ -13,14 +13,12 @@ from mesohops.util.physical_constants import precision  # Constant
 
 __title__ = "HOPS"
 __author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.2"
+__version__ = "1.4"
 
 
-###########################################################
 class HopsTrajectory:
     """
-     HopsTrajectory is the class that a user should interface with to run a single 
-     trajectory calculation.
+    Acts as an interface for users to run a single trajectory calculation.
     """
 
     def __init__(
@@ -32,11 +30,11 @@ class HopsTrajectory:
         storage_param={},
         integration_param=dict(
             INTEGRATOR="RUNGE_KUTTA", EARLY_ADAPTIVE_INTEGRATOR='INCH_WORM',EARLY_INTEGRATOR_STEPS=5, INCHWORM_CAP=5,
-            STATIC_BASIS=None
+            STATIC_BASIS=None, EFFECTIVE_NOISE_INTEGRATION=False,
         ),
     ):
         """
-        This class contains four classes:
+        This class manages four classes:
         1. Class: HopsNoise1 (Hierarchy Noise)
           * Class: NoiseTrajectory
         2. Class: HopsNoise2 (Optional Unitary Noise )
@@ -47,54 +45,58 @@ class HopsTrajectory:
           * Class: HopsEOM
         4. Class: HopsStorage
 
-        INPUTS:
-        -------
-        1. system_param: dictionary of user-defined system parameters
-            [see hops_system.py]
-            * HAMILTONIAN
-            * GW_SYSBATH
-            * CORRELATION_FUNCTION_TYPE
-            * LOPERATORS
-            * CORRELATION_FUNCTION
-        2. eom_parameters: dictionary of user-defined eom parameters
-            [see hops_eom.py]
-            * EQUATION_OF_MOTION
-            * ADAPTIVE_H
-            * ADAPTIVE_S
-            * DELTA_H
-            * DELTA_S
-            * UPDATE_STEP
-        3. noise_parameters: dictionary of user-defined noise parameters
-            [see hops_noise.py]
-            * SEED
-            * MODEL
-            * TLEN
-            * TAU
-            * INTERP
-        4. hierarchy_parameters: dictionary of user-defined hierarchy parameters
-            [see hops_hierarchy.py]
-            * MAXHIER
-            * STATIC_FILTERS
-        5. integration_parameters: dictionary of user-defined integration parameters
-            [see integrator_rk.py]
-            * INTEGRATOR
-            * INCHWORM
-            * INCHWORM_MIN
+        Inputs
+        ------
+        1. system_param: dict
+                         Dictionary of user-defined system parameters.
+                         [see hops_system.py (includes optional parameters)]
+            a. HAMILTONIAN
+            b. GW_SYSBATH
+            c. L_HIER
+            d. L_NOISE1
+            e. ALPHA_NOISE1
+            f. PARAM_NOISE1
 
+        2. eom_parameters: dict
+                           Dictionary of user-defined eom parameters.
+                           [see hops_eom.py]
+            a. EQUATION_OF_MOTION
+            b. ADAPTIVE_H
+            c. ADAPTIVE_S
+            d. DELTA_H
+            e. DELTA_S
+            f. UPDATE_STEP
 
-        Properties
-        ----------
-        1. t         - the current time of the simulation
-        2. psi       - the current system wave function
-        3. psi_traj  - the full trajectory of the system wave function
-        4. phi       - the current full state of the hierarchy
-        5. t_axis    - the time points at which psi_traj has been stored
+        3. noise_parameters: dict
+                             Dictionary of user-defined noise parameters.
+                             [see hops_noise.py]
+            a. SEED
+            b. MODEL
+            c. TLEN
+            d. TAU
+            e. INTERP
+
+        4. hierarchy_parameters: dict
+                                 Dictionary of user-defined hierarchy parameters.
+                                 [see hops_hierarchy.py]
+            r. MAXHIER
+            s. STATIC_FILTERS
+
+        5. integration_parameters: dict
+                                   Dictionary of user-defined integration parameters.
+                                   [see integrator_rk.py]
+            t. INTEGRATOR
+            u. EARLY_ADAPTIVE_INTEGRATOR
+            v. EARLY_INTEGRATOR_STEPS
+            w. INCHWORM_CAP
+            x. STATIC_BASIS
+
         """
         # Variables for the current state of the system
         self._phi = []
         self._z_mem = []
         self._t = 0
-        # Instantiate sub-classes
+        # Instantiates sub-classes
         # -----------------------
         eom = HopsEOM(eom_param)
         system = HopsSystem(system_param)
@@ -116,15 +118,17 @@ class HopsTrajectory:
             }
             self.noise2 = prepare_noise(noise_param2, self.basis.system.param, flag=1)
 
-        # Define integration method
+        # Defines integration method
         # -------------------------
         self._early_integrator = integration_param['EARLY_ADAPTIVE_INTEGRATOR']
         self._static_basis = integration_param["STATIC_BASIS"]
         self._early_steps = integration_param["EARLY_INTEGRATOR_STEPS"]
         self._early_step_counter = 0
-        if integration_param['EARLY_ADAPTIVE_INTEGRATOR'] == 'INCH_WORM':
+        if integration_param['EARLY_ADAPTIVE_INTEGRATOR'] == 'INCH_WORM' or \
+                integration_param['EARLY_ADAPTIVE_INTEGRATOR'] == 'STATIC_STATE_INCHWORM_HIERARCHY':
             self._inchworm_cap = integration_param["INCHWORM_CAP"]
-
+        if "EFFECTIVE_NOISE_INTEGRATION" not in integration_param.keys():
+            integration_param["EFFECTIVE_NOISE_INTEGRATION"] = False
         if integration_param["INTEGRATOR"] == "RUNGE_KUTTA":
             from mesohops.dynamics.integrator_rk import (
                 runge_kutta_step,
@@ -134,6 +138,8 @@ class HopsTrajectory:
             self.step = runge_kutta_step
             self.integration_var = runge_kutta_variables
             self.integrator_step = 0.5
+            self.effective_noise_integration = integration_param[
+                "EFFECTIVE_NOISE_INTEGRATION"]
         else:
             raise UnsupportedRequest(
                 ("Integrator of type " + str(integration_param["INTEGRATOR"])),
@@ -150,7 +156,7 @@ class HopsTrajectory:
 
         Parameters
         ----------
-        1. psi_0 : np.array
+        1. psi_0 : np.array(complex)
                    Wave function at initial time.
 
         Returns
@@ -160,18 +166,18 @@ class HopsTrajectory:
         psi_0 = np.array(psi_0, dtype=np.complex128)
 
         if not self.__initialized__:
-            # Initialize Noise
+            # Initializes Noise
             # ----------------
             if not self.noise1.__locked__:
                 self.noise1.prepare_noise()
             if not self.noise2.__locked__:
                 self.noise2.prepare_noise()
 
-            # Prepare the derivative
+            # Prepares the derivative
             # ----------------------
             self.dsystem_dt = self.basis.initialize(psi_0)
 
-            # Initialize System State
+            # Initializes System State
             # -----------------------
             self.storage.n_dim = self.basis.system.param["NSTATES"]
             phi_tmp = np.zeros(self.n_hier * self.n_state, dtype=np.complex128)
@@ -207,7 +213,7 @@ class HopsTrajectory:
 
                     self.dsystem_dt = dsystem_dt
 
-            # Store System State
+            # Stores System State
             # ------------------
             self.storage.store_step(
                 phi_new=phi_tmp, aux_list=self.auxiliary_list, state_list=self.state_list,
@@ -216,48 +222,61 @@ class HopsTrajectory:
             self.t = 0
             self.phi = phi_tmp
 
-            # Lock Trajectory
+            # Locks Trajectory
             # ---------------
             self.__initialized__ = True
         else:
             raise LockedException("HopsTrajectory.initialize()")
 
-    def make_adaptive(self, delta_h=1e-4, delta_s=1e-4, update_step=1):
+    def make_adaptive(self, delta_h=1e-4, delta_s=1e-4, update_step=1, f_discard = 
+    0):
         """
-        This is a convenience function for transforming a not-yet-initialized
-        HOPS trajectory from a standard hops to an adaptive HOPS approach.
+        Transforms a not-yet-initialized HOPS trajectory from a standard HOPS to an
+        adaptive HOPS approach.
 
         Parameters
         ----------
-        1. delta_h : float < 1
-                     The value of the adaptive grid for the hierarchy of auxiliary
-                     nodes.
+        1. delta_h : float
+                     Value of the adaptive grid for the hierarchy of auxiliary
+                     nodes (options: < 1).
 
-        2. delta_s : float < 1
-                     The value of the adaptive grid in the system basis.
+        2. delta_s : float
+                     Value of the adaptive grid in the system basis (options: < 1).
 
         3. update_step : int
-                         The number of time points between updates to the adaptive
+                         Number of time points between updates to the adaptive
                          basis.
+        
+        4. f_discard : float
+                       Fraction of the boundary error devoted to removing error
+                       terms from list_e2_kflux for memory conservation (recommended
+                       value: 0.2).
 
         Returns
         -------
         None
         """
+        if float(f_discard) < 0 or float(f_discard) > 1:
+            raise UnsupportedRequest(self.make_adaptive(), "f_discard not in "
+                                                           "acceptable range of [0,1]")
+
         if not self.__initialized__:
             if delta_h > 0:
                 self.basis.eom.param["ADAPTIVE"] = True
                 self.basis.eom.param["ADAPTIVE_H"] = True
                 self.basis.eom.param["DELTA_H"] = delta_h
                 self.basis.eom.param["UPDATE_STEP"] = update_step
+                self.basis.eom.param["F_DISCARD"] = float(f_discard)
                 self.storage.adaptive = True
 
             if delta_s > 0:
                 self.basis.eom.param["ADAPTIVE"] = True
                 self.basis.eom.param["ADAPTIVE_S"] = True
                 self.basis.eom.param["DELTA_S"] = delta_s
-                self.storage.adaptive = True
                 self.basis.eom.param["UPDATE_STEP"] = update_step
+                self.basis.eom.param["F_DISCARD"] = float(f_discard)
+                self.storage.adaptive = True
+
 
         else:
             raise TrajectoryError("Calling make_adaptive on an initialized trajectory")
@@ -270,17 +289,17 @@ class HopsTrajectory:
         Parameters
         ----------
         1. t_advance : float
-                       How far out in time the calculation will run.
+                       How far out in time the calculation will run [units: fs].
 
         2. tau : float
-                 Time step.
+                 Time step [units: fs].
 
         Returns
         -------
         None
         """
 
-        # check and prepare time axis
+        # Checks and prepares time axis
         # ---------------------------
         t0 = self.t
         if (self.noise1.param["TAU"] is not None) or not (self.noise1.param["INTERPOLATE"]):
@@ -303,28 +322,32 @@ class HopsTrajectory:
                 + str(self.noise1.param["TLEN"])
             )
 
-        # Perform integration
+        # Performs integration
         # -------------------
         for (index_t, t) in enumerate(t_axis):
             var_list = self.integration_var(self.phi, self.z_mem, self.t, self.noise1,
-                                            self.noise2, tau, self.storage)
+                                            self.noise2, tau, self.storage,
+                                            self.effective_noise_integration)
             phi, z_mem = self.step(self.dsystem_dt, **var_list)
             phi = self.normalize(phi)
 
             if self.basis.adaptive:
                 aux_update = [self.auxiliary_list, self.auxiliary_list, []]
 
-                # Check for Early Time Integration
+                # Checks for Early Time Integration
                 # ================================
                 if self.use_early_integrator:
                     print(f'Early Integration: Using {self._early_integrator}')
                     # Early Integrator: Inch Worm
                     # ---------------------------
-                    if self._early_integrator == 'INCH_WORM':
+                    if self._early_integrator == 'INCH_WORM' or \
+                            self._early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
                         # Define New Basis
                         z_step = self._prepare_zstep(z_mem)
                         (state_update, aux_update) = self.basis.define_basis(phi, tau,
                                                                              z_step)
+                        if self._early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
+                            state_update = self._static_basis[0]
 
                         # Update basis for new step
                         step_num = 0
@@ -333,11 +356,13 @@ class HopsTrajectory:
                             state_update, aux_update, phi = self.inchworm_integrate(
                                 state_update, aux_update, tau
                             )
+                            if self._early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
+                                state_update = self._static_basis[0]
                             step_num += 1
                             if step_num >= self._inchworm_cap:
                                 break
 
-                        # update basis
+                        # Update basis
                         (phi, self.dsystem_dt) = self.basis.update_basis(
                             phi, state_update, aux_update
                         )
@@ -363,7 +388,7 @@ class HopsTrajectory:
                     (state_update, aux_update) = self.basis.define_basis(phi, tau,
                                                                          z_step)
 
-                    # Update Basis
+                    # Updates Basis
                     # ------------
                     (phi, self.dsystem_dt) = self.basis.update_basis(
                         phi, state_update, aux_update
@@ -383,7 +408,8 @@ class HopsTrajectory:
 
         Parameters
         ----------
-        1. op : an operator
+        1. op : np.array(complex)
+                Operator.
 
         Returns
         -------
@@ -401,21 +427,21 @@ class HopsTrajectory:
     def _check_tau_step(self, tau, precision):
         """
         Checks if tau_step is within precision of noise1.param['TAU'] and if tau is
-        greater than or equal to noise1.param['TAU']
+        greater than or equal to noise1.param['TAU'].
 
         Parameters
         ----------
         1. tau : float
-                 Time step.
+                 Time step [units: fs].
 
         2. precision : float
                        Constant that defines precision when comparing time points.
 
         Returns
         -------
-        1. (p_bool1 and p_bool2 and s_bool1 and s_bool2) : boolean
-                                                           True if time step consistent
-                                                           with noise.
+        1. tau_step_precision_check : bool
+                                      True indicates the time step is consistent with
+                                      noise while False indicates otherwise.
         """
         # ERROR: We are assuming that if noise1 is numeric then noise2 is numeric
         tau_step = tau * self.integrator_step
@@ -438,17 +464,17 @@ class HopsTrajectory:
     def normalize(self, phi):
         """
         Re-normalizes the wave function at each step to correct for loss of norm due
-        to finite numerical accuracy
+        to finite numerical accuracy.
 
         Parameters
         ----------
-        1. phi : np.array
+        1. phi : np.array(complex)
                  Current full state of the hierarchy.
 
         Returns
         -------
-        1. phi : np.array
-                 The full state of the hierarchy normalized if appropriate.
+        1. phi : np.array(complex)
+                 Full state of the hierarchy, normalized if appropriate.
         """
         if self.basis.eom.normalized:
             return phi / np.sqrt(np.sum(np.abs(phi[: self.n_state]) ** 2))
@@ -461,52 +487,24 @@ class HopsTrajectory:
 
         Parameters
         ----------
-        1. state_update
-            a. list_state_new : list
-                                List of new states.
+        1. list_state_new : list(int)
+                            List of states in the new basis (S_1).
 
-            b. state_stable : list
-                              List of stable states in the current basis.
-
-            c. list_add_state : list
-                                List of new states that were not in previous state list.
-
-        2. aux_update
-            d. aux_new : list
-                         List of new auxiliaries.
-
-            e. stable_aux : list
-                            List of stable auxiliaries in the current basis.
-
-            f. add_aux : list
-                         List of new auxiliaries that were not in the previous aux list.
+        2. list_aux_new : list(instance(AuxiliaryVector))
+                          List of auxiliaries in new basis (H_1).
 
         3. tau : float
-                 Time step.
+                 Time step [units: fs].
 
         Returns
         -------
-        1. state_update
-            a. list_state_new : list
-                           List of new states.
+        1. list_state_new : list(int)
+                            List of states in the new basis (S_1).
 
-            b. state_stable : list
-                              List of stable states in the current basis.
+        2. list_aux_new : list(instance(AuxiliaryVector))
+                          List of auxiliaries in new basis (H_1).
 
-            c. list_add_state : list
-                           List of new states that were not in previous state list.
-
-        2. aux_update
-            d. aux_new : list
-                         List of new auxiliaries.
-
-            e. stable_aux : list
-                            List of stable auxiliaries in the current basis.
-
-            f. add_aux : list
-                         List of new auxiliaries that were not in the previous aux list.
-
-        3. phi : np.array
+        3. phi : np.array(complex)
                  Full state of the hierarchy normalized if appropriate.
 
         """
@@ -527,7 +525,7 @@ class HopsTrajectory:
         phi, z_mem = self.step(self.dsystem_dt, **var_list)
         phi = self.normalize(phi)
 
-        # define new basis for step in extended space
+        # Define new basis for step in extended space
         z_step = self._prepare_zstep(z_mem)
         (state_update, aux_update) = self.basis.define_basis(phi, tau, z_step)
         return state_update, aux_update, phi
@@ -539,16 +537,13 @@ class HopsTrajectory:
 
         Parameters
         ----------
-        1. tau : float
-                 Time step.
-
-        2. z_mem : list
-                   List of the memory terms.
+        1. z_mem : list(complex)
+                   Noise memory drift terms for the bath [units: cm^-1].
 
         Returns
         -------
-        1. z_step : list
-                    List of noise terms (compressed) for the next timestep.
+        1. z_step : list(np.array(complex))
+                    Noise terms (compressed) for the next timestep [units: cm^-1].
         """
         t = self.t
         z_rnd1 = self.noise1.get_noise([t])[:,0]
@@ -558,23 +553,24 @@ class HopsTrajectory:
     def construct_noise_correlation_function(self, n_l2, n_traj):
         """
         Uses correlated noise trajectories to reconstruct the full noise correlation
-        function
+        function.
         ** Warning if SEED is not None function will not work properly **
 
         Parameters
         ----------
         1. n_l2 : int
                   Index of the site that the noise is being generated on.
+                  
         2. n_traj : int
                     Number of trajectories summed over.
 
         Returns
         -------
-        1. list_corr_func_1 : list
-                              Correlation function calculated for noise1.
+        1. list_corr_func_1 : list(np.array(complex))
+                              Correlation function calculated for noise1 [units: cm^-2].
 
-        2. list_corr_func_2 : list
-                              Correlation function calculated for noise2.
+        2. list_corr_func_2 : list(np.array(complex))
+                              Correlation function calculated for noise2 [units: cm^-2].
         """
         if self.noise_param['SEED'] is not None:
             warnings.warn('SEED is not None; Summing over identical noise trajectories'
