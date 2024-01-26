@@ -562,25 +562,63 @@ class AuxiliaryVector(Mapping):
         return self._dict_aux_m1
 
 @njit
-def numba_get_list_id_up(keys,values,mode_insert,ref_id,num_mode_digits): 
-    # Only works when mode_insert is a single number
-    # Need to make it work for ordered list of modes to take full advantage of algorithm
+def numba_get_list_id_up(keys,values,mode_insert,ref_id,num_mode_digits):
+    """
+    Finds all auxiliary vectors one step up along each mode from the given auxiliary
+    vector.
+    Parameters
+    ----------
+    1. keys : list(int)
+              Sorted list of (absolute) modes present in the given auxiliary vector.
+    2. values : list(int)
+                Depth of the given auxiliary vector in each of the modes from keys.
+    3. mode_insert : list(int)
+                     Sorted list of (absolute) modes along which the given auxiliary
+                     vector connects to higher-lying auxiliaries.
+    4. ref_id : str
+                The id string of the given auxiliary vector.
+    5. num_mode_digits : int
+                         The number of digits needed to uniquely identify all modes
+                         in the full basis of modes.
+
+    Returns
+    -------
+    1. id_up: list(str)
+              The id strings of all auxiliary vectors one step up in the hierarchy
+              from the given auxiliary vector.
+    2. value_connect: list(int)
+                      The depth of the given auxiliary vector in the mode
+                      connecting to each auxiliary vector listed in id_up.
+    3. mode_connect: list(int)
+                     The mode along which the given auxiliary vector connects to
+                     each auxiliary vector listed in id_up.
+    """
     insert_index = 0 #index of string insertion
     key_index = 0 #index of key in keys
     value_connect = 0
     id_up = [""] * len(mode_insert)
     value_connect = [0] * len(mode_insert)
     mode_connect = [0] * len(mode_insert)
-    for (ins_index,mode_ins) in enumerate(mode_insert): 
-        
-        while(key_index < len(keys)): #Find string insertion index
+
+    # Loop over all modes along which we will find a higher-lying auxiliary vector.
+    for (ins_index,mode_ins) in enumerate(mode_insert):
+        # Find where each mode in mode_ins lies in relation to the modes represented
+        # in the given auxiliary.
+        while(key_index < len(keys)):
+            # Ensure that modes are ordered properly in the string representation of
+            # each auxiliary.
             if(keys[key_index] < mode_ins):
                 insert_index += values[key_index] * num_mode_digits
                 key_index = key_index + 1
+            # Modes already represented in the given auxiliary yield a non-zero
+            # value_connect.
+            elif (keys[key_index] == mode_ins):
+                value_connect[ins_index] = values[key_index]
+                break
             else:
                 break
-        if (keys[key_index] == mode_ins):
-            value_connect[ins_index] = values[key_index]
+
+        # Create the string representation of the higher-lying auxiliary.
         id_up[ins_index] = ref_id[0:insert_index] + ((num_mode_digits - len(str(mode_ins))) * "0" + str(mode_ins)) + ref_id[insert_index:]
         mode_connect[ins_index] = mode_ins
     return id_up, value_connect, mode_connect

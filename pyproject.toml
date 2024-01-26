@@ -1,0 +1,33 @@
+[project]
+name = "mesohops"
+version = "1.4.1"
+dependencies = [
+  "numpy",
+  "scipy",
+  "numba",
+  "pytest",
+  "pytest-level"
+]
+requires-python = ">=3.9"
+authors = [
+  {name = "Leonel Varvelo", email = "leonel_varvelo@yahoo.com"},
+  {name = "Jacob Lynd", email = "jacobklynd@gmail.com"},
+  {name = "Brian Citty", email = "bcitty@utexas.edu"},
+  {name = "Tarun Gera", email = "tgera@utexas.edu"},
+  {name = "Doran I. G. B. Raccah", email = "doran.raccah@utexas.edu"},
+]
+maintainers = [
+  {name = "Doran I. G. B. Raccah", email = "doran.raccah@utexas.edu"}
+]
+description = "Python Distribution of (adaptive) Hierarchy of Pure States (HOPS)"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["open quantum systems", "mesoscale", "spectroscopy", "excited-state dynamics", "non-Markovian"]
+classifiers = [
+  "Development Status :: full release 1.4.1",
+  "Programming Language :: Python"
+]
+
+[project.urls]
+Homepage = "https://captainexasperated.github.io/Readthedocs-Tutorial/"
+Repository = "https://github.com/MesoscienceLab/mesohops"
