@@ -25,7 +25,16 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     4. z_rnd : np.array(complex)
                Random numbers for the bath (at three time points) [units: cm^-1].
 
-    5. tau : float
+    5. z_rnd2 : np.array(complex)
+                Secondary real contribution to the noise (at three time points).
+                Imaginary portion discarded in dsystem_dt [units: cm^-1].
+                For primary use-case, see:
+
+                "Exact open quantum system dynamics using the Hierarchy of Pure States
+                (HOPS)."
+                Richard Hartmann J. Chem. Theory Comput. 13, p. 5834-5845 (2017)
+
+    6. tau : float
              Timestep of the calculation [units: fs].
 
     Returns
@@ -87,7 +96,7 @@ def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage,
     5. noise2 : instance(HopsNoise)
 
     6. tau : float
-             Noise time step [units: fs].
+             Integration time step [units: fs].
              
     7. storage : instance(HopsStorage)
 

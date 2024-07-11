@@ -11,7 +11,7 @@ from mesohops.util.exceptions import UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
-__author__ = "D. I. G. Bennett, J. K. Lynd"
+__author__ = "D. I. G. Bennett, J. K. Lynd, Z. W. Freeman"
 __version__ = "1.4"
 __date__ = ""
 
@@ -40,11 +40,19 @@ eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINE
 
 integrator_param = {
         "INTEGRATOR": "RUNGE_KUTTA",
-        'EARLY_ADAPTIVE_INTEGRATOR':'INCH_WORM',
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
         'EARLY_INTEGRATOR_STEPS': 5,
         'INCHWORM_CAP': 5,
-        'STATIC_BASIS':None
+        'STATIC_BASIS': None,
+        'EFFECTIVE_NOISE_INTEGRATION': False,
     }
+integrator_param_empty = {}
+integrator_param_partial = {
+    'EARLY_INTEGRATOR_STEPS': 3
+}
+integrator_param_broken = {
+    'PANCAKE_MIXER': 7
+}
 t_max = 10.0
 t_step = 2.0
 psi_0 = [1.0 + 0.0 * 1j, 0.0 + 0.0 * 1j]
@@ -86,7 +94,7 @@ def test_initialize():
         noise_param=noise_param,
         hierarchy_param=hier_param,
         eom_param=eom_param,
-        integration_param=integrator_param,
+        integration_param=integrator_param_empty,
     )
     hops.initialize(psi_0)
     storage = hops.storage
@@ -127,6 +135,30 @@ def test_initialize():
     lock = hops.__initialized__
     known_lock = True
     assert lock == known_lock
+
+    # checks to make sure integration_param is initialized with defaults correctly
+    assert hops.integration_param == integrator_param
+    hops_partial = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_partial,
+    )
+    partial_dict = {key: val for (key, val) in integrator_param.items()}
+    partial_dict['EARLY_INTEGRATOR_STEPS'] = 3
+    assert hops_partial.integration_param == partial_dict
+    try:
+        hops_broken = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_broken,
+        )
+    except UnsupportedRequest as excinfo:
+        assert ("The current code does not support PANCAKE_MIXER in the integration"
+                in str(excinfo))
 
 
 def test_make_adaptive_delta_h_true():

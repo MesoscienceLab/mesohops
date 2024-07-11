@@ -59,7 +59,7 @@ class HopsBasis:
         """
         self.system = system
         self.hierarchy = hierarchy
-        self.mode = HopsModes(system, hierarchy)
+        self.mode = HopsModes(system)
         self.eom = eom
         self.flag_gcorr = False
         if self.eom.param["EQUATION_OF_MOTION"] == "NONLINEAR ABSORPTION":

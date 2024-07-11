@@ -7,9 +7,8 @@ class HopsModes:
     between the state and auxiliary wave function bases.
     """
 
-    def __init__(self, system, hierarchy):
+    def __init__(self, system):
         self.system = system
-        self.hierarchy = hierarchy
         self.__list_absindex_mode = []
         self._list_absindex_L2 = []
 

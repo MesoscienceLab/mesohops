@@ -6,7 +6,7 @@ __title__ = "preparation functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
 __version__ = "1.4"
 
-def prepare_noise(noise_param, system_param, flag=1):
+def prepare_hops_noise(noise_param, system_param, flag=1):
     """
     Returns the proper noise class given the user inputs.
 
@@ -48,7 +48,7 @@ def prepare_noise(noise_param, system_param, flag=1):
             "CORR_PARAM": system_param["PARAM_NOISE2"],
         }
     else:
-        Exception("Unknown flag value in prepare_noise")
+        Exception("Unknown flag value in prepare_hops_noise")
 
     # Instantiate a HopsNoise subclass
     # --------------------------------

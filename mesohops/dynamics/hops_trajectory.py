@@ -6,14 +6,33 @@ from mesohops.dynamics.hops_basis import HopsBasis
 from mesohops.dynamics.hops_eom import HopsEOM
 from mesohops.dynamics.hops_hierarchy import HopsHierarchy
 from mesohops.dynamics.hops_system import HopsSystem
-from mesohops.dynamics.prepare_functions import prepare_noise
+from mesohops.dynamics.prepare_functions import prepare_hops_noise
 from mesohops.dynamics.hops_storage import HopsStorage
+from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import UnsupportedRequest, LockedException, TrajectoryError
 from mesohops.util.physical_constants import precision  # Constant
 
 __title__ = "HOPS"
-__author__ = "D. I. G. Bennett, L. Varvelo"
+__author__ = "D. I. G. Bennett, L. Varvelo, Z. W. Freeman"
 __version__ = "1.4"
+
+INTEGRATION_DICT_DEFAULT = {
+    "INTEGRATOR": "RUNGE_KUTTA",
+    "EARLY_ADAPTIVE_INTEGRATOR": "INCH_WORM",
+    "EARLY_INTEGRATOR_STEPS": 5,
+    "INCHWORM_CAP": 5,
+    "STATIC_BASIS": None,
+    "EFFECTIVE_NOISE_INTEGRATION": False,
+}
+
+INTEGRATION_DICT_TYPES = {
+    "INTEGRATOR": [str],
+    "EARLY_ADAPTIVE_INTEGRATOR": [str],
+    "EARLY_INTEGRATOR_STEPS": [int],
+    "INCHWORM_CAP": [int],
+    "STATIC_BASIS": [type(None), list, np.ndarray],
+    "EFFECTIVE_NOISE_INTEGRATION": [bool],
+}
 
 
 class HopsTrajectory:
@@ -28,10 +47,7 @@ class HopsTrajectory:
         noise_param={},
         hierarchy_param={},
         storage_param={},
-        integration_param=dict(
-            INTEGRATOR="RUNGE_KUTTA", EARLY_ADAPTIVE_INTEGRATOR='INCH_WORM',EARLY_INTEGRATOR_STEPS=5, INCHWORM_CAP=5,
-            STATIC_BASIS=None, EFFECTIVE_NOISE_INTEGRATION=False,
-        ),
+        integration_param={},
     ):
         """
         This class manages four classes:
@@ -104,32 +120,30 @@ class HopsTrajectory:
         self.noise_param = noise_param
         self.basis = HopsBasis(system, hierarchy, eom)
         self.storage = HopsStorage(self.basis.eom.param['ADAPTIVE'],storage_param)
-        self.noise1 = prepare_noise(noise_param, self.basis.system.param)
+        self.noise1 = prepare_hops_noise(noise_param, self.basis.system.param)
         if "L_NOISE2" in system.param.keys():
             noise_param2 = copy.copy(noise_param)
             rand = np.random.RandomState(seed=noise_param['SEED'])
             noise_param2['SEED'] = int(rand.randint(0, 2 ** 20, 1)[0])
-            self.noise2 = prepare_noise(noise_param2, self.basis.system.param, flag=2)
+            self.noise2 = prepare_hops_noise(noise_param2, self.basis.system.param, flag=2)
         else:
             noise_param2 = {
                 "TLEN": noise_param["TLEN"],
                 "TAU": noise_param["TAU"],
                 "MODEL": "ZERO",
             }
-            self.noise2 = prepare_noise(noise_param2, self.basis.system.param, flag=1)
+            self.noise2 = prepare_hops_noise(noise_param2, self.basis.system.param, flag=1)
 
         # Defines integration method
         # -------------------------
-        self._early_integrator = integration_param['EARLY_ADAPTIVE_INTEGRATOR']
-        self._static_basis = integration_param["STATIC_BASIS"]
-        self._early_steps = integration_param["EARLY_INTEGRATOR_STEPS"]
+        self.integration_param = Dict_wDefaults._initialize_dictionary(
+            integration_param,
+            INTEGRATION_DICT_DEFAULT,
+            INTEGRATION_DICT_TYPES,
+            "integration_param in the HopsTrajectory initialization",
+        )
         self._early_step_counter = 0
-        if integration_param['EARLY_ADAPTIVE_INTEGRATOR'] == 'INCH_WORM' or \
-                integration_param['EARLY_ADAPTIVE_INTEGRATOR'] == 'STATIC_STATE_INCHWORM_HIERARCHY':
-            self._inchworm_cap = integration_param["INCHWORM_CAP"]
-        if "EFFECTIVE_NOISE_INTEGRATION" not in integration_param.keys():
-            integration_param["EFFECTIVE_NOISE_INTEGRATION"] = False
-        if integration_param["INTEGRATOR"] == "RUNGE_KUTTA":
+        if self.integrator == "RUNGE_KUTTA":
             from mesohops.dynamics.integrator_rk import (
                 runge_kutta_step,
                 runge_kutta_variables,
@@ -138,11 +152,9 @@ class HopsTrajectory:
             self.step = runge_kutta_step
             self.integration_var = runge_kutta_variables
             self.integrator_step = 0.5
-            self.effective_noise_integration = integration_param[
-                "EFFECTIVE_NOISE_INTEGRATION"]
         else:
             raise UnsupportedRequest(
-                ("Integrator of type " + str(integration_param["INTEGRATOR"])),
+                ("Integrator of type " + str(self.integrator)),
                 type(self).__name__,
             )
 
@@ -184,7 +196,7 @@ class HopsTrajectory:
             phi_tmp[: self.n_state] = np.array(psi_0)[self.state_list]
             self.z_mem = np.zeros(len(self.basis.system.param["L_NOISE1"]))
             if self.basis.adaptive:
-                if self._static_basis is None:
+                if self.static_basis is None:
                     # Update Basis
                     z_step = self._prepare_zstep(self.z_mem)
                     (state_update, aux_update) = self.basis.define_basis(phi_tmp, 1,
@@ -197,13 +209,13 @@ class HopsTrajectory:
                     # Construct initial basis
                     list_stable_state = self.state_list
                     list_state_new = list(
-                        set(self.state_list).union(set(self._static_basis[0])))
+                        set(self.state_list).union(set(self.static_basis[0])))
                     list_add_state = set(list_state_new) - set(list_stable_state)
                     state_update = (list_state_new, list_stable_state, list_add_state)
 
                     list_stable_aux = self.auxiliary_list
                     list_aux_new = list(
-                        set(self.auxiliary_list).union(set(self._static_basis[1])))
+                        set(self.auxiliary_list).union(set(self.static_basis[1])))
                     list_add_aux = set(list_aux_new) - set(list_stable_aux)
                     aux_update = (list_aux_new, list_stable_aux, list_add_aux)
 
@@ -337,17 +349,17 @@ class HopsTrajectory:
                 # Checks for Early Time Integration
                 # ================================
                 if self.use_early_integrator:
-                    print(f'Early Integration: Using {self._early_integrator}')
+                    print(f'Early Integration: Using {self.early_integrator}')
                     # Early Integrator: Inch Worm
                     # ---------------------------
-                    if self._early_integrator == 'INCH_WORM' or \
-                            self._early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
+                    if self.early_integrator == 'INCH_WORM' or \
+                            self.early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
                         # Define New Basis
                         z_step = self._prepare_zstep(z_mem)
                         (state_update, aux_update) = self.basis.define_basis(phi, tau,
                                                                              z_step)
-                        if self._early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
-                            state_update = self._static_basis[0]
+                        if self.early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
+                            state_update = self.static_basis[0]
 
                         # Update basis for new step
                         step_num = 0
@@ -356,10 +368,10 @@ class HopsTrajectory:
                             state_update, aux_update, phi = self.inchworm_integrate(
                                 state_update, aux_update, tau
                             )
-                            if self._early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
-                                state_update = self._static_basis[0]
+                            if self.early_integrator == 'STATIC_STATE_INCHWORM_HIERARCHY':
+                                state_update = self.static_basis[0]
                             step_num += 1
-                            if step_num >= self._inchworm_cap:
+                            if step_num >= self.inchworm_cap:
                                 break
 
                         # Update basis
@@ -369,11 +381,11 @@ class HopsTrajectory:
 
                     # Early Integrator: Static Basis
                     # ------------------------------
-                    elif self._early_integrator == 'STATIC':
+                    elif self.early_integrator == 'STATIC':
                         pass
 
                     else:
-                        raise UnsupportedRequest(self._early_integrator,
+                        raise UnsupportedRequest(self.early_integrator,
                                                  "early time integrator "
                                                  "clause of the propagate")
 
@@ -579,13 +591,13 @@ class HopsTrajectory:
         list_ct1 = np.zeros(len(t_axis), dtype=np.complex128)
         list_ct2 = np.zeros(len(t_axis), dtype=np.complex128)
         for _ in np.arange(n_traj):
-            noise1 = prepare_noise(self.noise_param, self.basis.system.param)
+            noise1 = prepare_hops_noise(self.noise_param, self.basis.system.param)
             noise1.prepare_noise()
             result = np.correlate(noise1.get_noise(t_axis)[n_l2, :],
                                   noise1.get_noise(t_axis)[n_l2, :], mode='full')
             list_ct1 += result[result.size // 2:]
             if "L_NOISE2" in self.basis.system.param.keys():
-                noise2 = prepare_noise(self.noise_param, self.basis.system.param,
+                noise2 = prepare_hops_noise(self.noise_param, self.basis.system.param,
                                        flag=2)
                 noise2.prepare_noise()
                 result = np.correlate(noise2.get_noise(t_axis)[n_l2, :],
@@ -596,10 +608,30 @@ class HopsTrajectory:
     def reset_early_time_integrator(self):
         """
         Sets self._early_integrator_time to the current time so that the next use of
-        propagate will make the first self._early_steps early time integrator
+        propagate will make the first self.early_steps early time integrator
         propagation steps.
         """
         self._early_step_counter = 0
+
+    @property
+    def early_integrator(self):
+        return self.integration_param["EARLY_ADAPTIVE_INTEGRATOR"]
+
+    @property
+    def integrator(self):
+        return self.integration_param["INTEGRATOR"]
+
+    @property
+    def inchworm_cap(self):
+        return self.integration_param["INCHWORM_CAP"]
+
+    @property
+    def effective_noise_integration(self):
+        return self.integration_param["EFFECTIVE_NOISE_INTEGRATION"]
+
+    @property
+    def static_basis(self):
+        return self.integration_param["STATIC_BASIS"]
 
     @property
     def psi(self):
@@ -646,8 +678,12 @@ class HopsTrajectory:
         return self._t
 
     @property
+    def early_steps(self):
+        return self.integration_param["EARLY_INTEGRATOR_STEPS"]
+
+    @property
     def use_early_integrator(self):
-        return self._early_step_counter < self._early_steps
+        return self._early_step_counter < self.early_steps
 
     @t.setter
     def t(self, t):
