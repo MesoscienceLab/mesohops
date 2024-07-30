@@ -1468,3 +1468,62 @@ def test_M2_mode_from_state():
     )
 
     assert np.allclose(M2_mode_from_state_test, M2_mode_from_state_known)
+
+
+def test_hier_max_adaptive():
+    """
+    Tests that auxiliaries are constructed in full for calculations with small
+    delta_A up to the maximum hierarchy depth of 255 using a monomer model.
+    """
+    nsite = 1
+    e_lambda = 300
+    gamma = 60
+    temp = 300
+    hs = np.zeros([1, 1], np.complex128)
+    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0, temp)
+    gw_sysbath = [[g_0, w_0]]
+    lop_list = np.ones([1, 1, 1])
+
+    sys_param = {
+        "HAMILTONIAN": hs,
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    noise_param = {
+        "SEED": None,
+        "MODEL": "ZERO",
+        "TLEN": 3000.0,
+        "TAU": 0.5,
+    }
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([1.0], dtype=np.complex128)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 255},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    # Set delta_a to floating point minimum and run until all auxiliaries can be populated
+    hops_ad.make_adaptive(1e-323, 0, 1)
+    hops_ad.initialize(psi_0)
+    assert hops_ad.basis.n_hier < 256
+
+    hops_ad.propagate(300, 1.0)
+    assert hops_ad.basis.n_hier == 256

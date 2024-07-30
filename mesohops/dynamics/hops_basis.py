@@ -720,13 +720,13 @@ class HopsBasis:
     @property
     def K2_aux_by_mode(self):
         # Construct the array values of k[n] in the space of [mode, aux]
-        K2_aux_by_mode = np.zeros([self.n_hmodes, self.n_hier], dtype=np.uint8)
+        K2_aux_by_mode = np.zeros([self.n_hmodes, self.n_hier], dtype=np.uint16)
         for aux in self.hierarchy.auxiliary_list:
             array_index = np.array([list(self.list_absindex_mode).index(mode)
                                     for (mode, value) in aux.tuple_aux_vec
                                     if mode in self.list_absindex_mode],
                                    dtype=int)
-            array_values = [np.uint8(value) for (mode, value) in aux.tuple_aux_vec
+            array_values = [np.uint16(value) for (mode, value) in aux.tuple_aux_vec
                             if mode in self.list_absindex_mode]
             K2_aux_by_mode[array_index, aux._index] = array_values
         return K2_aux_by_mode
