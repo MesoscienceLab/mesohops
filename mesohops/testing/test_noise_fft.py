@@ -9,7 +9,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Test of FFT_FILTER noise model"
 __author__ = "J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 __date__ = "July 7 2021"
 
 path_data = os.path.realpath(__file__)[: -len("test_noise_fft.py")]

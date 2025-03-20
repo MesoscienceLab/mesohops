@@ -8,11 +8,12 @@ from mesohops.dynamics.hops_storage import HopsStorage
 from mesohops.dynamics.hops_noise import HopsNoise
 from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_exp
 from mesohops.util.exceptions import UnsupportedRequest
+from scipy import sparse
 from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "test of hops_trajectory "
-__author__ = "D. I. G. Bennett, J. K. Lynd, Z. W. Freeman"
-__version__ = "1.4"
+__author__ = "D. I. G. Bennett, J. K. Lynd"
+__version__ = "1.2"
 __date__ = ""
 
 noise_param = {
@@ -880,3 +881,117 @@ def test_noise_hier_mismatch():
     hops.initialize(psi_0)
     assert np.shape(hops.noise1._noise) == (3, 11)
     assert "WARNING: the list of noise 1 L-operators contains an L" in result_string
+
+def test_operator():
+    """
+    Tests management of operation in both non-adaptive and adaptive frameworks.
+    """
+    # Setting Parameters
+    noise_param = {
+        "SEED": 10,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 50.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    nsite = 5
+    lop_list = []
+    for i in range(nsite):
+        lop = np.zeros((nsite , nsite))
+        lop[i, i] = 1.0
+        lop_list.append(lop)
+    V = 1
+    H_sys = (np.diag([0] * nsite)
+            + np.diag([V] * (nsite - 1), k=-1)
+            + np.diag([V] * (nsite - 1), k=1))
+    sys_param = {
+        "HAMILTONIAN": H_sys,
+        "GW_SYSBATH": [[10.0, 10.0]] * 5,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0]] * 5,
+    }
+    sys_param_adap = {
+        "HAMILTONIAN": H_sys,
+        "GW_SYSBATH": [[10.0, 10.0]] * 5,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0]] * 5,
+    }
+    hier_param = {"MAXHIER": 5}
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_adap = HOPS(
+        sys_param_adap,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={'phi_traj':True}
+    )
+    Op = np.zeros([nsite, nsite])
+    Op_2 = np.zeros([nsite, nsite])
+    Op[1:, 0] = 1
+    Op_2[0, :] = 1
+    t_max = 10.0
+    t_step = 2.0
+    psi_0 = np.zeros(nsite, dtype=np.complex64)
+    psi_0[0] = 1
+
+    # Non Adaptive
+    # -------------
+    hops.initialize(psi_0)
+    hops._operator(Op)
+    psi_ref=Op@psi_0
+    np.testing.assert_allclose(hops.psi, psi_ref)
+
+    # After Propagation
+    # -----------------
+    hops.propagate(t_max,t_step)
+    phi_mat = np.reshape(hops.phi, [hops.n_state, hops.n_hier], order="F")
+    phi_ref = np.reshape(Op_2 @ phi_mat, len(hops.phi), order="F")
+    hops._operator(Op_2)
+    np.testing.assert_allclose(hops.phi, phi_ref)
+
+    # Adaptive
+    # ---------
+    hops_adap.make_adaptive(0.001, 0.001)
+    hops_adap.initialize(psi_0)
+    hops_adap._operator(Op)
+    psi_ref = Op @ psi_0
+    np.testing.assert_allclose(hops_adap.psi, psi_ref)
+
+    # After Propagation
+    # -----------------
+    hops_adap.propagate(t_max,t_step)
+    orig_state_list=hops_adap.state_list
+    orig_traj=hops_adap.storage['phi_traj'][-1]
+    phi_mat = np.reshape(orig_traj, [hops_adap.n_state, hops_adap.n_hier], order="F")
+    hops_adap._operator(Op_2)
+    new_state_list =list(set( list(orig_state_list) +
+                              list(np.nonzero(Op_2[:, orig_state_list])[0])))
+    phi_mat_new = np.zeros((len(new_state_list), hops_adap.n_hier),dtype=complex)
+
+    state_index_map = {state: phi_mat[idx] for idx, state in enumerate(orig_state_list)}
+
+    for key, row_array in state_index_map.items():
+        phi_mat_new[key, :] = row_array
+    phi_ref = np.reshape(Op_2 @ phi_mat_new, len(new_state_list)*hops_adap.n_hier,
+                         order="F")
+    np.testing.assert_allclose(hops_adap.phi, phi_ref)
+
+    assert hops_adap._early_step_counter == 0

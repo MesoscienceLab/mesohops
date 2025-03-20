@@ -2,7 +2,7 @@ import numpy as np
 
 __title__ = "Hierarchy Functions"
 __author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.4"
+__version__ = "1.2"
 
 def filter_aux_triangular(list_aux, list_boolean_by_mode, kmax_2):
     """

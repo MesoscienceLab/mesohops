@@ -2,7 +2,7 @@ import numpy as np
 
 __title__ = "storage functions"
 __author__ = "L. Varvelo, D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 def save_psi_traj(phi_new, state_list, **kwargs):

@@ -4,7 +4,7 @@ from mesohops.util.helper_functions import array_to_tuple
 
 __title__ = "preparation functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 def prepare_hops_noise(noise_param, system_param, flag=1):
     """

@@ -14,7 +14,7 @@ from mesohops.dynamics.eom_hops_ksuper import (
 
 __title__ = "Test of eom_hops_ksuperr"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.4"
+__version__ = "1.2"
 __date__ = ""
 
 # NOTE: NEED TO TEST WHAT HAPPENS WHEN THE NUMBER OF LOPERATORS

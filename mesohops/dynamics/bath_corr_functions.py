@@ -3,7 +3,7 @@ from mesohops.util.physical_constants import kB, hbar
 
 __title__ = "bath_corr_functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 # Bath Correlation Functions
 # --------------------------

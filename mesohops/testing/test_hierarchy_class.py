@@ -5,7 +5,7 @@ from mesohops.dynamics.hops_aux import AuxiliaryVector as AuxVec
 
 __title__ = "test of hops hierarchy"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 __date__ = "Jan. 14, 2020"
 
 

@@ -8,7 +8,7 @@ from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "Pyhops Noise"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 # NOISE MODELS:
 # =============
@@ -20,9 +20,9 @@ NOISE_DICT_DEFAULT = {
     "TLEN": 1000.0,  # Units: fs
     "TAU": 1.0,  # Units: fs,
     "INTERPOLATE": False,
-    # "RAND_MODEL": "SUM_GAUSSIAN", # SUM_GAUSSIAN or BOX_MULLER
     "RAND_MODEL": "SUM_GAUSSIAN",  # SUM_GAUSSIAN or BOX_MULLER
     "STORE_RAW_NOISE": False,
+    "NOISE_WINDOW": None
 }
 
 NOISE_TYPE_DEFAULT = {
@@ -33,6 +33,7 @@ NOISE_TYPE_DEFAULT = {
     "INTERPOLATE": [bool],
     "RAND_MODEL": [str],
     "STORE_RAW_NOISE": [type(False)],
+    "NOISE_WINDOW": [type(None), type(1.0), type(1)]
 }
 
 
@@ -116,6 +117,10 @@ class HopsNoise(Dict_wDefaults):
         if type(self.param["SEED"]) == int or type(self.param["SEED"]) == type(None):
             self.randstate = np.random.RandomState(seed=self.param["SEED"])
 
+        self.Z_temp = None
+        self.t_ax_temp = None
+        if self.param["NOISE_WINDOW"] is not None and self.param["NOISE_WINDOW"] > self.param["TLEN"]:
+            self.param["NOISE_WINDOW"] = self.param["TLEN"]
     def _corr_func_by_lop_taxis(self, t_axis):
         """
         Calculates the correlation function for each L operator by combining all the
@@ -206,8 +211,13 @@ class HopsNoise(Dict_wDefaults):
                 # noise variables input in place of the SEED parameter.
                 if np.shape(self.param['SEED']) == (self.param['N_L2'],
                                                     len(self.param['T_AXIS'])):
-                    self._noise = self.param['SEED']
-                # We should add an interpolation option as well.
+                    self.param['SEED'] = np.complex64(self.param['SEED'])
+                    if self.param['INTERPOLATE']:
+                        self._noise = interp1d(self.param['T_AXIS'], self.param['SEED'],
+                                               kind='cubic', axis=1)
+                    else:
+                        self._noise = self.param['SEED']
+
                 else:
                     raise UnsupportedRequest(
                         'Noise.param[SEED] is an array of the wrong length',
@@ -218,11 +228,14 @@ class HopsNoise(Dict_wDefaults):
                 print("Noise Model intialized from file: {}".format(self.param['SEED']))
                 if os.path.isfile(self.param["SEED"]):
                     if self.param["SEED"][-4:] == ".npy":
-                        corr_noise = np.load(self.param["SEED"])
+                        corr_noise = np.complex64(np.load(self.param["SEED"]))
                         if np.shape(corr_noise) == (self.param['N_L2'],
                                                     len(self.param['T_AXIS'])):
-                            self._noise = corr_noise
-                        # We should add an interpolation option as well.
+                            if self.param['INTERPOLATE']:
+                                self._noise = interp1d(self.param['T_AXIS'], corr_noise,
+                                                       kind='cubic', axis=1)
+                            else:
+                                self._noise = corr_noise
                         else:
                             raise UnsupportedRequest(
                                 'The file loaded at address Noise.param[SEED] is an '
@@ -259,6 +272,7 @@ class HopsNoise(Dict_wDefaults):
         # to this class should be blocked.
         self.__locked__ = True
 
+
     def get_noise(self, t_axis):
         """
         Gets the noise associated with a given time interval.
@@ -276,10 +290,46 @@ class HopsNoise(Dict_wDefaults):
         if not self.__locked__:
             self.prepare_noise()
 
-        if not self.param["INTERPOLATE"]:
+        if self.param["INTERPOLATE"]:
+            if self.param["NOISE_WINDOW"] is not None:
+                print("Warning: noise windowing is not supported while using "
+                      "interpolated noise.")
+            return self._noise(t_axis)
+
+        else:
+            if self.Z_temp is not None and self.t_ax_temp is not None:
+                if (np.min(t_axis) < np.min(self.t_ax_temp) or np.max(t_axis) > np.max(self.t_ax_temp)):
+                    start=np.max((0,np.min(t_axis)))
+                    end=np.min((np.max(self.param["T_AXIS"]),np.max(t_axis)+ self.param["NOISE_WINDOW"]))
+                    start_index = np.where(self.param["T_AXIS"] >= start)[0][0]
+                    end_index = np.where(self.param["T_AXIS"] >= end)[0][0]
+                    self.t_ax_temp = self.param["T_AXIS"][start_index:end_index+1]
+                    self.Z_temp = np.zeros([self.param['N_L2'], len(self.t_ax_temp)], dtype=np.complex64)
+                    self.Z_temp = self._noise[:, start_index:end_index+1]
+            else:
+                if self.param["NOISE_WINDOW"] is None or self.param["NOISE_WINDOW"] > np.max(self.param["T_AXIS"]):
+                    self.Z_temp = self._noise
+                    self.t_ax_temp = self.param["T_AXIS"]
+                else:
+                    end = np.max([self.param["NOISE_WINDOW"],np.max(t_axis)])
+                    end_index = np.where(self.param["T_AXIS"] >= end)[0][0]
+                    self.t_ax_temp = np.zeros([end_index+1],dtype=float)
+                    self.t_ax_temp[:] = self.param["T_AXIS"][:end_index+1]
+                    self.Z_temp=np.zeros([self.param[
+                        'N_L2'], len(self.t_ax_temp)],dtype=np.complex64)
+                    self.Z_temp[:,:]=self._noise[:,:end_index+1]
+
+
+            if np.min(t_axis) < np.min(self.param["T_AXIS"]) or np.max(t_axis) > np.max(self.param["T_AXIS"]):
+                raise UnsupportedRequest(
+                    "t-samples outside of the defined t-axis",
+                    "NoiseModel.get_noise()",
+                )
+
             it_list = []
+
             for t in t_axis:
-                test = np.abs(self.param["T_AXIS"] - t) < precision
+                test = np.abs(self.t_ax_temp - t) < precision
                 if np.sum(test) == 1:
                     it_list.append(np.where(test)[0][0])
                 else:
@@ -287,10 +337,7 @@ class HopsNoise(Dict_wDefaults):
                         "Off axis t-samples when INTERPOLATE = False",
                         "NoiseModel.get_noise()",
                     )
-
-            return self._noise[:, np.array(it_list)]
-        else:
-            return self._noise(t_axis)
+            return self.Z_temp[:, np.array(it_list)]
 
     def _prepare_rand(self):
         """
@@ -594,3 +641,4 @@ class HopsNoise(Dict_wDefaults):
         if self.__locked__:
             raise LockedException("NoiseModel.update_param()")
         self.__param.update(param_usr)
+

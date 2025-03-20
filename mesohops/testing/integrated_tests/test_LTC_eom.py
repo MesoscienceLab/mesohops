@@ -11,7 +11,7 @@ from mesohops.dynamics.hops_trajectory import HopsTrajectory as HOPS
 
 __title__ = "Test of low-temperature correction"
 __author__ = "J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 noise_param = {
     "SEED": 0,

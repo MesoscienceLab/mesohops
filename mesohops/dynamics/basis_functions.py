@@ -2,7 +2,7 @@ import numpy as np
 
 __title__ = "Basis Functions"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 def determine_error_thresh(sorted_error, max_error, offset=0.0):

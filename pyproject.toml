@@ -1,6 +1,6 @@
 [project]
 name = "mesohops"
-version = "1.4.1"
+version = "1.5"
 dependencies = [
   "numpy",
   "scipy",
@@ -14,6 +14,7 @@ authors = [
   {name = "Jacob Lynd", email = "jacobklynd@gmail.com"},
   {name = "Brian Citty", email = "bcitty@utexas.edu"},
   {name = "Tarun Gera", email = "tgera@utexas.edu"},
+  {name = "Alexia Hartzell", email = "alexiahartzell@utexas.edu"},
   {name = "Doran I. G. B. Raccah", email = "doran.raccah@utexas.edu"},
 ]
 maintainers = [
@@ -24,7 +25,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["open quantum systems", "mesoscale", "spectroscopy", "excited-state dynamics", "non-Markovian"]
 classifiers = [
-  "Development Status :: full release 1.4.1",
+  "Development Status :: full release 1.5.0",
   "Programming Language :: Python"
 ]
 

@@ -10,7 +10,7 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_ex
 
 __title__ = "test of low-temperature correction "
 __author__ = "J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 noise_param = {
     "SEED": 0,

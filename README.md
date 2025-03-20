@@ -63,7 +63,7 @@ to allow users to run only the tests that take a short time. A properly-written 
 
 # Citing MesoHOPS
 When using MesoHOPS version 1.4 or later please cite:
-- B. Citty, J. K. Lynd, T. Gera, L. Varvelo, and D. I. G. B. Raccah, "MesoHops: Size-invariant scaling calculations of multi-excitation open quantum systems," [preprint (2024)](https://arxiv.org/abs/2401.07443). 
+- B. Citty, J. K. Lynd, T. Gera, L. Varvelo, and D. I. G. B. Raccah, "MesoHops: Size-invariant scaling calculations of multi-excitation open quantum systems," [J. Chem. Phys. (2024)](https://doi.org/10.1063/5.0197825). 
 *This paper extends the adaptive algorithm to account for arbitrary couplings between thermal environments and vertical excitation energies. Furthermore, it introduces a low-temperature correction and effective integration of the noise that simplify simulations with ultrafast vibrational relaxations.*
 
 When using the adaptive basis (by setting  $\delta_A,\delta_S>0$) , please also cite:
@@ -75,7 +75,9 @@ When using the linear absorption HOPS equation of motion, please also cite:
 *This paper introduces a new HOPS equation of motion for simulating linear absorption spectra using a pure-state decomposition of the dipole correlation function.*
 
 When using the Dyadic adaptive HOPS (DadHOPS) equations, please also cite:
-- T. Gera, L. Chen, A. Eisfeld, J. R. Reimers, E. J. Taffet, and D. I. G. B. Raccah, "Simulating optical linear absorption for mesoscale molecular aggregates: An adaptive hierarchy of pure states approach," [J. Chem. Phys. (2023)](https://doi.org/10.1063/5.0141882). 
+- T. Gera, A. Hartzell, L. Chen, A. Eisfeld, and D. I. G. B. Raccah, "Formally exact fluorescence spectroscopy simulations for mesoscale molecular aggregates with $N^0$ scaling," [preprint (2025)](https://arxiv.org/abs/2503.00584).
+*This paper extends the dyadic adaptive Hierarchy of Pure States (DadHOPS) implementation to simulate fluorescence spectra in large aggregates and introduces excitation operator decomposition, a generalization of the previously introduced initial state decomposition. Proof-of-concept calculations show that DadHOPS exhibits size-invariant scaling in large molecular aggregates.*  
+- T. Gera, L. Chen, A. Eisfeld, J. R. Reimers, E. J. Taffet, and D. I. G. B. Raccah, "Simulating optical linear absorption for mesoscale molecular aggregates: An adaptive hierarchy of pure states approach," [J. Chem. Phys. (2023)](https://doi.org/10.1063/5.0141882).
 *This paper introduces a dyadic adaptive Hierarchy of Pure States (DadHOPS) implementation for simulating linear absorption spectra in large aggregates, as well as an initial state decomposition that allows for convenient scaling. Proof-of-concept calculations show that DadHOPS exhibits size-invariant scaling in large molecular aggregates.*
 
 

@@ -4,7 +4,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Integrators, Runge-Kutta"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
@@ -32,7 +32,8 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
 
                 "Exact open quantum system dynamics using the Hierarchy of Pure States
                 (HOPS)."
-                Richard Hartmann J. Chem. Theory Comput. 13, p. 5834-5845 (2017)
+                Richard Hartmann and Walter T. Strunz J. Chem. Theory Comput. 13,
+                p. 5834-5845 (2017)
 
     6. tau : float
              Timestep of the calculation [units: fs].

@@ -7,7 +7,7 @@ from mesohops.util.helper_functions import array_to_tuple
 
 __title__ = "System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 class HopsSystem(object):

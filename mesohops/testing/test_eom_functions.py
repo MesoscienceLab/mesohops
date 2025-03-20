@@ -9,7 +9,7 @@ from mesohops.dynamics.eom_functions import (
 
 __title__ = "Test of eom_functions"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.4"
+__version__ = "1.2"
 __date__ = ""
 
 # TEST PARAMETERS

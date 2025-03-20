@@ -8,7 +8,7 @@ from numba.typed import List
 
 __title__ = "AuxiliaryVector Class"
 __author__ = "D. I. G. Bennett"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 class AuxiliaryVector(Mapping):
@@ -508,8 +508,8 @@ class AuxiliaryVector(Mapping):
         Parameters
         ----------
         1. modes_in_use : list(int)
-                          List of modes along which the new identity string will be
-                          calculated.
+                          Sorted list of (absolute) modes that comprise the new
+                          auxiliary indices.
 
         Returns
         -------
@@ -600,7 +600,7 @@ def numba_get_list_id_up(keys,values,mode_insert,ref_id,num_mode_digits):
     value_connect = [0] * len(mode_insert)
     mode_connect = [0] * len(mode_insert)
 
-    # Loop over all modes along which we will find a higher-lying auxiliary vector.
+    # Loop over all modes along which we will find a higher-lying auxiliary vector
     for (ins_index,mode_ins) in enumerate(mode_insert):
         # Find where each mode in mode_ins lies in relation to the modes represented
         # in the given auxiliary.

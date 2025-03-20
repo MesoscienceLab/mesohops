@@ -12,7 +12,7 @@ from mesohops.util.exceptions import AuxError, UnsupportedRequest
 
 __title__ = "Hierarchy Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 HIERARCHY_DICT_DEFAULT = {"MAXHIER": int(3), "TERMINATOR": False, "STATIC_FILTERS": []}

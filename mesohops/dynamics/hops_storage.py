@@ -1,11 +1,12 @@
 import copy
 import numpy as np
+from scipy import sparse
 from mesohops.dynamics.storage_functions import storage_default_func as default_func
 from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Storage Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 class HopsStorage:
@@ -30,6 +31,7 @@ class HopsStorage:
         self.dic_save = {}
         self.data = {}
         self.adaptive = adaptive
+        
 
     def __repr__(self):
         key_dict = []
@@ -39,16 +41,29 @@ class HopsStorage:
         return 'Storage currently holds: {}'.format(key_dict)
 
     def __getitem__(self, item):
-        if item in self.data.keys():
-            if self._adaptive and item == 'psi_traj':
-                psi_traj_full = np.zeros([len(self['t_axis']), self._n_dim],
-                                         dtype=np.complex128)
-                for (t_index, psi) in enumerate(self.data['psi_traj']):
-                    psi_traj_full[
-                        t_index, np.array(self.data['state_list'][t_index])] = psi
-                return psi_traj_full
-            else:
-                return self.data[item]
+        if self._adaptive and item == 'psi_traj':
+            # A call to 'psi_traj' requests the dense wave function
+            psi_traj_full = np.zeros([len(self['t_axis']), self._n_dim],
+                                     dtype=np.complex128)
+            for (t_index, psi) in enumerate(self.data['psi_traj']):
+                psi_traj_full[t_index,
+                np.array(self.data['state_list'][t_index])] = psi
+
+            return psi_traj_full
+        elif self._adaptive and item == 'psi_traj_sparse':
+            # A call to 'psi_traj_sparse' returns the csr array
+            data_sparse = []
+            row_sparse = []
+            column_sparse = []
+            for t_index, psi in enumerate(self.data['psi_traj']):
+                data_sparse.extend(list(psi))
+                row_sparse.extend([t_index] * len(psi))
+                column_sparse.extend(self.data['state_list'][t_index])
+            psi_traj_sparse = sparse.csr_array((data_sparse, (row_sparse, column_sparse)),
+                                               shape=(len(self['t_axis']), self._n_dim))
+            return psi_traj_sparse
+        elif item in self.data.keys():
+            return self.data[item]
         else:
             print('{} not a key of storage.data'.format(item))
 

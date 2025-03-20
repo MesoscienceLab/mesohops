@@ -6,7 +6,7 @@ from scipy import interpolate
 
 __title__ = "Noise Trajectories"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 class NoiseTrajectory(ABC):

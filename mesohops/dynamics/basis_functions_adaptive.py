@@ -5,7 +5,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Adaptive Basis Functions"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 def error_sflux_hier(Φ, list_s0, n_state, n_hier, H2_sparse_hamiltonian):
@@ -186,7 +186,7 @@ def error_flux_up(Φ, n_state, n_hier, n_hmodes, list_w, K2_aux_bymode,
         E2_error = np.abs(W2_bymode * (1 + K2_aux_bymode)) ** 2
         if F2_filter is not None:
             E2_error *= F2_filter
-        E2_error = np.transpose(M2_mode_from_state.power(2)) @ E2_error
+        E2_error = np.transpose(np.abs(M2_mode_from_state).power(2)) @ E2_error
         E2_error = P2_pop_state * E2_error / hbar ** 2
 
     else:

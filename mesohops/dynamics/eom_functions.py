@@ -4,7 +4,7 @@ from mesohops.util.physical_constants import precision
 
 __title__ = "EOM Functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 def operator_expectation(oper, vec, flag_gcorr = False):
@@ -34,7 +34,7 @@ def operator_expectation(oper, vec, flag_gcorr = False):
     if not flag_gcorr:
         return (np.conj(vec) @ (oper @ vec)) / (np.conj(vec) @ vec)
     else:
-        return (np.conj(vec) @ (oper @ vec)) / (1+np.conj(vec) @ vec)
+        return (np.conj(vec) @ (oper @ vec)) / (1 + np.conj(vec) @ vec)
 
 
 def compress_zmem(z_mem, list_index_L2_by_mode, list_absindex_mode):
@@ -189,7 +189,7 @@ def calc_norm_corr(
         ]
         # ASSUMING: L = L^*
         delta -= (np.conj(phi_0) @ (list_L2[l_ind] @ phi_1))
-        delta += (np.conj(phi_0) @ phi_1) * list_avg_L2[l_ind]
+        delta += ((np.conj(phi_0) @ phi_1))* list_avg_L2[l_ind]
 
     return np.real(delta)
 

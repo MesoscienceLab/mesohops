@@ -246,16 +246,14 @@ def build_aux_vector(hops_aux):
     return aux_vec
 
 # Helper function to order noise properly:
-def prepare_noise(noise_at_t,active_modes):
+def prepare_noise(list_l_by_mode, noise_at_t, active_modes):
     """
-    Ensures that the noise is in the right order so long as the L-operators of the
-    associated system are site-projection operators. Note: this is not universal and
-    depends on the assumption that a single system dictionary is instantiated for use
-    by all of the HOPS trajectory objects in this testing file.
+    Organizes the noise given a list of L-operators by mode and the associated list
+    of modes currently in the basis.
     """
     noise_t_prepared = []
     for mode in active_modes:
-        mode_index = np.where(sys_param["L_HIER"][mode])[0][0]
+        mode_index = list_l_by_mode[mode]
         if not noise_at_t[mode_index] in noise_t_prepared:
             noise_t_prepared.append(noise_at_t[mode_index])
         else:
@@ -273,20 +271,23 @@ noise_param = {
 
 loperator = np.zeros([3, 3, 3], dtype=np.float64)
 loperator[0, 0, 0] = 1.0
+loperator[0, 1, 1] = -1.0
 loperator[1, 1, 1] = 1.0
+loperator[1, 2, 2] = -1.0
 loperator[2, 2, 2] = 1.0
+loperator[2, 0, 0] = -1.0
 
 base_ham = np.array([[1.0, 14.0, 8.0], [14.0, 0, 10.0], [8.0, 10.0, -1.0]],
                     dtype=np.float64)
 
-sys_param = {
+list_l_by_mode_6mode = [0, 0, 1, 1, 2, 2]
+
+sys_param_diagonal = {
     "HAMILTONIAN": base_ham,
     "GW_SYSBATH": [[12.0, 18.0], [7.0, 3.0], [11.0, 9.0], [6.0, 4.0], [10.0, 10.0],
                    [5.0, 5.0]],
-    "L_HIER": [loperator[0], loperator[0], loperator[1], loperator[1], loperator[2],
-               loperator[2]],
-    "L_NOISE1": [loperator[0], loperator[0], loperator[1], loperator[1], loperator[
-        2], loperator[2]],
+    "L_HIER": [loperator[i] for i in list_l_by_mode_6mode],
+    "L_NOISE1": [loperator[i] for i in list_l_by_mode_6mode],
     "ALPHA_NOISE1": bcf_exp,
     "PARAM_NOISE1": [[12.0, 18.0], [7.0, 3.0], [11.0, 9.0], [6.0, 4.0], [10.0, 10.0],
                      [5.0, 5.0]],
@@ -304,63 +305,91 @@ integrator_param = {
 
 psi_0 = [1.0 + 0.0 * 1j, 0.0 + 0.0 * 1j, 0.0 + 0.0 * 1j]
 
+# Generalized L-operators: the first is an off-diagonal coupling with imaginary
+# entries, the second is an acoustic mode that couples all nearest-neighbors,
+# and the last is a Holstein-type coupling that couples the same environment to all
+# site energies with different magnitudes.
+loperator_general = np.zeros([3, 3, 3], dtype=np.complex128)
+loperator_general[0,0,1] = 1j
+loperator_general[0,1,0] = -1j
+loperator_general[1,1,2] = 1
+loperator_general[1,2,1] = 1
+loperator_general[2,0,0] = 0.5
+loperator_general[2,1,1] = 1
+loperator_general[2,2,2] = -1
+
+# everything is the same except the L-operators here.
+sys_param_general = {
+    "HAMILTONIAN": base_ham,
+    "GW_SYSBATH": [[12.0, 18.0], [7.0, 3.0], [11.0, 9.0], [6.0, 4.0], [10.0, 10.0],
+                   [5.0, 5.0]],
+    "L_HIER": [loperator_general[i] for i in list_l_by_mode_6mode],
+    "L_NOISE1": [loperator_general[i] for i in list_l_by_mode_6mode],
+    "ALPHA_NOISE1": bcf_exp,
+    "PARAM_NOISE1": [[12.0, 18.0], [7.0, 3.0], [11.0, 9.0], [6.0, 4.0], [10.0, 10.0],
+                     [5.0, 5.0]],
+}
+
 def test_linear_eom():
     """
     Tests the linear HOPS EoM.
     """
     # Non-adaptive case: initialize the HOPS object
     eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "LINEAR"}
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.initialize(psi_0)
+    for sys_param in [sys_param_diagonal, sys_param_general]:
+        hops = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param,
+        )
+        hops.initialize(psi_0)
 
-    # Test just after initialization
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_linear_manual(phi_t, list_state, list_aux, H2_ham,
-                                              noise_t_prepared, list_modes, list_l_op,
-                                              self_interaction=True,
-                                              downward_connection=True,
-                                              upward_connection=True).flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0]/hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Test just after initialization
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_linear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                  noise_t_prepared, list_modes, list_l_op,
+                                                  self_interaction=True,
+                                                  downward_connection=True,
+                                                  upward_connection=True).flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0]/hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
-    # Time-evolve the trajectory
-    hops.propagate(5.0, 1.0)
-    # Test after time evolution
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in
-                 hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_linear_manual(phi_t, list_state, list_aux, H2_ham,
-                                              noise_t_prepared, list_modes, list_l_op,
-                                              self_interaction=True,
-                                              downward_connection=True,
-                                              upward_connection=True).flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0] / hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Time-evolve the trajectory
+        hops.propagate(5.0, 1.0)
+        # Test after time evolution
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in
+                     hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_linear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                  noise_t_prepared, list_modes, list_l_op,
+                                                  self_interaction=True,
+                                                  downward_connection=True,
+                                                  upward_connection=True).flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0] / hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
 def test_normalized_nonlinear_nonadaptive_eom():
     """
@@ -368,112 +397,118 @@ def test_normalized_nonlinear_nonadaptive_eom():
     """
     # Non-adaptive case: initialize the HOPS object
     eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.initialize(psi_0)
+    for sys_param in [sys_param_diagonal, sys_param_general]:
+        hops = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param,
+        )
+        hops.initialize(psi_0)
 
-    # Test just after initialization
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state,
-                                                            list_aux, H2_ham,
-                                                            noise_t_prepared,
-                             list_modes, list_l_op, list_noise_memory,
-                             type = "normalized_nonlinear").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0]/hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Test just after initialization
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state,
+                                                                list_aux, H2_ham,
+                                                                noise_t_prepared,
+                                 list_modes, list_l_op, list_noise_memory,
+                                 type = "normalized_nonlinear").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0]/hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
-    # Time-evolve the trajectory
-    hops.propagate(5.0, 1.0)
-    # Test after time evolution
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in
-                 hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
-                                                 noise_t_prepared, list_modes,
-                                                 list_l_op, list_noise_memory,
-                                                 type = "normalized_nonlinear").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0] / hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Time-evolve the trajectory
+        hops.propagate(5.0, 1.0)
+        # Test after time evolution
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in
+                     hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                     noise_t_prepared, list_modes,
+                                                     list_l_op, list_noise_memory,
+                                                     type = "normalized_nonlinear").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0] / hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
 def test_nonlinear_eom():
     """
     Tests the non-normalized nonlinear HOPS EoM in the non-adaptive case.
     """
     # Non-adaptive case: initialize the HOPS object
-    eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NONLINEAR"}
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.initialize(psi_0)
+    for sys_param in [sys_param_diagonal, sys_param_general]:
+        eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NONLINEAR"}
+        hops = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param,
+        )
+        hops.initialize(psi_0)
 
-    # Test just after initialization
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
-                                                 noise_t_prepared, list_modes,
-                                                 list_l_op, list_noise_memory,
-                                                 type = "nonlinear").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0]/hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Test just after initialization
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                     noise_t_prepared, list_modes,
+                                                     list_l_op, list_noise_memory,
+                                                     type = "nonlinear").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0]/hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
-    # Time-evolve the trajectory
-    hops.propagate(5.0, 1.0)
-    # Test after time evolution
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in
-                 hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
-                                                 noise_t_prepared, list_modes,
-                                                 list_l_op, list_noise_memory,
-                                                 type = "nonlinear").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0] / hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Time-evolve the trajectory
+        hops.propagate(5.0, 1.0)
+        # Test after time evolution
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in
+                     hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                     noise_t_prepared, list_modes,
+                                                     list_l_op, list_noise_memory,
+                                                     type = "nonlinear").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0] / hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
 def test_nonlinear_absorption_eom():
     """
@@ -481,55 +516,58 @@ def test_nonlinear_absorption_eom():
     """
     # Non-adaptive case: initialize the HOPS object
     eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NONLINEAR ABSORPTION"}
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.initialize(psi_0)
+    for sys_param in [sys_param_diagonal, sys_param_general]:
+        hops = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param,
+        )
+        hops.initialize(psi_0)
 
-    # Test just after initialization
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
-                                                 noise_t_prepared, list_modes,
-                                                 list_l_op, list_noise_memory,
-                                                 type = "nonlinear_absorption").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0]/hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Test just after initialization
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                     noise_t_prepared, list_modes,
+                                                     list_l_op, list_noise_memory,
+                                                     type = "nonlinear_absorption").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0]/hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
-    # Time-evolve the trajectory
-    hops.propagate(5.0, 1.0)
-    # Test after time evolution
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in
-                 hops.basis.mode.list_absindex_mode]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
-                                                 noise_t_prepared, list_modes,
-                                                 list_l_op, list_noise_memory,
-                                                 type = "nonlinear_absorption").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0] / hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Time-evolve the trajectory
+        hops.propagate(5.0, 1.0)
+        # Test after time evolution
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in
+                     hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
+                                                     noise_t_prepared, list_modes,
+                                                     list_l_op, list_noise_memory,
+                                                     type = "nonlinear_absorption").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0] / hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
 # Create a linear chain model
 linear_chain_test_ham = np.eye(101, k=1)*50 + np.eye(101, k=-1)*50
@@ -583,65 +621,68 @@ def test_eom_adaptive():
     Tests the normalized nonlinear HOPS EoM in the adaptive case.
     """
     # Adaptive case: initialize the HOPS object
-    eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
-    hops = HOPS(
-        sys_param,
-        noise_param=noise_param,
-        hierarchy_param=hier_param,
-        eom_param=eom_param,
-        integration_param=integrator_param,
-    )
-    hops.make_adaptive(0.00001, 0.0025)
-    hops.initialize(psi_0)
+    for sys_param in [sys_param_diagonal]:
+        eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+        hops = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param,
+        )
+        hops.make_adaptive(0.00001, 0.0025)
+        hops.initialize(psi_0)
 
-    # Test just after initialization
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    H2_ham_trunc = H2_ham[np.ix_(list_state, list_state)]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in
-                 hops.basis.mode.list_absindex_mode]
-    list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        # Test just after initialization
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        H2_ham_trunc = H2_ham[np.ix_(list_state, list_state)]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in
+                     hops.basis.mode.list_absindex_mode]
+        list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
 
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
-                                                 H2_ham_trunc, noise_t_prepared,
-                                                 list_modes, list_l_op_trunc,
-                                                 list_noise_memory, type =
-                                                 "normalized_nonlinear").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0] / hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
+                                                     H2_ham_trunc, noise_t_prepared,
+                                                     list_modes, list_l_op_trunc,
+                                                     list_noise_memory, type =
+                                                     "normalized_nonlinear").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0] / hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
-    # Time-evolve the trajectory
-    hops.propagate(5.0, 1.0)
-    # Test after time evolution
-    phi_t = hops.phi
-    list_state = hops.state_list
-    list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
-    H2_ham = sys_param["HAMILTONIAN"]
-    H2_ham_trunc = H2_ham[np.ix_(list_state, list_state)]
-    noise_t = hops.noise1.get_noise([hops.t])
-    noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
-    list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
-    list_l_op = [sys_param["L_HIER"][m] for m in
-                 hops.basis.mode.list_absindex_mode]
-    list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
-    list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
-    noise_t_prepared = prepare_noise(noise_t, hops.basis.mode.list_absindex_mode)
-    dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
-                                                 H2_ham_trunc, noise_t_prepared,
-                                                 list_modes, list_l_op_trunc,
-                                                 list_noise_memory, type =
-                                                 "normalized_nonlinear").flatten()
-    dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
-                                      np.zeros_like(noise_t))[0] / hbar
-    assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+        # Time-evolve the trajectory
+        hops.propagate(5.0, 1.0)
+        # Test after time evolution
+        phi_t = hops.phi
+        list_state = hops.state_list
+        list_aux = [build_aux_vector(aux) for aux in hops.auxiliary_list]
+        H2_ham = sys_param["HAMILTONIAN"]
+        H2_ham_trunc = H2_ham[np.ix_(list_state, list_state)]
+        noise_t = hops.noise1.get_noise([hops.t])
+        noise_t = np.array([noise_t[0][0], noise_t[1][0], noise_t[2][0]])
+        list_modes = [hops.basis.mode.g, hops.basis.mode.w, hops.basis.mode.list_absindex_mode]
+        list_l_op = [sys_param["L_HIER"][m] for m in
+                     hops.basis.mode.list_absindex_mode]
+        list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t,
+                                         hops.basis.mode.list_absindex_mode)
+        dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
+                                                     H2_ham_trunc, noise_t_prepared,
+                                                     list_modes, list_l_op_trunc,
+                                                     list_noise_memory, type =
+                                                     "normalized_nonlinear").flatten()
+        dsystem_dt_test = hops.dsystem_dt(phi_t, list_noise_memory, noise_t,
+                                          np.zeros_like(noise_t))[0] / hbar
+        assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
 
     # Linear chain case
     linear_chain_hops = HOPS(

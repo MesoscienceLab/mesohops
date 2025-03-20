@@ -6,7 +6,7 @@ from mesohops.dynamics.bath_corr_functions import bcf_exp, bcf_convert_sdl_to_ex
 
 __title__ = "test for System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.4"
+__version__ = "1.2"
 __date__ = "Jan. 15, 2020"
 
 # HOPS SYSTEM PARAMETERS

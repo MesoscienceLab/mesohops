@@ -15,7 +15,7 @@ from mesohops.dynamics.eom_functions import (
 
 __title__ = "Equations of Motion"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.4"
+__version__ = "1.2"
 
 EOM_DICT_DEFAULT = {
     "TIME_DEPENDENCE": False,
@@ -77,7 +77,6 @@ class HopsEOM(Dict_wDefaults):
         self._default_param = EOM_DICT_DEFAULT
         self._param_types = EOM_DICT_TYPES
         self.param = eom_params
-
         # Defines normalization condition
         # ------------------------------
         if self.param["EQUATION_OF_MOTION"] == "NORMALIZED NONLINEAR":

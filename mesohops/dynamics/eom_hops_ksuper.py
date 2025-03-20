@@ -5,7 +5,7 @@ from scipy import sparse
 
 __title__ = "HOPS Super Operator"
 __author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 def _permute_aux_by_matrix(K, Pkeep):
@@ -209,9 +209,14 @@ def _add_crossterms(
 
             #aux_mode_values = [hierarchy.new_mode_values_m1[l_mod_abs][aux_index]
             #                   for aux_index in aux_indices_p1]
-            
+
+            # The Km1 matrix must have nonzero entries in locations given by the
+            # transpose of the Kp1 matrix. Taking advantage of the Hermitian property of
+            # L-operators, we take the complex conjugate of any L-operator entries
+            # involved to use the row and col indices of the Kp1 matrix directly.
             Km1_data.extend(np.repeat(np.array(list(list_aux_mode_values)) * mode.w[l_mod],len(l_sparse[i_lop].data)) \
-                        * (list(l_sparse[i_lop].data) * len(list_aux_mode_values)))     
+                        * (list(np.conj(l_sparse[i_lop].data)) * len(
+                list_aux_mode_values)))
     return (
      Kp1_data,
      Kp1_row,

@@ -12,7 +12,7 @@ from mesohops.dynamics.hops_modes import HopsModes
 from scipy import sparse
 __title__ = "Basis Class"
 __author__ = "D. I. G. Bennett, Brian Citty"
-__version__ = "1.4"
+__version__ = "1.2"
 
 
 class HopsBasis:

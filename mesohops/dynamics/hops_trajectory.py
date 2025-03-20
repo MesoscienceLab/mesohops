@@ -13,8 +13,8 @@ from mesohops.util.exceptions import UnsupportedRequest, LockedException, Trajec
 from mesohops.util.physical_constants import precision  # Constant
 
 __title__ = "HOPS"
-__author__ = "D. I. G. Bennett, L. Varvelo, Z. W. Freeman"
-__version__ = "1.4"
+__author__ = "D. I. G. Bennett, L. Varvelo"
+__version__ = "1.2"
 
 INTEGRATION_DICT_DEFAULT = {
     "INTEGRATOR": "RUNGE_KUTTA",
@@ -73,9 +73,9 @@ class HopsTrajectory:
             e. ALPHA_NOISE1
             f. PARAM_NOISE1
 
-        2. eom_parameters: dict
-                           Dictionary of user-defined eom parameters.
-                           [see hops_eom.py]
+        2. eom_param: dict
+                      Dictionary of user-defined eom parameters.
+                      [see hops_eom.py]
             a. EQUATION_OF_MOTION
             b. ADAPTIVE_H
             c. ADAPTIVE_S
@@ -83,29 +83,40 @@ class HopsTrajectory:
             e. DELTA_S
             f. UPDATE_STEP
 
-        3. noise_parameters: dict
-                             Dictionary of user-defined noise parameters.
-                             [see hops_noise.py]
+        3. noise_param: dict
+                        Dictionary of user-defined noise parameters.
+                        [see hops_noise.py]
             a. SEED
             b. MODEL
             c. TLEN
             d. TAU
             e. INTERP
 
-        4. hierarchy_parameters: dict
-                                 Dictionary of user-defined hierarchy parameters.
-                                 [see hops_hierarchy.py]
-            r. MAXHIER
-            s. STATIC_FILTERS
+        4. hierarchy_param: dict
+                            Dictionary of user-defined hierarchy parameters.
+                            [see hops_hierarchy.py]
+            a. MAXHIER
+            b. STATIC_FILTERS
 
-        5. integration_parameters: dict
-                                   Dictionary of user-defined integration parameters.
-                                   [see integrator_rk.py]
-            t. INTEGRATOR
-            u. EARLY_ADAPTIVE_INTEGRATOR
-            v. EARLY_INTEGRATOR_STEPS
-            w. INCHWORM_CAP
-            x. STATIC_BASIS
+        5. storage_param: dict
+                          Dictionary of user-defined storage parameters.
+                          [see hops_storage.py]
+            a. phi_traj
+            b. psi_traj
+            c. t_axis
+            d. aux_list
+            e. state_list
+            f. list_nhier
+            g. list_nstate
+
+        6. integration_param: dict
+                              Dictionary of user-defined integration parameters.
+                              [see integrator_rk.py]
+            a. INTEGRATOR
+            b. EARLY_ADAPTIVE_INTEGRATOR
+            c. EARLY_INTEGRATOR_STEPS
+            d. INCHWORM_CAP
+            e. STATIC_BASIS
 
         """
         # Variables for the current state of the system
@@ -132,10 +143,15 @@ class HopsTrajectory:
                 "TAU": noise_param["TAU"],
                 "MODEL": "ZERO",
             }
+            if "NOISE_WINDOW" in noise_param.keys():
+                noise_param2["NOISE_WINDOW"] = noise_param["NOISE_WINDOW"]
             self.noise2 = prepare_hops_noise(noise_param2, self.basis.system.param, flag=1)
 
         # Defines integration method
         # -------------------------
+        if integration_param == None:
+            integration_param = INTEGRATION_DICT_DEFAULT
+
         self.integration_param = Dict_wDefaults._initialize_dictionary(
             integration_param,
             INTEGRATION_DICT_DEFAULT,
@@ -188,7 +204,6 @@ class HopsTrajectory:
             # Prepares the derivative
             # ----------------------
             self.dsystem_dt = self.basis.initialize(psi_0)
-
             # Initializes System State
             # -----------------------
             self.storage.n_dim = self.basis.system.param["NSTATES"]
@@ -240,7 +255,7 @@ class HopsTrajectory:
         else:
             raise LockedException("HopsTrajectory.initialize()")
 
-    def make_adaptive(self, delta_h=1e-4, delta_s=1e-4, update_step=1, f_discard = 
+    def make_adaptive(self, delta_h=1e-4, delta_s=1e-4, update_step=1, f_discard=
     0):
         """
         Transforms a not-yet-initialized HOPS trajectory from a standard HOPS to an
@@ -258,7 +273,7 @@ class HopsTrajectory:
         3. update_step : int
                          Number of time points between updates to the adaptive
                          basis.
-        
+
         4. f_discard : float
                        Fraction of the boundary error devoted to removing error
                        terms from list_e2_kflux for memory conservation (recommended
@@ -416,25 +431,42 @@ class HopsTrajectory:
 
     def _operator(self, op):
         """
-        Acts an operator on the full hierarchy.
+        Acts an operator on the full hierarchy. Automatically adds all states that
+        become populated to the basis in the adaptive case to avoid uncontrolled error,
+        then updates the full basis immediately thereafter. Finally, resets early time
+        integration to ensure that the basis is updated aggressively.
 
         Parameters
         ----------
-        1. op : np.array(complex)
-                Operator.
+        1. op : np.array(float)
+                The operator.
 
         Returns
         -------
         None
         """
-        phi_mat = np.transpose(
-            np.reshape(
-                self.phi, [int(len(self.phi) / self.n_state), self.n_state], order="C"
-            )
-        )
-        self.phi = np.reshape(
-            np.transpose(sp.matmul(op, phi_mat)), len(self.phi)
-        )
+        if (sp.sparse.issparse(op)):
+            op = op.tocsr()
+        # If state adaptivity in use, add the states needed for the operation and
+        # update basis.
+        if self.basis.eom.param["DELTA_S"] > 0:
+            updated_state_list = list(self.state_list)
+            updated_state_list += list(np.nonzero(op[:, self.state_list])[0])
+            updated_state_list = list(set(updated_state_list))
+            (self.phi, self.dsystem_dt) = self.basis.update_basis(
+                self.phi,updated_state_list, self.auxiliary_list)
+        # Trim the operator based on the state_list and perform the operation.
+        op = op[np.ix_(self.state_list, self.state_list)]
+        phi_mat = np.reshape(self.phi, [self.n_state, self.n_hier], order="F")
+        self.phi = np.reshape(op@phi_mat, len(self.phi), order="F")
+        # Operation may populate states not in the basis: therefore update the basis,
+        # define a dummy integration time step such that none of the states are removed
+        # and perform early time integration.
+        if self.basis.eom.param["DELTA_S"] > 0:
+            delta_t=np.min(np.abs(self.phi[np.nonzero(self.phi)]))
+            self.basis.define_basis(self.phi, delta_t, self._prepare_zstep(self.z_mem))
+            self.basis.update_basis(self.phi, self.state_list, self.auxiliary_list)
+            self.reset_early_time_integrator()
 
     def _check_tau_step(self, tau, precision):
         """
@@ -458,14 +490,14 @@ class HopsTrajectory:
         # ERROR: We are assuming that if noise1 is numeric then noise2 is numeric
         tau_step = tau * self.integrator_step
         p_bool1 = (
-            tau_step / self.noise1.param["TAU"]
-            - int(round(tau_step / self.noise1.param["TAU"]))
-            < precision
+                tau_step / self.noise1.param["TAU"]
+                - int(round(tau_step / self.noise1.param["TAU"]))
+                < precision
         )
         p_bool2 = (
-            tau_step / self.noise2.param["TAU"]
-            - int(round(tau_step / self.noise2.param["TAU"]))
-            < precision
+                tau_step / self.noise2.param["TAU"]
+                - int(round(tau_step / self.noise2.param["TAU"]))
+                < precision
         )
 
         s_bool1 = int(round(tau / self.noise1.param["TAU"])) >= 1
@@ -533,7 +565,7 @@ class HopsTrajectory:
         self.phi = phi
 
         # Perform integration step with extended basis
-        var_list = self.integration_var(self.phi,self.z_mem,self.t, self.noise1, self.noise2, tau, self.storage)
+        var_list = self.integration_var(self.phi, self.z_mem, self.t, self.noise1, self.noise2, tau, self.storage)
         phi, z_mem = self.step(self.dsystem_dt, **var_list)
         phi = self.normalize(phi)
 
@@ -558,8 +590,8 @@ class HopsTrajectory:
                     Noise terms (compressed) for the next timestep [units: cm^-1].
         """
         t = self.t
-        z_rnd1 = self.noise1.get_noise([t])[:,0]
-        z_rnd2 = self.noise2.get_noise([t])[:,0]
+        z_rnd1 = self.noise1.get_noise([t])[:, 0]
+        z_rnd2 = self.noise2.get_noise([t])[:, 0]
         return [z_rnd1, z_rnd2, z_mem]
 
     def construct_noise_correlation_function(self, n_l2, n_traj):
@@ -572,7 +604,7 @@ class HopsTrajectory:
         ----------
         1. n_l2 : int
                   Index of the site that the noise is being generated on.
-                  
+
         2. n_traj : int
                     Number of trajectories summed over.
 
@@ -611,7 +643,12 @@ class HopsTrajectory:
         propagate will make the first self.early_steps early time integrator
         propagation steps.
         """
+        if self.early_integrator != "INCH_WORM":
+            raise UnsupportedRequest("Early type integrators of type other than "
+                                     "INCH_WORM", "reset_early_time_integrator",
+                                     override=True)
         self._early_step_counter = 0
+
 
     @property
     def early_integrator(self):
