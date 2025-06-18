@@ -6,7 +6,7 @@ MesoHOPS is a Python library for running simulations with the Hierarchy of Pure 
 Get started with [the MesoHOPS website](https://captainexasperated.github.io/Readthedocs-Tutorial/)! 
 
 # Dependencies and Installation
-MesoHOPS is supported by [Python](https://www.python.org/) 3.9-3.11 and relies on the [NumPy](https://numpy.org/), [SciPy](https://scipy.org/), and [Numba](https://numba.readthedocs.io/en/stable/#) packages. Additionally, our tests use the [pytest](https://docs.pytest.org/en/7.4.x/) and [pytest-level](https://pypi.org/project/pytest-level/) packages. All of these packages are automatically installed by the included pyproject.toml file.
+MesoHOPS is supported by [Python](https://www.python.org/) 3.12 and relies on the [NumPy](https://numpy.org/), [SciPy](https://scipy.org/), and [Numba](https://numba.readthedocs.io/en/stable/#) packages. Additionally, our tests use the [pytest](https://docs.pytest.org/en/7.4.x/) and [pytest-level](https://pypi.org/project/pytest-level/) packages. All of these packages are automatically installed by the included pyproject.toml file.
 
 To download and install MesoHOPS, enter the following commands:
 ```
