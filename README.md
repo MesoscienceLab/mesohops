@@ -1,4 +1,3 @@
-
 # What is MesoHOPS?
 
 MesoHOPS is a Python library for running simulations with the Hierarchy of Pure States (HOPS), a formally exact trajectory-based approach for solving the time-evolution of open quantum systems coupled to non-Markovian thermal environments. The main feature of MesoHOPS is the implementation of adaptive HOPS (adHOPS), an extension of the HOPS formalism that leverages the dynamic localization of excitations to construct an adaptive basis. The moving adHOPS basis significantly reduces the computational cost of simulations and exhibits a size-invariant scaling in large systems.
@@ -75,11 +74,14 @@ When using the linear absorption HOPS equation of motion, please also cite:
 *This paper introduces a new HOPS equation of motion for simulating linear absorption spectra using a pure-state decomposition of the dipole correlation function.*
 
 When using the Dyadic adaptive HOPS (DadHOPS) equations, please also cite:
-- T. Gera, A. Hartzell, L. Chen, A. Eisfeld, and D. I. G. B. Raccah, "Formally exact fluorescence spectroscopy simulations for mesoscale molecular aggregates with $N^0$ scaling," [preprint (2025)](https://arxiv.org/abs/2503.00584).
+- T. Gera, A. Hartzell, L. Chen, A. Eisfeld, and D. I. G. B. Raccah, "Formally exact fluorescence spectroscopy simulations for mesoscale molecular aggregates with $N^0$ scaling," [preprint (2025)](https://arxiv.org/abs/2503.00584), accepted by J. Chem. Phys.
 *This paper extends the dyadic adaptive Hierarchy of Pure States (DadHOPS) implementation to simulate fluorescence spectra in large aggregates and introduces excitation operator decomposition, a generalization of the previously introduced initial state decomposition. Proof-of-concept calculations show that DadHOPS exhibits size-invariant scaling in large molecular aggregates.*  
 - T. Gera, L. Chen, A. Eisfeld, J. R. Reimers, E. J. Taffet, and D. I. G. B. Raccah, "Simulating optical linear absorption for mesoscale molecular aggregates: An adaptive hierarchy of pure states approach," [J. Chem. Phys. (2023)](https://doi.org/10.1063/5.0141882).
 *This paper introduces a dyadic adaptive Hierarchy of Pure States (DadHOPS) implementation for simulating linear absorption spectra in large aggregates, as well as an initial state decomposition that allows for convenient scaling. Proof-of-concept calculations show that DadHOPS exhibits size-invariant scaling in large molecular aggregates.*
 
+When using adaptivity on systems with Peierls-type vibrations or otherwise non-diagonal system-bath coupling operators, please also cite:
+- J. K. Lynd and D. I. G. B. Raccah, "Characterizing the Role of Peierls Vibrations in Singlet Fission with the Adaptive Hierarchy of Pure States," [preprint (2025)](https://arxiv.org/abs/2505.02292).
+*This paper extends the adaptive algorithm to account for arbitrary system-bath coupling operators, accounting for vibrational modulation of both vertical excitation energies and electronic couplings. Proof-of-concept calculations show size-invariant scaling in the presence of simultaneous Holstein and Peierls-type vibrations.*  
 
 To better understand the NMQSD and HOPS formalism, please review:
 - L. Diósi and W. T. Strunz, "The non-Markovian stochastic Schrödinger equation for open systems," [Phys. Lett. A (1997)](https://doi.org/10.1016/S0375-9601(97)00717-2).
