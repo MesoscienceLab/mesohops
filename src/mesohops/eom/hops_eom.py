@@ -14,8 +14,8 @@ from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Equations of Motion"
-__author__ = "D. I. G. Bennett, B. Citty"
-__version__ = "1.2"
+__author__ = "D. I. G. B. Raccah, B. Citty"
+__version__ = "1.6"
 
 EOM_DICT_DEFAULT = {
     "TIME_DEPENDENCE": False,
@@ -30,11 +30,13 @@ EOM_DICT_DEFAULT = {
 
 EOM_DICT_TYPES = {
     "TIME_DEPENDENCE": [type(False)],
-    "EQUATION_OF_MOTION": [type(str())],
+    "EQUATION_OF_MOTION": [str],
     "ADAPTIVE": [type(False)],
-    "DELTA_A": [type(1.0)],
-    "DELTA_S": [type(1.0)],
-    "UPDATE_STEP": [type(1.0), type(False)],
+    "ADAPTIVE_H": [type(False)],
+    "ADAPTIVE_S": [type(False)],
+    "DELTA_A": [type(1.0), type(1)],
+    "DELTA_S": [type(1.0), type(1)],
+    "UPDATE_STEP": [type(1.0), type(False), None, type(1)],
     "F_DISCARD": [type(0.0)]
 }
 
@@ -412,7 +414,10 @@ class HopsEOM(Dict_wDefaults):
                     Φ_view_red = Φ_view_F[list_L2_masks[rel_index][1],:]
                     list_L2_csr_red = list_L2_csr[rel_index][list_L2_masks[rel_index][2]]
                     
-                    Φ_deriv_view_F[list_L2_masks[rel_index][0],:] += (z_hat1_tmp[j] - 2.0j * np.real(z_tmp2[j])) * (list_L2_csr_red @ Φ_view_red)
+                    Φ_deriv_view_F[list_L2_masks[rel_index][0],:] += (
+                            (z_hat1_tmp[j] - 1.0j * z_tmp2[j]) *
+                            (list_L2_csr_red @ Φ_view_red)
+                    )
                     
                     Φ_view_red = Φ_view_C[list_hier_mask_Zp1[rel_index][1],:]
                     Z2_kp1_red = Z2_kp1[rel_index][list_hier_mask_Zp1[rel_index][2]]
@@ -527,7 +532,7 @@ class HopsEOM(Dict_wDefaults):
                 Φ_deriv_view = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
                 Φ_view = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
                 for j in range(len(list_L2_csr)):
-                    Φ_deriv_view += (z_hat1_tmp[j] - 2.0j * np.real(z_rnd2_tmp[j])) * (
+                    Φ_deriv_view += (z_hat1_tmp[j] - 1.0j * z_rnd2_tmp[j]) * (
                                 list_L2_csr[j] @ Φ_view)
 
                 # Calculates dz/dt

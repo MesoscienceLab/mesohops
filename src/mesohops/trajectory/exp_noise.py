@@ -3,7 +3,7 @@ from mesohops.util.physical_constants import hbar
 
 
 def bcf_exp(t_axis, g, w):
-    """
+    r"""
     This is the form of the correlation function:
     alpha(t) = \displastyle\ g exp(-w*t)
 

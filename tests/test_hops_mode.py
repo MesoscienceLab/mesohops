@@ -3,7 +3,7 @@ import scipy as sp
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxiliaryVector
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 
 
 def test_mode_setter():
@@ -15,7 +15,7 @@ def test_mode_setter():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -112,7 +112,7 @@ def test_empty_modelist():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -169,7 +169,7 @@ def test_list_off_diag_active_mask():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     gw_sysbath = []
     def get_holstein(n):

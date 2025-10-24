@@ -88,4 +88,7 @@ def test_noiseModel():
     assert np.allclose(testnoise1, np.zeros_like(testnoise1))
     assert np.size(noiseModel.get_noise(noiseModel.param["T_AXIS"])) == np.size(
         noiseModel.param["T_AXIS"])*noiseModel.param["N_L2"]
+    # The stored noise should be an integer 0 - it is never actually accessed,
+    # so a simple-to-understand placeholder value is used instead.
+    assert noiseModel._noise == 0
 

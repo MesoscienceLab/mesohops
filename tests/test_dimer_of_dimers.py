@@ -1,11 +1,12 @@
 import os
+
 import numpy as np
 import scipy as sp
-from scipy import sparse
+from mesohops.eom.eom_hops_ksuper import _permute_aux_by_matrix
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.eom.eom_hops_ksuper import _permute_aux_by_matrix
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
+from scipy import sparse
 
 __title__ = "Test of eom_integrator_rk_nonlin_norm"
 __author__ = "D. I. G. Bennett"
@@ -28,7 +29,7 @@ n_lop = 4
 e_lambda = 20.0
 gamma = 50.0
 temp = 140.0
-(g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+(g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
 loperator = np.zeros([4, 4, 4], dtype=np.float64)
 gw_sysbath = []
@@ -206,13 +207,7 @@ def test_integration_variables():
 
     flag_pass = True
     for key in var_list_desk.keys():
-        try:
-            np.testing.assert_allclose(var_list_desk[key], var_list_lap[key])
-            print(key)
-        except:
-            print(key, " <-- ERROR!")
-            flag_pass = False
-    assert flag_pass == True
+        np.testing.assert_allclose(var_list_desk[key], var_list_lap[key], err_msg=f"{key} <-- ERROR!")
 
 
 def test_alpha():

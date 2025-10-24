@@ -1,19 +1,22 @@
-import sys
 import os
-import numpy as np
-import scipy as sp
 import shutil
+import sys
 import tempfile
+import time as timer
 import warnings
 from io import StringIO
+
+import numpy as np
+import pytest
+import scipy as sp
 from scipy import sparse
-import time as timer
+
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxVec
 from mesohops.noise.hops_noise import HopsNoise
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
 from mesohops.storage.hops_storage import HopsStorage
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 from mesohops.util.exceptions import UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
@@ -39,6 +42,18 @@ sys_param = {
     "L_NOISE1": [loperator[0], loperator[0], loperator[1], loperator[1]],
     "ALPHA_NOISE1": bcf_exp,
     "PARAM_NOISE1": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+}
+
+sys_param_noise2 = {
+    "HAMILTONIAN": np.array([[0, 10.0], [10.0, 0]], dtype=np.float64),
+    "GW_SYSBATH": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+    "L_HIER": [loperator[0], loperator[0], loperator[1], loperator[1]],
+    "L_NOISE1": [loperator[0], loperator[0], loperator[1], loperator[1]],
+    "L_NOISE2": [loperator[0], loperator[0], loperator[1], loperator[1]],
+    "ALPHA_NOISE1": bcf_exp,
+    "ALPHA_NOISE2": bcf_exp,
+    "PARAM_NOISE1": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+    "PARAM_NOISE2": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]]
 }
 
 hier_param = {"MAXHIER": 4}
@@ -155,7 +170,7 @@ def test_initialize():
     partial_dict = {key: val for (key, val) in integrator_param.items()}
     partial_dict['EARLY_INTEGRATOR_STEPS'] = 3
     assert hops_partial.integration_param == partial_dict
-    try:
+    with pytest.raises(UnsupportedRequest) as excinfo:
         hops_broken = HOPS(
             sys_param,
             noise_param=noise_param,
@@ -163,9 +178,8 @@ def test_initialize():
             eom_param=eom_param,
             integration_param=integrator_param_broken,
         )
-    except UnsupportedRequest as excinfo:
-        assert ("The current code does not support PANCAKE_MIXER in the integration"
-                in str(excinfo))
+    assert ("The current code does not support PANCAKE_MIXER in the integration"
+            in str(excinfo.value))
 
     # Checks to make sure initialization is timed correctly by measuring control timing
     # and comparing to the time given by starting a timer, waiting one second, and
@@ -399,7 +413,7 @@ def test_inchworm_aux():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([2, 2, 2], dtype=np.float64)
     gw_sysbath = []
@@ -457,7 +471,7 @@ def test_inchworm_aux():
 
     # First inchworm
     # ----------------------------------------------------------------------------------
-    state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
+    state_update, aux_update, phi, z_mem = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
     aux_new = aux_update
@@ -481,7 +495,7 @@ def test_inchworm_aux():
 
     # Second inchworm
     # ----------------------------------------------------------------------------------
-    state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
+    state_update, aux_update, phi, z_mem = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
     aux_new = aux_update
@@ -528,7 +542,7 @@ def test_inchworm_aux():
 
     # Third inchworm
     # ----------------------------------------------------------------------------------
-    state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
+    state_update, aux_update, phi, z_mem = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
     aux_new = aux_update
@@ -618,7 +632,7 @@ def test_inchworm_state():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -694,7 +708,7 @@ def test_inchworm_state():
 
     # First inchworm step
     # ----------------------------------------------------------------------------------
-    state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
+    state_update, aux_update, phi, z_mem = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
     state_new = state_update
@@ -703,7 +717,7 @@ def test_inchworm_state():
 
     # Second inchworm step
     # ----------------------------------------------------------------------------------
-    state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
+    state_update, aux_update, phi, z_mem = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
     state_new = state_update
@@ -712,13 +726,188 @@ def test_inchworm_state():
 
     # Third inchworm step
     # ----------------------------------------------------------------------------------
-    state_update, aux_update, phi = hops_inchworm.inchworm_integrate(
+    state_update, aux_update, phi, z_mem = hops_inchworm.inchworm_integrate(
         state_update, aux_update, 2.0
     )
     state_new = state_update
     known = [0, 1, 2, 3, 4, 5, 6]
     assert np.array_equal(state_new, known)
 
+
+def test_inchworm_z_mem():
+    """
+    test that noise memory term is being consistently updated during inchworming.
+    """
+    # System parameters and dictionaries
+    # ----------------------------------
+    nsite = 4
+    e_lambda = 500.0
+    gamma = 50.0
+    temp = 300
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    loperator = np.zeros([4, 4, 4], dtype=np.float64)
+    gw_sysbath = []
+    lop_list = []
+    for i in range(nsite):
+        loperator[i, i, i] = 1.0
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(sp.sparse.coo_matrix(loperator[i]))
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(loperator[i])
+
+    hs = np.zeros([nsite, nsite], dtype=np.complex128)
+    hs += np.diag([1000] * (nsite - 1), 1) + np.diag([1000] * (nsite - 1), -1)
+
+    hier_param = {"MAXHIER": 1}
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    # To test the change in z_mem during inchworming, we can use the inchworm cap in
+    # our parameter dictionaries to limit inchworming and compare what z_mem arrays are
+    # being produced. The values of z_mem should update with inchworming for the first 2
+    # iterations before stabilizing due to the limits of RK4 integration.
+    # ----------------------------------------------------------------------------------
+    # No inchworming
+    integrator_param_no_inchworm = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 0,
+        'STATIC_BASIS': None
+    }
+
+    # 1 inchworm iteration
+    integrator_param_inchworm_1 = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 1,
+        'INCHWORM_CAP': 1,
+        'STATIC_BASIS': None
+    }
+
+    # 2 inchworm iterations
+    integrator_param_inchworm_2 = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 1,
+        'INCHWORM_CAP': 2,
+        'STATIC_BASIS': None
+    }
+
+    # 3 inchworm iterations
+    integrator_param_inchworm_3 = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 1,
+        'INCHWORM_CAP': 3,
+        'STATIC_BASIS': None
+    }
+
+    # Initialize and propagate all trajectories by 1 step
+    # ---------------------------------------------------
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_no_inchworm = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_no_inchworm,
+    )
+    hops_no_inchworm.make_adaptive(1e-15, 1e-15)
+    hops_no_inchworm.initialize(psi_0)
+    hops_no_inchworm.propagate(2.0, 2.0)  # Performing a single time-step
+
+    hops_inchworm_1 = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_inchworm_1,
+    )
+    hops_inchworm_1.make_adaptive(1e-15, 1e-15)
+    hops_inchworm_1.initialize(psi_0)
+    hops_inchworm_1.propagate(2.0, 2.0)  # Performing a single time-step
+
+    hops_inchworm_2 = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_inchworm_2,
+    )
+    hops_inchworm_2.make_adaptive(1e-15, 1e-15)
+    hops_inchworm_2.initialize(psi_0)
+    hops_inchworm_2.propagate(2.0, 2.0)  # Performing a single time-step
+
+    hops_inchworm_3 = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_inchworm_3,
+    )
+    hops_inchworm_3.make_adaptive(1e-15, 1e-15)
+    hops_inchworm_3.initialize(psi_0)
+    hops_inchworm_3.propagate(2.0, 2.0)  # Performing a single time-step
+
+    # When propagating the HOPS wavefunction using the 4th order Runge-Kutta (RK4)
+    # integrator, the total derivative is calculated over 4 iterations. In each
+    # iteration, fluxes to adjacent elements in the HOPS wavefunction are permitted.
+    # Therefore, any modes of a distance less than 4 should be affected by inchworm
+    # integration. This is represented diagrammatically below, with included basis
+    # elements listed as Ø, elements outside of the adaptive basis listed as O, and the
+    # distances determined by counting the linking | or — symbols. As shown below, all
+    # physical wavefunction elements will be included by the 2nd inchworm step.
+    # ----------------------------------------------------------------------------------
+    # O   O   O   O  first auxiliaries for each mode (attached to its respective site)
+    # |   |   |   |
+    # O — O — O — O  physical wavefunction
+    # 1-->2-->3-->4
+    #
+    # 0 timesteps
+    # O   O   O   O
+    # |   |   |   |
+    # Ø — O — O — O
+    #
+    # 1 timestep, 0 inchworm iterations
+    # Ø   O   O   O
+    # |   |   |   |
+    # Ø — Ø — O — O
+    #
+    # 1 timestep, 1 inchworm iteration
+    # Ø   Ø   O   O
+    # |   |   |   |
+    # Ø — Ø — Ø — O
+    #
+    # 1 timestep, 2 inchworm iterations
+    # Ø   Ø   Ø   O
+    # |   |   |   |
+    # Ø — Ø — Ø — Ø
+    # ----------------------------------------------------------------------------------
+
+    # Testing that z_mem changes on all inchworm iterations that change the physical
+    # wavefunction basis. There should be at least one significant difference in z_mem
+    # for each inchworm iteration that adds RK4-accessible physical wavefunction
+    # elements, but once all physical wavefunction elements are included, inchworming
+    # should make no further changes to z_mem.
+    # ---------------------------------------------------------------------------------
+    # First and second inchworm iterations should change z_mem
+    assert abs(hops_no_inchworm.z_mem - hops_inchworm_1.z_mem).max() > precision
+    assert abs(hops_inchworm_1.z_mem - hops_inchworm_2.z_mem).max() > precision
+    # Final inchworm iteration should not change z_mem
+    assert abs(hops_inchworm_2.z_mem - hops_inchworm_3.z_mem).max() <= precision
 
 
 def test_prepare_zstep():
@@ -802,12 +991,10 @@ def test_early_time_integrator():
     )
     hops.make_adaptive(0.001, 0.001)
     hops.initialize(psi_0)
-    try:
+    with pytest.raises(UnsupportedRequest) as excinfo:
         hops.propagate(2.0, 2.0)
-    except UnsupportedRequest as excinfo:
-        if "does not support CHOOSE_BASIS_RANDOMLY in the early time integrator " \
-           "clause" not in str(excinfo):
-            pytest.fail()
+    assert "does not support CHOOSE_BASIS_RANDOMLY in the early time integrator " \
+           "clause" in str(excinfo.value)
 
 def test_static_state_inchworm_hierarchy():
     """
@@ -1456,3 +1643,247 @@ def test_save_slices_mixed_data_types():
         # Clean up
         shutil.rmtree(temp_dir)
 
+def test_initialize_2_noise(capsys):
+    """
+    Tests that riskily initializing the second noise prints the correct warnings.
+    """
+    noise2_param_seed_clash = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_seed_clash,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert any("Using the same seed for both noise 1 and" in str(warning.message)
+                   for warning in w)
+
+    noise2_param_correct = {
+        "SEED": 1010101,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_correct,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert not any("Using the same seed for both noise 1 and" in str(
+            warning.message) for warning in w)
+
+    noise2_param_none = {
+        "SEED": None,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_none,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert not any("Using the same seed for both noise 1 and" in str(
+            warning.message) for warning in w)
+        # Tests that when the time axes are identical, we don't warn for mismatched
+        # time axes.
+        assert not any("Time axes of noise 1 and noise 2 are" in str(
+            warning.message) for warning in w)
+
+    noise_param_none = {
+        "SEED": None,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param_none,
+            noise2_param=noise2_param_none,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert not any("Using the same seed for both noise 1 and" in str(
+            warning.message) for warning in w)
+
+
+    noise2_param_mismatch_tlen = {
+        "SEED": None,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 20.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_mismatch_tlen,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert any("Time axes of noise 1 and noise 2 are" in str(
+            warning.message) for warning in w)
+
+    # Also tests explicitly false interpolation
+    noise2_param_mismatch_tau = {
+        "SEED": None,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 0.5,  # Units: fs
+        "INTERPOLATE": False
+    }
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_mismatch_tau,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert any("Time axes of noise 1 and noise 2 are" in str(
+            warning.message) for warning in w)
+
+    noise2_param_interp = {
+        "SEED": None,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 20.0,  # Units: fs
+        "TAU": 0.5,  # Units: fs
+        "INTERPOLATE": True
+    }
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_interp,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert not any("Time axes of noise 1 and noise 2 are" in str(
+            warning.message) for warning in w)
+
+    # Check that HopsTrajectory and subsidiary helper functions manage FLAG_REAL
+    # correctly. These are technically integrated tests because the result should be
+    # agnostic to the handling: noise1 should force FLAG_REAL to be False and noise2
+    # should assume FLAG_REAL is True, but allow it to be manually set False.
+    noise_param_real = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "FLAG_REAL": True,
+    }
+
+    noise2_param_real = {
+        "SEED": 1010101,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "FLAG_REAL": True,
+    }
+
+    noise_param_complex = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "FLAG_REAL": False,
+    }
+
+    noise2_param_complex = {
+        "SEED": 1010101,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 10.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+        "FLAG_REAL": False,
+    }
+
+    # If noise 1 is flagged real, then a warning will be raised. Similarly,
+    # if FLAG_REAL for noise 2 is not specified, a warning will be raised to let the
+    # user know that it has been defaulted True.
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param_real,
+            noise2_param=noise2_param_real,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert any("Noise 1 should never be flagged real" in str(
+            warning.message) for warning in w)
+        assert not any("Noise 2 FLAG_REAL not specified: setting to True." in str(
+            warning.message) for warning in w)
+
+    with warnings.catch_warnings(record=True) as w:
+        hops = HOPS(
+            sys_param_noise2,
+            noise_param=noise_param,
+            noise2_param=noise2_param_correct,
+            hierarchy_param=hier_param,
+            eom_param=eom_param,
+            integration_param=integrator_param_empty,
+        )
+        assert not any("Noise 1 should never be flagged real" in str(
+            warning.message) for warning in w)
+        assert any("Noise 2 FLAG_REAL not specified: setting to True." in str(
+            warning.message) for warning in w)
+
+
+    # HopsTrajectory should force noise1 to not be FLAG_REAL
+    hops = HOPS(
+        sys_param_noise2,
+        noise_param=noise_param_real,
+        noise2_param=noise2_param_real,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_empty,
+    )
+    assert not hops.noise1.param["FLAG_REAL"]
+    assert hops.noise2.param["FLAG_REAL"]
+
+    # HopsTrajectory should default noise1 to not be FLAG_REAL and noise2 to be
+    # FLAG_REAL
+    hops = HOPS(
+        sys_param_noise2,
+        noise_param=noise_param,
+        noise2_param=noise2_param_correct,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_empty,
+    )
+    assert not hops.noise1.param["FLAG_REAL"]
+    assert hops.noise2.param["FLAG_REAL"]
+
+    # Explicitly setting FLAG_REAL to False should always work for both noise1 and
+    # noise2.
+    hops = HOPS(
+        sys_param_noise2,
+        noise_param=noise_param_complex,
+        noise2_param=noise2_param_complex,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_empty,
+    )
+    assert not hops.noise1.param["FLAG_REAL"]
+    assert not hops.noise2.param["FLAG_REAL"]

@@ -4,7 +4,7 @@ import sys
 import numpy as np
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.trajectory.exp_noise import bcf_exp
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 from mesohops.timing.helper_functions.hamiltonian_generation import (
     generate_2_particle_hamiltonian)
 from mesohops.timing.helper_functions.loperator_generation import (
@@ -39,7 +39,7 @@ H2_sys_hamiltonian = generate_2_particle_hamiltonian(nsite, V)
 list_loperators = generate_holstein_2_particle_loperators(nsite)
 
 # Gets the list of bath correlation function modes for each independent environment
-list_dl_modes = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+list_dl_modes = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
 def prepare_gw_sysbath(list_lop, list_modes):
     """

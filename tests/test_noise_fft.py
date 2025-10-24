@@ -1,9 +1,11 @@
 import os
-import numpy as np
-from mesohops.trajectory.exp_noise import bcf_exp
-from mesohops.noise.hops_noise import HopsNoise
-from mesohops.util.exceptions import UnsupportedRequest
 
+import numpy as np
+import pytest
+
+from mesohops.noise.hops_noise import HopsNoise
+from mesohops.trajectory.exp_noise import bcf_exp
+from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Test of FFT_FILTER noise model"
 __author__ = "J. K. Lynd"
@@ -357,24 +359,19 @@ def test_prepare_rand():
 
     noise_param["SEED"] = np.array([np.arange(17), np.arange(17)])
     test_noise = HopsNoise(noise_param, noise_corr)
-    try:
-        test_rand_improper_list_seed = test_noise._prepare_rand()
-    except UnsupportedRequest as excinfo:
-        assert "Noise.param[SEED] is an array of the wrong length" in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match="Noise.param\[SEED\] is an array of "
+                                                 "the wrong length"):
+        test_noise._prepare_rand()
 
     noise_param["SEED"] = "string"
     test_noise = HopsNoise(noise_param, noise_corr)
-    try:
-        test_rand_string_seed = test_noise._prepare_rand()
-    except UnsupportedRequest as excinfo:
-        assert "is not the address of a valid file" in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match="is not the address of a valid file"):
+        test_noise._prepare_rand()
 
-    try:
+    with pytest.raises(TypeError, match='is of type'):
         noise_param['SEED'] = HopsNoise({}, {"N_L2": 1})
         test_noise = HopsNoise(noise_param, noise_corr)
-        test_rand_HopsNoise = test_noise._prepare_rand()
-    except TypeError as excinfo:
-        assert 'is of type' in str(excinfo)
+        test_noise._prepare_rand()
 
 def test_construct_indexing():
     """

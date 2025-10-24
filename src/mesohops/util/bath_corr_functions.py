@@ -12,41 +12,6 @@ __version__ = "1.2"
 # dictionary.
 
 
-def bcf_convert_sdl_to_exp(lambda_sdl, gamma_sdl, omega_sdl, temp):
-    """
-    Converts a shifted drude-lorentz spectral density parameters to the exponential
-    equivalent.
-
-    NOTE: THIS WILL NEED TO BE REPLACED WITH A MORE ROBUST FITTING
-          ROUTINE SIMILAR TO WHAT EISFELD HAS DONE PREVIOUSLY.
-
-    Parameters
-    ----------
-    1. lambda_sdl : float
-                    Reorganization energy [units: cm^-1].
-
-    2. gamma_sdl : float
-                   Reorganization time scale [units: cm^-1].
-
-    3. omega_sdl : float
-                   Vibrational frequency [units: cm^-1].
-
-    4. temp : float
-              Temperature [units: K].
-
-    Returns
-    -------
-    1. g_exp : complex
-               Exponential prefactor [units: cm^-2].
-
-    2. w_exp : complex
-               Exponent [units: cm^-1].
-    """
-    beta = 1 / (kB * temp)
-    g_exp = 2 * lambda_sdl / beta - 1j * lambda_sdl * gamma_sdl
-    w_exp = gamma_sdl - 1j * omega_sdl
-
-    return (g_exp, w_exp)
 
 def bcf_convert_dl_ud_to_exp(lambda_dl, gamma_dl, omega_dl, temp):
     """
@@ -102,7 +67,7 @@ def bcf_convert_dl_ud_to_exp(lambda_dl, gamma_dl, omega_dl, temp):
     return [g_1, -1j*w_1, g_2, -1j*w_2]
 
 
-def bcf_convert_dl_to_exp_with_Matsubara(lambda_dl, gamma_dl, temp, k_matsubara):
+def bcf_convert_dl_to_exp(lambda_dl, gamma_dl, temp, k_matsubara=0):
     """
     Gives the high temperature mode from the Drude-Lorentz spectral density with a
     user-selected number of Matsubara frequencies and the corresponding corrections to

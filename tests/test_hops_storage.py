@@ -1,10 +1,13 @@
 import numpy as np
+import pytest
+
 import mesohops.storage.storage_functions as sf
 from mesohops.basis.hops_aux import AuxiliaryVector
-from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.storage.hops_storage import HopsStorage
+from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory
 from mesohops.util.exceptions import UnsupportedRequest
+from unittest.mock import patch
 
 
 # New Hops_Storage tests
@@ -35,10 +38,9 @@ def test_t_axis_save():
 
     assert broken_HS.dic_save["t_axis"] == fake_save_func
     assert not "t_axis" in false_AHS.dic_save
-    try:
-        empty_AHS = HopsStorage(True, {"t_axis": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"t_axis": None})
 
 
 def test_psi_traj_save():
@@ -61,10 +63,9 @@ def test_psi_traj_save():
 
     assert broken_HS.dic_save["psi_traj"] == fake_save_func
     assert not "psi_traj" in false_AHS.dic_save
-    try:
-        empty_AHS = HopsStorage(True, {"psi_traj": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"psi_traj": None})
 
 
 def test_phi_traj_save():
@@ -85,10 +86,9 @@ def test_phi_traj_save():
 
     assert broken_HS.dic_save["phi_traj"] == fake_save_func
     assert not "phi_traj" in false_AHS.dic_save
-    try:
-        empty_AHS = HopsStorage(True, {"phi_traj": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"phi_traj": None})
 
 
 def test_aux_new_save():
@@ -110,10 +110,9 @@ def test_aux_new_save():
 
     assert broken_HS.dic_save["aux_list"] == fake_save_func
     assert not "aux_list" in false_AHS.dic_save
-    try:
-        empty_AHS = HopsStorage(True, {"aux_list": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"aux_list": None})
 
 
 def test_state_list_save():
@@ -134,10 +133,9 @@ def test_state_list_save():
 
     assert broken_HS.dic_save["state_list"] == fake_save_func
     assert not "state_list" in false_AHS.dic_save.keys()
-    try:
-        empty_AHS = HopsStorage(True, {"state_list": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"state_list": None})
 
 
 def test_list_nhier_save():
@@ -158,10 +156,9 @@ def test_list_nhier_save():
 
     assert broken_HS.dic_save["list_nhier"] == fake_save_func
     assert not "list_nhier" in false_AHS.dic_save.keys()
-    try:
-        empty_AHS = HopsStorage(True, {"list_nhier": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"list_nhier": None})
 
 
 def test_list_nstate_save():
@@ -183,10 +180,9 @@ def test_list_nstate_save():
 
     assert broken_HS.dic_save["list_nstate"] == fake_save_func
     assert not "list_nstate" in false_AHS.dic_save.keys()
-    try:
-        empty_AHS = HopsStorage(True, {"list_nstate": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"list_nstate": None})
 
 def test_list_aux_norm_save():
     """
@@ -207,10 +203,9 @@ def test_list_aux_norm_save():
 
     assert broken_HS.dic_save["list_aux_norm"] == fake_save_func
     assert not "list_aux_norm" in false_AHS.dic_save.keys()
-    try:
-        empty_AHS = HopsStorage(True, {"list_aux_norm": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"list_aux_norm": None})
 
     test_phi = [1,2,3,4,5,6,7,8]
     fake_aux_list = ['k0', 'k1', 'k2', 'k3']
@@ -237,10 +232,9 @@ def test_z_mem_save():
 
     assert broken_HS.dic_save["z_mem"] == fake_save_func
     assert not "z_mem" in false_AHS.dic_save.keys()
-    try:
-        empty_AHS = HopsStorage(True, {"z_mem": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"z_mem": None})
 
     fake_zmem_list = np.array([15+1j, 1234j-2, 234j-100, 137.23-0.2j])
     test_phi = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -263,10 +257,9 @@ def test_arbitrary_saving_function():
     assert HS.dic_save["property"] == dummy_saving_function
     assert AHS.dic_save["property"] == dummy_saving_function
     assert not "property" in false_AHS.dic_save
-    try:
-        empty_AHS = HopsStorage(True, {"property": None})
-    except UnsupportedRequest as excinfo:
-        assert 'The current code does not support this value' in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match='The current code does not support '
+                                                 'this value'):
+        HopsStorage(True, {"property": None})
 
 
 def test_store_step():
@@ -395,3 +388,137 @@ def test_hierarchy_storage_functions():
     assert storage["list_nhier"][-1] == 4
     for i in range(4):
         assert np.allclose(list_aux[i].array_aux_vec, storage["aux_list"][-1][i])
+
+def test_check_storage_time():
+    """
+    Tests that the helper function that checks whether the data associated with a
+    given time point ought to be saved is working correctly.
+    """
+    # Check that every time point is stored if STORAGE_TIME key not included.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True}
+    )
+    assert hops_traj.storage.check_storage_time(-111)
+
+    # Check that every time point is stored if STORAGE_TIME is True.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True, "STORAGE_TIME": True}
+    )
+    assert hops_traj.storage.check_storage_time(-111)
+
+    # Check that every time point is dropped if STORAGE_TIME is False.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True, "STORAGE_TIME": False}
+    )
+    assert not hops_traj.storage.check_storage_time(-111)
+
+    # Check that every time point evenly divisible by a integer STORAGE_TIME is saved.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True, "STORAGE_TIME": 10}
+    )
+    assert hops_traj.storage.check_storage_time(10)
+    assert hops_traj.storage.check_storage_time(20)
+    assert not hops_traj.storage.check_storage_time(5)
+
+    # Check that every time point evenly divisible by a float STORAGE_TIME is saved.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True, "STORAGE_TIME": 10.0}
+    )
+    assert hops_traj.storage.check_storage_time(10)
+    assert hops_traj.storage.check_storage_time(20)
+    assert not hops_traj.storage.check_storage_time(5)
+
+    # Check that every time point in an iterable STORAGE_TIME is saved.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True, "STORAGE_TIME": [5,10,25]}
+    )
+    assert hops_traj.storage.check_storage_time(10)
+    assert not hops_traj.storage.check_storage_time(20)
+    assert hops_traj.storage.check_storage_time(5)
+
+    # Integrated test that tests propagation has no indexing mistakes and always
+    # saves the 0th time point. Here, we should only save the 10 fs point, because 5
+    # and 25 fs will never occur with a dt of 2.0 fs.
+    hops_traj.initialize(psi_0)
+    hops_traj.propagate(30.0, 2.0)
+    assert len(hops_traj.storage['list_nhier']) == 2
+
+    # Check that an error is raised when STORAGE_TIME is an unacceptable type.
+    hops_traj = HopsTrajectory(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+        storage_param={"list_nhier": True, "aux_list": True,
+                       "STORAGE_TIME": 'a'}
+    )
+    with pytest.raises(UnsupportedRequest, match='is not allowed in the STORAGE_TIME '
+                                                 'key of storage'):
+        hops_traj.storage.check_storage_time(10)
+
+
+@patch('mesohops.storage.hops_storage.get_git_commit_hash')
+def test_git_commit_hash_in_metadata(mock_get_hash):
+    """
+    Test that the git commit hash is correctly stored in the metadata when a
+    HopsStorage object is created.
+    """
+    # Mock the get_git_commit_hash function to return a test value
+    mock_get_hash.return_value = "No walruses were harmed in the making of this test"
+
+    # Create a HopsStorage object
+    storage = HopsStorage(adaptive=False, storage_dic={})
+
+    # Check that the git commit hash is in the metadata
+    assert "GIT_COMMIT_HASH" in storage.metadata
+    assert storage.metadata["GIT_COMMIT_HASH"] == ("No walruses were harmed in the "
+                                                   "making of this test")
+
+
+@patch('mesohops.storage.hops_storage.get_git_commit_hash')
+def test_git_commit_hash_error_in_metadata(mock_get_hash):
+    """
+    Test that git error message is correctly stored in the metadata when git commit
+    hash cannot be retrieved.
+    """
+    # Mock the get_git_commit_hash function to return an error message
+    mock_get_hash.return_value = "A gigantic walrus ate the git repository here too"
+
+    # Create a HopsStorage object
+    storage = HopsStorage(adaptive=False, storage_dic={})
+
+    # Check that the git commit hash is in the metadata and is correct
+    assert "GIT_COMMIT_HASH" in storage.metadata
+    assert storage.metadata["GIT_COMMIT_HASH"] == ("A gigantic walrus ate the git "
+                                                   "repository here too")

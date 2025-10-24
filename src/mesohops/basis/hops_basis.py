@@ -935,7 +935,7 @@ class HopsBasis:
         if self.off_diagonal_couplings:
             # Get the noise associated with system-bath projection operators that
             # couple states in the current basis to a different state.
-            noise_t = (np.conj(z_step[0]) - 2j * np.real(z_step[1]))[
+            noise_t = (np.conj(z_step[0]) - 1j * z_step[1])[
                 self.mode.list_rel_ind_off_diag_L2]
             # Get the noise memory drift associated with system-bath projection
             # operators that couple states in the current basis to a different state.

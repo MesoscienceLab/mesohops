@@ -46,3 +46,21 @@ def index_raveler(ls):
                       Raveled list of integers [[i], [j], [k]...]
     """
     return [[i] for i in ls]
+
+def get_states_from_L2(lop):
+    """
+    Fetches the states that the L operators interacts with.
+
+    Parameters
+    ----------
+    1. lop : np.array(complex)
+             L2 operator.
+
+    Returns
+    -------
+    1. tuple : tuple
+               Tuple of states that correspond to the specific L operator.
+    """
+
+    i_x, i_y = np.nonzero(lop)
+    return tuple(set(i_x) | set(i_y))

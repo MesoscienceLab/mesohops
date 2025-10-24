@@ -1,12 +1,16 @@
+import pytest
 import numpy as np
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxVec
 from mesohops.basis.hops_hierarchy import HopsHierarchy as HHier
+from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
+from mesohops.trajectory.exp_noise import bcf_exp
+from mesohops.util.exceptions import UnsupportedRequest
 
 
 __title__ = "test of hops hierarchy"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.2"
-__date__ = "Jan. 14, 2020"
+__version__ = "1.6"
+__date__ = "Aug. 13, 2025"
 
 
 def test_hierarchy_initialize_true():
@@ -324,6 +328,79 @@ aux_list_2_4 = map_to_auxvec(
     ], 2
 )
 
+def test_static_filter_init():
+    """
+    Tests that the static hierarchy filters throw an error if defined for the wrong
+    number of modes.
+    """
+    # Define a HOPS trajectory in a non-special case
+    noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
+                   # Units: fs
+                   "TAU": 1.0,  # Units: fs
+                   }
+    nsite = 10
+    (g_0, w_0) = [10,150]
+    loperator = np.zeros([10, 10, 10], dtype=np.float64)
+    gw_sysbath = []
+    lop_list = []
+    for i in range(nsite):
+        loperator[i, i, i] = 1.0
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(loperator[i])
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(loperator[i])
+    hs = np.zeros([nsite, nsite])
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[5] = 1.0
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
+                 "GW_SYSBATH": gw_sysbath, "L_HIER": lop_list, "L_NOISE1": lop_list,
+                 "ALPHA_NOISE1": bcf_exp, "PARAM_NOISE1": gw_sysbath, }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {"INTEGRATOR": "RUNGE_KUTTA",
+                        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+                        'EARLY_INTEGRATOR_STEPS': 5,
+                        'INCHWORM_CAP': 5, 'STATIC_BASIS': None}
+
+    hierarchy_param_mark = {'MAXHIER': 6,
+                            'STATIC_FILTERS': [
+                                ['Markovian', [True] * (len(gw_sysbath) - 1)],
+                            ]}
+
+    hierarchy_param_tri = {'MAXHIER': 6,
+                           'STATIC_FILTERS': [
+                               ['Triangular', [[True] * (len(gw_sysbath) - 1), 2]],
+                           ]}
+
+    hierarchy_param_le = {'MAXHIER': 6,
+                          'STATIC_FILTERS': [
+                              ['LongEdge', [[True] * (len(gw_sysbath) - 1), 2]],
+                          ]}
+
+    for filter_dict in [hierarchy_param_mark, hierarchy_param_tri, hierarchy_param_le]:
+        with pytest.raises(UnsupportedRequest, match="The number of entries in the list "
+                                                     "of static filter booleans does not"):
+            hops = HOPS(sys_param,
+                           noise_param=noise_param,
+                           hierarchy_param=filter_dict,
+                           eom_param=eom_param,
+                           integration_param=integrator_param, )
+            hops.make_adaptive(0, 0)
+            hops.initialize(psi_0)
+
+        with pytest.raises(UnsupportedRequest, match="The number of entries in the list "
+                                                     "of static filter booleans does not"):
+            hops_ad = HOPS(sys_param,
+                           noise_param=noise_param,
+                           hierarchy_param=filter_dict,
+                           eom_param=eom_param,
+                           integration_param=integrator_param, )
+            hops_ad.make_adaptive(1e-3, 1e-3)
+            hops_ad.initialize(psi_0)
+            hops_ad.propagate(10.0, 2.0)
 
 def test_define_triangular_hierarchy_4modes_4maxhier():
     """
@@ -337,7 +414,6 @@ def test_define_triangular_hierarchy_4modes_4maxhier():
     assert set(HH.define_triangular_hierarchy(4, 4)) == set(aux_list_4_4)
     assert set(HH.define_triangular_hierarchy(2, 4)) == set(aux_list_2_4)
 
-
 def test_define_markovian_filtered_triangular_hierarchy():
     """
     Tests that the define_markovian_filtered_triangular_hierarchy function that is
@@ -349,7 +425,7 @@ def test_define_markovian_filtered_triangular_hierarchy():
 
     hierarchy_param = {"MAXHIER": 10,
                        "STATIC_FILTERS": [['Markovian', [False, True, True, True]]]}
-    system_param = {"N_HMODES": 10}
+    system_param = {"N_HMODES": 4}
     HH = HHier(hierarchy_param, system_param)
     mark_list_aux = HH.define_markovian_filtered_triangular_hierarchy(4, 4, [False,
                                                                     True, True, True])

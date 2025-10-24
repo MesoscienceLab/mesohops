@@ -10,8 +10,8 @@ from mesohops.util.exceptions import LockedException, UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
 __title__ = "Pyhops Noise"
-__author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__author__ = "D. I. G. B. Raccah, B. Citty, J. K. Lynd"
+__version__ = "1.6"
 
 # NOISE MODELS:
 # =============
@@ -26,7 +26,8 @@ NOISE_DICT_DEFAULT = {
     "RAND_MODEL": "SUM_GAUSSIAN",  # SUM_GAUSSIAN or BOX_MULLER
     "STORE_RAW_NOISE": False,
     "NOISE_WINDOW": None,
-    "ADAPTIVE": False
+    "ADAPTIVE": False,
+    "FLAG_REAL": False
 }
 
 NOISE_TYPE_DEFAULT = {
@@ -38,7 +39,8 @@ NOISE_TYPE_DEFAULT = {
     "RAND_MODEL": [str],
     "STORE_RAW_NOISE": [type(False)],
     "NOISE_WINDOW": [type(None), type(1.0), type(1)],
-    "ADAPTIVE": [bool]
+    "ADAPTIVE": [bool],
+    "FLAG_REAL": [bool],
 }
 
 
@@ -216,14 +218,7 @@ class HopsNoise(Dict_wDefaults):
             if self.param['STORE_RAW_NOISE']:
                 print("Raw noise is identical to correlated noise in the ZERO noise "
                       "model.")
-            z_correlated = np.zeros([n_l2, n_taus], dtype=np.complex64)
-            if self.param['INTERPOLATE']:
-                self._noise = interp1d(self.param['T_AXIS'], z_correlated, kind='cubic',
-                                       axis=1)
-            elif self.param['ADAPTIVE']:
-                new_noise = np.complex64(z_correlated)                           
-            else:
-                self._noise = np.complex64(z_correlated)
+            self._noise = 0
 
         # FFTfilter case:
         elif self.param["MODEL"] == "FFT_FILTER":
@@ -318,13 +313,17 @@ class HopsNoise(Dict_wDefaults):
 
         #Add new noise to self._noise
         if self.param['ADAPTIVE']:
-            for (i,lop) in enumerate(new_lop):
-                self._row += [lop]*n_taus
-                self._col += list(np.arange(n_taus))
-                self._data += list(new_noise[i,:])
-            self._noise = sp.sparse.coo_array((self._data,(self._row,self._col)),
-                                shape=(self.param['N_L2'],len(self.param["T_AXIS"])),
-                                dtype=np.complex64).tocsc()
+            # Leave the noise as a 0 integer for noise model ZERO.
+            if self.param['MODEL'] == 'ZERO':
+                pass
+            else:
+                for (i,lop) in enumerate(new_lop):
+                    self._row += [lop]*n_taus
+                    self._col += list(np.arange(n_taus))
+                    self._data += list(new_noise[i,:])
+                self._noise = sp.sparse.coo_array((self._data,(self._row,self._col)),
+                                    shape=(self.param['N_L2'],len(self.param["T_AXIS"])),
+                                    dtype=np.complex64).tocsc()
 
         # Update lop_active so get_noise knows when to call prepare_noise
         self._lop_active = list(set(self._lop_active) | set(new_lop))
@@ -354,6 +353,12 @@ class HopsNoise(Dict_wDefaults):
         1. Z2_noise : np.array
                       2D array of noise values, shape (list_lop, t_axis) sampled at the given time points.
         """
+        if list_lop is None:
+            list_lop = np.arange(self.param["N_L2"])
+
+        if self.param["MODEL"] == "ZERO":
+            return np.zeros([len(list_lop), len(t_axis)], dtype=np.complex64)
+
         if self._noise is None:
             if self.param["ADAPTIVE"]:
                 self._noise = sp.sparse.coo_array( (self.param['N_L2'],
@@ -363,8 +368,6 @@ class HopsNoise(Dict_wDefaults):
                 self._noise = np.zeros([self.param["N_L2"],
                                         len(self.param["T_AXIS"])], dtype=np.complex64)
 
-        if list_lop is None:
-            list_lop = np.arange(self.param["N_L2"])
         new_lop = list(set(list_lop) - set(self._lop_active))
         #Prepare noise for all L-operators not already prepared.
         if len(new_lop) > 0:
@@ -377,6 +380,8 @@ class HopsNoise(Dict_wDefaults):
             if self.param["NOISE_WINDOW"] is not None:
                 print("Warning: noise windowing is not supported while using "
                       "interpolated noise.")
+            if self.param["FLAG_REAL"]:
+                return np.real(self._noise(t_axis))
             return self._noise(t_axis)
 
         else:
@@ -440,7 +445,9 @@ class HopsNoise(Dict_wDefaults):
                         "Off axis t-samples when INTERPOLATE = False",
                         "NoiseModel.get_noise()",
                     )
-
+            if self.param["FLAG_REAL"]:
+                return np.real(self._noise_to_array(self.Z2_windowed, it_list,
+                                                     list_lop))
             return self._noise_to_array(self.Z2_windowed, it_list, list_lop)
 
     def _prepare_rand(self,new_lop=None):

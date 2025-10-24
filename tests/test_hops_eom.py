@@ -352,7 +352,7 @@ def test_linear_eom():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
         list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
@@ -379,7 +379,7 @@ def test_linear_eom():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in
                      hops.basis.mode.list_absindex_mode]
@@ -422,7 +422,7 @@ def test_normalized_nonlinear_nonadaptive_eom():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
         list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
@@ -449,7 +449,7 @@ def test_normalized_nonlinear_nonadaptive_eom():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in
                      hops.basis.mode.list_absindex_mode]
@@ -491,7 +491,7 @@ def test_nonlinear_eom():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
         list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
@@ -517,7 +517,7 @@ def test_nonlinear_eom():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in
                      hops.basis.mode.list_absindex_mode]
@@ -617,7 +617,7 @@ def test_eom_adaptive():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in
                      hops.basis.mode.list_absindex_mode]
@@ -648,7 +648,7 @@ def test_eom_adaptive():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
         list_l_op = [sys_param["L_HIER"][m] for m in
                      hops.basis.mode.list_absindex_mode]
@@ -690,7 +690,7 @@ def test_eom_adaptive():
         noise2_t = np.arange(len(noise_t))
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
-        noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+        noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [linear_chain_hops.basis.mode.list_g, linear_chain_hops.basis.mode.list_w,
                       linear_chain_hops.basis.mode.list_absindex_mode]
         list_l_op = [linear_chain_sys_param["L_HIER"][m] for m in
@@ -726,7 +726,7 @@ def test_eom_adaptive():
             noise2_t = np.arange(len(noise_t))
             # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
             # sign of +2j, rather than -2j.
-            noise_t_combined = noise_t + 2.0j * np.real(noise2_t)
+            noise_t_combined = noise_t + 1.0j * noise2_t
             list_modes = [linear_chain_hops.basis.mode.list_g, linear_chain_hops.basis.mode.list_w,
                           linear_chain_hops.basis.mode.list_absindex_mode]
             list_l_op = [linear_chain_sys_param["L_HIER"][m] for m in

@@ -332,6 +332,9 @@ class HopsFluxFilters:
                        filtered out) while False indicates otherwise
                        (positioning is (mode, aux)).
         """
+        if len(self.mode.list_absindex_mode) == 0:
+            return True
+
         M2_mark_filtered_modes = np.array(
             [
                 np.array([param[m] for m in self.mode.list_absindex_mode])
@@ -389,6 +392,9 @@ class HopsFluxFilters:
                        filtered out) while False indicates otherwise
                        (positioning is (mode, aux)).
         """
+        if len(self.mode.list_absindex_mode) == 0:
+            return True
+
         M2_tri_filtered_modes = np.array(
             [
                 np.array([param[0][m] for m in self.mode.list_absindex_mode])
@@ -442,6 +448,9 @@ class HopsFluxFilters:
                        filtered out) while False indicates otherwise
                        (positioning is (mode, aux)).
         """
+        if len(self.mode.list_absindex_mode) == 0:
+            return True
+
         M2_le_filtered_modes = np.array(
             [
                 np.array([param[0][m] for m in self.mode.list_absindex_mode])

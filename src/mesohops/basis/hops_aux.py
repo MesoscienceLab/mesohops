@@ -31,7 +31,6 @@ class AuxiliaryVector(Mapping):
         '_index',          # Current index
         '__id_string',     # Unique identifier string
         '__mode_digits',   # Number of digits per mode
-        '__kmax',          # Maximum hierarchy depth
 
         # --- Cached values ---
         '_sum',            # Cached sum of vector elements

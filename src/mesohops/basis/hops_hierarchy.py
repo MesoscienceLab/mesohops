@@ -3,7 +3,8 @@ from collections import Counter
 
 import numpy as np
 
-from mesohops.basis.hierarchy_functions import (filter_aux_longedge, filter_aux_triangular, filter_markovian)
+from mesohops.basis.hierarchy_functions import (filter_aux_longedge,
+                                              filter_aux_triangular, filter_markovian)
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxVec
 from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import AuxError, UnsupportedRequest
@@ -11,7 +12,6 @@ from mesohops.util.exceptions import AuxError, UnsupportedRequest
 __title__ = "Hierarchy Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
 __version__ = "1.2"
-
 
 HIERARCHY_DICT_DEFAULT = {"MAXHIER": int(3), "TERMINATOR": False, "STATIC_FILTERS": []}
 
@@ -31,33 +31,33 @@ class HopsHierarchy(Dict_wDefaults):
 
     __slots__ = (
         # --- Core basis components  ---
-        'system',                    # System parameters and operators (HopsSystem)
-        'n_hmodes',                  # Number of hierarchy modes
-        '__ndim',                    # System dimension (for internal use)
+        'system',  # System parameters and operators (HopsSystem)
+        'n_hmodes',  # Number of hierarchy modes
 
         # --- Auxiliary list management ---
-        '_auxiliary_list',           # List of current auxiliary vectors (main storage)
-        '__previous_auxiliary_list', # Auxiliary list from previous step
-        '__list_aux_stable',         # Auxiliaries stable between steps
-        '__list_aux_remove',         # Auxiliaries to remove in update
-        '__list_aux_add',            # Auxiliaries to add in update
-        '__previous_list_auxstable_index', # Indices of stable auxiliaries from previous step
-        '_previous_list_modes_in_use',     # Modes in use from previous step
+        '_auxiliary_list',  # List of current auxiliary vectors (main storage)
+        '__previous_auxiliary_list',  # Auxiliary list from previous step
+        '__list_aux_stable',  # Auxiliaries stable between steps
+        '__list_aux_remove',  # Auxiliaries to remove in update
+        '__list_aux_add',  # Auxiliaries to add in update
+        '__previous_list_auxstable_index',
+        # Indices of stable auxiliaries from previous step
+        '_previous_list_modes_in_use',  # Modes in use from previous step
 
         # --- Filter management flags ---
-        'only_markovian_filter',     # True if only Markovian filter is used, else False
+        'only_markovian_filter',  # True if only Markovian filter is used, else False
 
         # --- Parameter management ---
-        '_default_param',            # Default parameter dictionary
-        '_param_types',              # Parameter type dictionary
+        '_default_param',  # Default parameter dictionary
+        '_param_types',  # Parameter type dictionary
 
         # --- Connection and indexing dictionaries ---
-        '_new_aux_index_conn_by_mode',   # New auxiliary index connections by mode
-        '_new_aux_id_conn_by_mode',      # New auxiliary ID connections by mode
-        '_stable_aux_id_conn_by_mode',   # Stable auxiliary ID connections by mode
-        '_dict_aux_by_id',               # Dictionary mapping auxiliary IDs to objects
-        '_list_modes_in_use',            # List of modes currently in use
-        '_count_by_modes',               # Count of auxiliaries by mode
+        '_new_aux_index_conn_by_mode',  # New auxiliary index connections by mode
+        '_new_aux_id_conn_by_mode',  # New auxiliary ID connections by mode
+        '_stable_aux_id_conn_by_mode',  # Stable auxiliary ID connections by mode
+        '_dict_aux_by_id',  # Dictionary mapping auxiliary IDs to objects
+        '_list_modes_in_use',  # List of modes currently in use
+        '_count_by_modes',  # Count of auxiliaries by mode
     )
 
     def __init__(self, hierarchy_param, system_param):
@@ -106,12 +106,42 @@ class HopsHierarchy(Dict_wDefaults):
             self.param["MAXHIER"] = 255
         self.n_hmodes = system_param["N_HMODES"]
         self._auxiliary_list = []
-        self._new_aux_index_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
-        self._new_aux_id_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
-        self._stable_aux_id_conn_by_mode = {mode: {} for mode in range(system_param["N_HMODES"])}
+        self._new_aux_index_conn_by_mode = {mode: {} for mode in
+                                            range(system_param["N_HMODES"])}
+        self._new_aux_id_conn_by_mode = {mode: {} for mode in
+                                         range(system_param["N_HMODES"])}
+        self._stable_aux_id_conn_by_mode = {mode: {} for mode in
+                                            range(system_param["N_HMODES"])}
         self._dict_aux_by_id = {}
         self._list_modes_in_use = []
         self._count_by_modes = {}
+
+        # Prevent the application of static filters with the wrong number of modes.
+        if "STATIC_FILTERS" in self.param.keys():
+            for (filter_i, param_i) in self.param["STATIC_FILTERS"]:
+                if filter_i == "Triangular":
+                    if not len(param_i[0]) == self.n_hmodes:
+                        raise UnsupportedRequest("The number of entries in the list of "
+                                                 "static filter booleans does not match the "
+                                                 "number of hierarchy modes",
+                                                 "hierarchy_static_filter",
+                                                 override=True)
+                elif filter_i == "LongEdge":
+                    if not len(param_i[0]) == self.n_hmodes:
+                        raise UnsupportedRequest("The number of entries in the list of "
+                                                 "static filter booleans does not match the "
+                                                 "number of hierarchy modes",
+                                                 "hierarchy_static_filter",
+                                                 override=True)
+                elif filter_i == "Markovian":
+                    if not len(param_i) == self.n_hmodes:
+                        raise UnsupportedRequest("The number of entries in the list of "
+                                                 "static filter booleans does not match the "
+                                                 "number of hierarchy modes",
+                                                 "hierarchy_static_filter",
+                                                 override=True)
+                else:
+                    raise UnsupportedRequest(filter_i, "hierarchy_static_filter")
 
     def initialize(self, flag_adaptive):
         """
@@ -121,7 +151,7 @@ class HopsHierarchy(Dict_wDefaults):
         ----------
         1. flag_adaptive : bool
                            True indicates an adaptive calculation while False indicates
-                           otherwise.  
+                           otherwise.
 
         Returns
         -------
@@ -165,7 +195,8 @@ class HopsHierarchy(Dict_wDefaults):
             #       Nsteps). At the moment, though, I'm skipping this and allowing
             #       the hierarchy to control its own growth.
             self.auxiliary_list = [AuxVec([], self.n_hmodes)]
-            if np.any([name != "Markovian" for (name, param) in self.param["STATIC_FILTERS"]]):
+            if np.any([name != "Markovian" for (name, param) in
+                       self.param["STATIC_FILTERS"]]):
                 self.only_markovian_filter = False
             else:
                 self.only_markovian_filter = True
@@ -248,8 +279,8 @@ class HopsHierarchy(Dict_wDefaults):
         # Update STATIC_FILTERS parameters if needed
         # ------------------------------------------
         if not (
-            [filter_name, params] in self.param["STATIC_FILTERS"]
-            or (filter_name, params) in self.param["STATIC_FILTERS"]
+                [filter_name, params] in self.param["STATIC_FILTERS"]
+                or (filter_name, params) in self.param["STATIC_FILTERS"]
         ):
             self.param["STATIC_FILTERS"].append((filter_name, params))
 
@@ -260,11 +291,11 @@ class HopsHierarchy(Dict_wDefaults):
         Returns the index value for a given auxiliary. The important thing is that this
         function is aware of whether the calculation should be using an 'absolute'
         index or a 'relative' index.
-        
+
         Absolute index: no matter which auxiliaries are in the hierarchy, the index
                         value does not change. This is a useful approach when trying
-                        to do things like dynamic filtering. 
-        
+                        to do things like dynamic filtering.
+
         Relative index: This is the more intuitive indexing scheme which only keeps
                         track of the auxiliary vectors that are actually in the
                         hierarchy.
@@ -287,7 +318,7 @@ class HopsHierarchy(Dict_wDefaults):
     def _const_aux_edge(absindex_mode, depth, n_hmodes):
         """
         Creates an auxiliary object for an edge node at
-        a particular depth along a given mode. 
+        a particular depth along a given mode.
 
         Parameters
         ----------
@@ -365,7 +396,7 @@ class HopsHierarchy(Dict_wDefaults):
         list_aux = []
 
         # Loop over hierarchy depths at which the Markovian filter does not apply
-        for k in [0,1]:
+        for k in [0, 1]:
             for aux_raw in it.combinations_with_replacement(np.arange(n_hmodes), k):
                 count = Counter(aux_raw)
                 list_aux.append(
@@ -375,7 +406,7 @@ class HopsHierarchy(Dict_wDefaults):
         # Generate an array of exclusively the non-Markovian-filtered modes
         M1_modes_filtered = np.arange(n_hmodes)[list_not_boolean_mark]
         # Loop over hierarchy depths at which the Markovian filter applies
-        for k in np.arange(2, maxhier+1):
+        for k in np.arange(2, maxhier + 1):
             # At each depth, add to list_aux all possible combinations of only the
             # non-Markovian-filtered modes
             for aux_raw in it.combinations_with_replacement(M1_modes_filtered, k):
@@ -402,7 +433,7 @@ class HopsHierarchy(Dict_wDefaults):
         None
         """
         if type == 'add':
-            self._count_by_modes |= {mode:(self._count_by_modes[mode] + 1)
+            self._count_by_modes |= {mode: (self._count_by_modes[mode] + 1)
             if mode in self._count_by_modes.keys() else 1 for mode in aux.keys()}
         elif type == 'remove':
             self._count_by_modes |= {mode: (self._count_by_modes[mode] - 1)
@@ -428,7 +459,7 @@ class HopsHierarchy(Dict_wDefaults):
         for (mode, value) in self._count_by_modes.items():
             if value == 0:
                 list_to_remove.append(mode)
-            elif value>0:
+            elif value > 0:
                 list_modes_in_use.append(mode)
             else:
                 print(f'ERROR: _count_by_modes is negative for mode {mode}')
@@ -449,24 +480,30 @@ class HopsHierarchy(Dict_wDefaults):
         None
         """
         for mode in self._previous_list_modes_in_use:
-            self._stable_aux_id_conn_by_mode[mode].update(self._new_aux_id_conn_by_mode[mode])
-        self._new_aux_index_conn_by_mode = {mode: {} for mode in self._list_modes_in_use}
+            self._stable_aux_id_conn_by_mode[mode].update(
+                self._new_aux_id_conn_by_mode[mode])
+        self._new_aux_index_conn_by_mode = {mode: {} for mode in
+                                            self._list_modes_in_use}
         self._new_aux_id_conn_by_mode = {mode: {} for mode in self._list_modes_in_use}
         for aux in self.list_aux_add:
             sum_aux = np.sum(aux)
             # add connections to k+1
             if sum_aux < self.param['MAXHIER']:
-                list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up(self._list_modes_in_use)
-                for (rel_ind,my_id) in enumerate(list_id_p1):
+                list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up(
+                    self._list_modes_in_use)
+                for (rel_ind, my_id) in enumerate(list_id_p1):
                     try:
                         aux_p1 = self._dict_aux_by_id[my_id]
-                        aux.add_aux_connect(list_mode_connects_p1[rel_ind],aux_p1,1)
-                        
-                        #We simply keep track of the index connections of new auxiliaries
-                        #Note: It does not matter that the indices will change because we only use this dictionary 
-                        #once, immediately after it is created in eom.ksuper
-                        self._new_aux_id_conn_by_mode[list_mode_connects_p1[rel_ind]][aux.id] = [aux_p1.id,list_value_connects_p1[rel_ind] + 1]
-                        self._new_aux_index_conn_by_mode[list_mode_connects_p1[rel_ind]][aux._index] = [aux_p1._index,list_value_connects_p1[rel_ind] + 1]  
+                        aux.add_aux_connect(list_mode_connects_p1[rel_ind], aux_p1, 1)
+
+                        # We simply keep track of the index connections of new auxiliaries
+                        # Note: It does not matter that the indices will change because we only use this dictionary
+                        # once, immediately after it is created in eom.ksuper
+                        self._new_aux_id_conn_by_mode[list_mode_connects_p1[rel_ind]][
+                            aux.id] = [aux_p1.id, list_value_connects_p1[rel_ind] + 1]
+                        self._new_aux_index_conn_by_mode[
+                            list_mode_connects_p1[rel_ind]][aux._index] = [
+                            aux_p1._index, list_value_connects_p1[rel_ind] + 1]
                     except:
                         pass
 
@@ -474,23 +511,25 @@ class HopsHierarchy(Dict_wDefaults):
             if sum_aux > 0:
                 list_id_m1, list_value_connects_m1, list_mode_connects_m1 = aux.get_list_id_down()
 
-                for (index,id_m1) in enumerate(list_id_m1):
+                for (index, id_m1) in enumerate(list_id_m1):
                     try:
                         aux_m1 = self._dict_aux_by_id[id_m1]
                         aux.add_aux_connect(list_mode_connects_m1[index], aux_m1, -1)
-                        self._new_aux_id_conn_by_mode[list_mode_connects_m1[index]][aux_m1.id] = [aux.id,list_value_connects_m1[index]]
-                        self._new_aux_index_conn_by_mode[list_mode_connects_m1[index]][aux_m1._index] = [aux._index,list_value_connects_m1[index]]
+                        self._new_aux_id_conn_by_mode[list_mode_connects_m1[index]][
+                            aux_m1.id] = [aux.id, list_value_connects_m1[index]]
+                        self._new_aux_index_conn_by_mode[list_mode_connects_m1[index]][
+                            aux_m1._index] = [aux._index, list_value_connects_m1[index]]
                     except:
                         pass
-         
+
     @property
     def new_aux_index_conn_by_mode(self):
         return self._new_aux_index_conn_by_mode
-        
+
     @property
     def stable_aux_id_conn_by_mode(self):
-        return self._stable_aux_id_conn_by_mode  
-         
+        return self._stable_aux_id_conn_by_mode
+
     @property
     def size(self):
         return len(self.auxiliary_list)
@@ -520,14 +559,15 @@ class HopsHierarchy(Dict_wDefaults):
         self.__list_aux_remove = list_aux_remove
         self.__list_aux_add = list(set_aux_add)
         self.__list_aux_add.sort()
- 
+
         set_aux_stable = set(self.auxiliary_list).intersection(set(aux_list))
-        self.__list_aux_stable = [aux for aux in self.auxiliary_list if aux in set_aux_stable]
-        self.__previous_list_auxstable_index = [aux._index for aux in self.__list_aux_stable]
-        
+        self.__list_aux_stable = [aux for aux in self.auxiliary_list if
+                                  aux in set_aux_stable]
+        self.__previous_list_auxstable_index = [aux._index for aux in
+                                                self.__list_aux_stable]
+
         self._previous_list_modes_in_use = self._list_modes_in_use.copy()
-        
-        
+
         if set(aux_list) != set(self.__previous_auxiliary_list):
             # Prepare New Auxiliary List
             # --------------------------
@@ -543,7 +583,7 @@ class HopsHierarchy(Dict_wDefaults):
             self._auxiliary_list = aux_list
             if not aux_list[0].id == '':
                 raise AuxError("Zero Vector not contained in list_aux!")
-            
+
             # Update modes_in_use
             self.__update_modes_in_use()
 
@@ -551,29 +591,27 @@ class HopsHierarchy(Dict_wDefaults):
             for (index, aux) in enumerate(aux_list):
                 aux._index = index
 
-            
-
         # Add auxiliary connections
         self.add_connections()
-        
+
         # Delete stable connections of deleted auxiliaries
-        
+
         for aux in list_aux_remove:
-            for (mode,aux_p1) in aux.dict_aux_p1.items():
+            for (mode, aux_p1) in aux.dict_aux_p1.items():
                 try:
                     self._stable_aux_id_conn_by_mode[mode].pop(aux.id)
                 except:
                     pass
-            for (mode,aux_m1) in aux.dict_aux_m1.items():
+            for (mode, aux_m1) in aux.dict_aux_m1.items():
                 try:
                     self._stable_aux_id_conn_by_mode[mode].pop(aux_m1.id)
                 except:
                     pass
-                    
+
         # Remove auxiliary connections
         for aux in set_aux_remove:
             aux.remove_pointers()
-            
+
     @property
     def list_aux_stable(self):
         return self.__list_aux_stable

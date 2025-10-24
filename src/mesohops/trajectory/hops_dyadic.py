@@ -21,7 +21,8 @@ class DyadicTrajectory(HopsTrajectory):
         '__list_response_norm_sq',  # List of normalization factors
     )
 
-    def __init__(self, system_param, eom_param=None, noise_param=None, hierarchy_param=None,
+    def __init__(self, system_param, eom_param=None, noise_param=None,
+                 noise2_param = None, hierarchy_param=None,
                  storage_param=None, integration_param=None):
         """
         Inputs
@@ -76,7 +77,7 @@ class DyadicTrajectory(HopsTrajectory):
                         self._M2_dyad_conversion(system_param[param][i]))
                 system_param.update({param: dyad_lop_list})
 
-        super().__init__(system_param, eom_param, noise_param,
+        super().__init__(system_param, eom_param, noise_param, noise2_param,
                          hierarchy_param, storage_param, integration_param)
 
     def initialize(self, psi_ket, psi_bra, timer_checkpoint=None):
@@ -135,7 +136,7 @@ class DyadicTrajectory(HopsTrajectory):
                                            shape=(2*M2_dim, 2*M2_dim))
 
         else:
-            M2_dyad = np.zeros((2 * M2_dim, 2 * M2_dim))
+            M2_dyad = np.zeros((2 * M2_dim, 2 * M2_dim),dtype=np.complex128)
             M2_dyad[M2_dim:, M2_dim:] = M2_hilbert
             M2_dyad[:M2_dim, :M2_dim] = M2_hilbert
 

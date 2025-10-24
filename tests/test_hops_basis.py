@@ -1,12 +1,14 @@
-import pytest
 import os
+
 import numpy as np
+import pytest
 import scipy as sp
+
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxiliaryVector
 from mesohops.basis.hops_hierarchy import HopsHierarchy as HHier
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 from mesohops.util.exceptions import UnsupportedRequest
 from mesohops.util.physical_constants import hbar
 
@@ -57,7 +59,7 @@ def test_initialize():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -172,7 +174,7 @@ def test_define_basis_state():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -268,7 +270,7 @@ def test_define_basis_hier():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([2, 2, 2], dtype=np.float64)
     gw_sysbath = []
@@ -362,7 +364,7 @@ def test_update_basis():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -490,7 +492,7 @@ def test_define_state_basis():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -576,11 +578,10 @@ def test_define_state_basis():
     known_boundary = [3, 7]
     assert np.array_equal(list_state_bound, known_boundary)
 
-    try:
-        list_stable_state, list_state_bound = hops_ad.basis._define_state_basis(
-            phi_new/5, 2.0, z_step, list_index_aux_stable, [])
-    except UnsupportedRequest as excinfo:
-        assert "does not support non-normalized Φ in the _define_state" in str(excinfo)
+    with pytest.raises(UnsupportedRequest, match="does not support non-normalized Φ in "
+                                                 "the _define_state"):
+        hops_ad.basis._define_state_basis(phi_new/5, 2.0, z_step,
+                                          list_index_aux_stable, [])
 
 def test_define_hierarchy_basis():
     """
@@ -598,7 +599,7 @@ def test_define_hierarchy_basis():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([2, 2, 2], dtype=np.float64)
     gw_sysbath = []
@@ -679,13 +680,11 @@ def test_define_hierarchy_basis():
 
     assert set(list_aux_boundary) == set(known_boundary)
 
-    try:
+    with pytest.raises(UnsupportedRequest, match="does not support non-normalized Φ in "
+                                                 "the _define_hierarchy"):
         list_aux_stable, list_aux_boundary = hops_ad.basis._define_hierarchy_basis(
             phi_test/5, 2.0, z_step
         )
-    except UnsupportedRequest as excinfo:
-        assert "does not support non-normalized Φ in the _define_hierarchy" in str(
-            excinfo)
 
 
 def test_determine_boundary_hier():
@@ -703,7 +702,7 @@ def test_determine_boundary_hier():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([2, 2, 2], dtype=np.float64)
     gw_sysbath = []
@@ -995,7 +994,7 @@ def test_fraction_discard():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([2, 2, 2], dtype=np.float64)
     gw_sysbath = []
@@ -1041,16 +1040,13 @@ def test_fraction_discard():
         eom_param=eom_param,
         integration_param=integrator_param,
     )
-    try:
+    with pytest.raises(UnsupportedRequest) as excinfo:
         hops_ad.make_adaptive(1e-3, 1e-3, f_discard=-1)
-    except UnsupportedRequest as excinfo:
-        if "acceptable range of [0,1]" not in str(excinfo):
-            pytest.fail()
-    try:
+    assert "acceptable range of [0,1]" in str(excinfo.value)
+
+    with pytest.raises(UnsupportedRequest) as excinfo:
         hops_ad.make_adaptive(1e-3, 1e-3, f_discard=2)
-    except UnsupportedRequest as excinfo:
-        if "acceptable range of [0,1]" not in str(excinfo):
-            pytest.fail()
+    assert "acceptable range of [0,1]" in str(excinfo.value)
 
     # test that f_discard is properly assigned
     hops_ad = HOPS(
@@ -1138,7 +1134,7 @@ def test_determine_basis_from_list():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -1242,7 +1238,7 @@ def test_state_stable_error():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -1370,7 +1366,7 @@ def test_list_M2_by_dest():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     gw_sysbath = []
     def get_holstein(n):
@@ -1661,7 +1657,7 @@ def test_get_Z2_noise_sparse():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     gw_sysbath = []
 
@@ -1771,7 +1767,7 @@ def test_get_Z2_noise_sparse():
 
     Z2_noise_sparse_known = np.sum((np.array([noise_mem[m]*lop_list[m] for m in
                 list_mode_off_diag])), axis=0) + np.sum(np.array(
-        [(np.conj(noise_1)-2j*np.real(noise_2))[m] * lop_list_base[m] for m in
+        [(np.conj(noise_1)-1j*noise_2)[m] * lop_list_base[m] for m in
          list_lop_in_basis_off_diag]), axis=0)
     Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
 
@@ -1813,7 +1809,7 @@ def test_get_T2_ltc():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     gw_sysbath = []
 
@@ -2000,7 +1996,7 @@ def test_hier_max_adaptive():
     gamma = 60
     temp = 300
     hs = np.zeros([1, 1], np.complex128)
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
     gw_sysbath = [[g_0, w_0]]
     lop_list = np.ones([1, 1, 1])
 

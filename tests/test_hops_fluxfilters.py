@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxiliaryVector
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
 
@@ -15,7 +15,7 @@ def test_filter_hierarchy_stable_up():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -81,7 +81,7 @@ def test_filter_hierarchy_stable_down():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -147,7 +147,7 @@ def test_filter_hierarchy_boundary_up():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -211,7 +211,7 @@ def test_filter_hierarchy_boundary_down():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -274,7 +274,7 @@ def test_filter_state_stable_up():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -364,7 +364,7 @@ def test_filter_state_stable_down():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -442,7 +442,7 @@ def test_filter_markovian_up():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -523,6 +523,26 @@ def test_filter_markovian_up():
 
     assert np.all(filter_markovian == known_filter_markovian)
 
+    # Test empty mode list
+    sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
+                 "GW_SYSBATH": gw_sysbath[14:],
+                 "L_HIER": lop_list[14:],
+                 "L_NOISE1": lop_list[14:],
+                 "ALPHA_NOISE1": bcf_exp,
+                 "PARAM_NOISE1": gw_sysbath[14:], }
+    # Adaptive Hops
+    hops_ad = HOPS(sys_param,
+                   noise_param=noise_param,
+                   hierarchy_param={'MAXHIER': 6,
+                                    'STATIC_FILTERS': [['Markovian',
+                                                        list_mark_filter[14:]],
+                                            ['Markovian', list_mark_filter_2[14:]]], },
+                   eom_param=eom_param,
+                   integration_param=integrator_param, )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    assert hops_ad.basis.flux_filters.construct_filter_markov_up() == True
+
 def test_filter_triangular_up():
     """
     Tests that the triangular static filter that filters subset of modes M with
@@ -541,7 +561,7 @@ def test_filter_triangular_up():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -625,6 +645,26 @@ def test_filter_triangular_up():
 
     assert np.all(filter_triangular == known_filter_triangular)
 
+    # Test empty mode list
+    sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
+                 "GW_SYSBATH": gw_sysbath[14:],
+                 "L_HIER": lop_list[14:],
+                 "L_NOISE1": lop_list[14:],
+                 "ALPHA_NOISE1": bcf_exp,
+                 "PARAM_NOISE1": gw_sysbath[14:], }
+    # Adaptive Hops
+    hops_ad = HOPS(sys_param,
+                   noise_param=noise_param,
+                   hierarchy_param={'MAXHIER': 6,
+                                    'STATIC_FILTERS': [
+                                        ['Triangular', [list_tri_filter[14:], 2]],
+                                        ['Triangular', [list_tri_filter[14:], 3]]], },
+                   eom_param=eom_param,
+                   integration_param=integrator_param, )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    assert hops_ad.basis.flux_filters.construct_filter_triangular_up() == True
+
 def test_filter_longedge_up():
     """
     Tests that the longedge static filter that filters subset of modes M with
@@ -646,7 +686,7 @@ def test_filter_longedge_up():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
@@ -734,6 +774,26 @@ def test_filter_longedge_up():
 
     assert np.all(filter_longedge == known_filter_longedge)
 
+    # Test empty mode list
+    sys_param = {"HAMILTONIAN": np.array(hs, dtype=np.complex128),
+                 "GW_SYSBATH": gw_sysbath[14:],
+                 "L_HIER": lop_list[14:],
+                 "L_NOISE1": lop_list[14:],
+                 "ALPHA_NOISE1": bcf_exp,
+                 "PARAM_NOISE1": gw_sysbath[14:], }
+    # Adaptive Hops
+    hops_ad = HOPS(sys_param,
+                   noise_param=noise_param,
+                   hierarchy_param={'MAXHIER': 6,
+                                    'STATIC_FILTERS': [
+                                        ['LongEdge', [list_le_filter[14:], 2]],
+                                        ['LongEdge', [list_le_filter_2[14:], 3]]], },
+                   eom_param=eom_param,
+                   integration_param=integrator_param, )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    assert hops_ad.basis.flux_filters.construct_filter_longedge_up() == True
+
 def test_mode_setter():
     """
     Tests that the setter for HopsModes.list_absindex_modes updates the relevant
@@ -747,7 +807,7 @@ def test_mode_setter():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
     loperator = np.zeros([10, 10, 10], dtype=np.float64)
     gw_sysbath = []
