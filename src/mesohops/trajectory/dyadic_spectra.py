@@ -8,6 +8,7 @@ __title__ = "dyadic_spectra"
 __author__ = "D. I. G. B. Raccah, A. Hartzell, T. Gera, J. K. Lynd"
 __version__ = "1.5"
 
+
 class DyadicSpectra(DyadicTrajectory):
     """
     Acts as an interface to calculate spectra using the Dyadic HOPS method.
@@ -15,47 +16,47 @@ class DyadicSpectra(DyadicTrajectory):
 
     __slots__ = (
         # --- Initialization and tracking ---
-        '__initialized',     # Initialization status flag
+        '__initialized',  # Initialization status flag
 
         # --- Spectroscopy parameters ---
-        'spectrum_type',     # Type of spectrum to calculate
-        't_1',               # First propagation time
-        't_2',               # Second propagation time
-        't_3',               # Third propagation time
-        'list_t',            # List of propagation times
-        'E_1',               # First field definition
-        'E_2',               # Second field definition
-        'E_3',               # Third field definition
-        'E_sig',             # Signal field definition
-        'list_ket_sites',    # Ket sites excited by field
-        'list_bra_sites',    # Bra sites excited by field
+        'spectrum_type',  # Type of spectrum to calculate
+        't_1',  # First propagation time
+        't_2',  # Second propagation time
+        't_3',  # Third propagation time
+        'list_t',  # List of propagation times
+        'E_1',  # First field definition
+        'E_2',  # Second field definition
+        'E_3',  # Third field definition
+        'E_sig',  # Signal field definition
+        'list_ket_sites',  # Ket sites excited by field
+        'list_bra_sites',  # Bra sites excited by field
 
         # --- Chromophore parameters ---
-        'M2_mu_ge',            # Transition dipole matrix
-        'n_chromophore',       # Number of chromophores
+        'M2_mu_ge',  # Transition dipole matrix
+        'n_chromophore',  # Number of chromophores
         'H2_sys_hamiltonian',  # System Hamiltonian
-        'lop_list_hier',       # L-operators associated with hierarchy modes
-        'gw_sysbath_hier',     # Hierarchy mode parameters
-        'lop_list_noise',      # L-operators associated with noise
-        'gw_sysbath_noise',    # Noise mode parameters
-        'lop_list_ltc',        # L-operators associated with LTC
-        'ltc_param',           # Low-temperature correction parameters
+        'lop_list_hier',  # L-operators associated with hierarchy modes
+        'gw_sysbath_hier',  # Hierarchy mode parameters
+        'lop_list_noise',  # L-operators associated with noise
+        'gw_sysbath_noise',  # Noise mode parameters
+        'lop_list_ltc',  # L-operators associated with LTC
+        'ltc_param',  # Low-temperature correction parameters
 
         # --- Convergence parameters ---
-        't_step',              # Time step
-        'max_hier',            # Maximum hierarchy depth
-        'delta_a',             # Auxiliary derivative error bound
-        'delta_s',             # State derivative error bound
-        'set_update_step',     # Update step
-        'set_f_discard',       # Discard fraction
+        't_step',  # Time step
+        'max_hier',  # Maximum hierarchy depth
+        'delta_a',  # Auxiliary derivative error bound
+        'delta_s',  # State derivative error bound
+        'set_update_step',  # Update step
+        'set_f_discard',  # Discard fraction
         'static_filter_list',  # Static hierarchy filters
 
         # --- State dimensions ---
-        'n_state_hilb',     # Hilbert space dimension
-        'n_state_dyad',     # Dyadic space dimension
+        'n_state_hilb',  # Hilbert space dimension
+        'n_state_dyad',  # Dyadic space dimension
 
         # --- Noise configuration ---
-        'noise_param'       # Noise parameters
+        'noise_param'  # Noise parameters
     )
 
     def __init__(self, spectroscopy_dict, chromophore_dict, convergence_dict, seed):
@@ -142,6 +143,9 @@ class DyadicSpectra(DyadicTrajectory):
                             "TLEN": float(1000 + np.sum(self.list_t)),
                             "TAU": 0.5 if self.t_step % 1 == 0 else self.t_step / 2}
 
+        # Noise 2 not currently supported.
+        self.noise2_param = None
+
         # Preparing hierarchy parameter dictionary
         hierarchy_param = {"MAXHIER": self.max_hier}
         if self.static_filter_list:
@@ -151,8 +155,8 @@ class DyadicSpectra(DyadicTrajectory):
         storage_param = {}
 
         # Initializing DyadicTrajectory class
-        super().__init__(system_param, eom_param, self.noise_param, hierarchy_param,
-                         storage_param)
+        super().__init__(system_param, eom_param, self.noise_param,
+                         self.noise2_param, hierarchy_param, storage_param)
 
     def initialize(self):
         """
@@ -560,20 +564,32 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
                                     Brian Citty, Jacob K. Lynd, et al. J. Chem. Phys.
                                     160, 144118 (2024)
 
-                    e. static_filter_list: list, optional
-                                           List of static filters applied to the
-                                           hierarchy. Each filter is defined by a list
-                                           of the form [filter_name, filter_params].
-                                           OPTIONS:
-                                           --------
-                                           1. "Markovian": auxiliary wave functions
+                     e. static_filter_list: list(list), optional
+                                            List of static filters applied to the
+                                            hierarchy. Each filter is defined by a list
+                                            of the form [filter_name, filter_params].
+                                            This means the full structure of 
+                                            static_filter_list is:
+                                            [filter1, filter2, ...] where each
+                                            filter is a list of the form 
+                                            [filter_name, filter_params]
+                                            where filter_name is a string and 
+                                            filter_params is a list of parameters
+                                            defining the filter. The length of the
+                                            boolean list in filter_params should match
+                                            the number of modes in list_modes or
+                                            list_modes_by_bath, depending on which
+                                            is defined in bath_dict.
+                                            OPTIONS:
+                                            --------
+                                            1. "Markovian": auxiliary wave functions
                                                associated with filtered modes are
                                                only included in the hierarchy if they
                                                are depth 1. filter_params should be a
                                                list of booleans: True for filtered
                                                modes, False for unfiltered modes.
 
-                                           2. "Triangular": auxiliary wave functions
+                                            2. "Triangular": auxiliary wave functions
                                                associated with filtered modes are only
                                                included in the hierarchy if they are at
                                                or below depth kmax2. filter_params =
@@ -583,7 +599,7 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
                                                False for unfiltered modes. Note kmax2
                                                is an integer.
 
-                                           3. "LongEdge": auxiliary wave functions
+                                            3. "LongEdge": auxiliary wave functions
                                                associated with filtered modes are only
                                                included in the hierarchy if they are at
                                                or below depth kmax2 OR only have depth
@@ -594,23 +610,18 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
                                                False for unfiltered modes. Note kmax2
                                                is an integer.
 
-                                           If the list of booleans determining which
-                                           modes are filtered does not match the full
-                                           set of modes in the "GW_SYSBATH" key of the
-                                           system parameter dictionary, the trajectory
-                                           will raise an error and the simulation will
-                                           be terminated. The use of any static
-                                           hierarchy filter may reduce the accuracy of a
-                                           given calculation; that is, static hierarchy
-                                           filters must be tested like any other
-                                           convergence parameters.
+                                            The use of any static
+                                            hierarchy filter may reduce the accuracy of a
+                                            given calculation; that is, static hierarchy
+                                            filters must be tested like any other
+                                            convergence parameters.
 
-                                           For more details on static filters, see:
-                                           "MesoHOPS: Size-invariant scaling
-                                           calculations of multi-excitation open quantum
-                                           systems."
-                                           Brian Citty, Jacob K. Lynd, et al.
-                                           J. Chem. Phys. 160, 144118 (2024)
+                                            For more details on static filters, see:
+                                            "MesoHOPS: Size-invariant scaling
+                                            calculations of multi-excitation open quantum
+                                            systems."
+                                            Brian Citty, Jacob K. Lynd, et al.
+                                            J. Chem. Phys. 160, 144118 (2024)
 
     Returns
     -------
@@ -618,177 +629,223 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
                          Dictionary of chromophore parameters needed for DyadicSpectra
                          class.
     """
-    # Defining number of chromophores
+    # Define number of chromophores and validate M2_mu_ge structure
     n_chromophore = len(M2_mu_ge)
-
-    # Checking M2_mu_ge input structure
     M2_mu_ge = np.array(M2_mu_ge)
     if M2_mu_ge.shape[1] != 3:
         raise ValueError(
             "M2_mu_ge must be a numpy array with shape (n_chromophore, 3).")
 
-    # Setting default nmodes_LTC to 0 and checking nmodes_LTC input structure
-    if "nmodes_LTC" not in bath_dict.keys() or bath_dict["nmodes_LTC"] is None:
-        bath_dict["nmodes_LTC"] = 0
-
-    elif not isinstance(bath_dict["nmodes_LTC"], int):
-        raise ValueError("nmodes_LTC must be an integer or None.")
-
-    elif bath_dict["nmodes_LTC"] < 0:
-        raise ValueError("nmodes_LTC must be >= 0 or set to None.")
-
-    # Checking static_filter_list input structure
-    if "static_filter_list" in bath_dict.keys():
-        if not isinstance(bath_dict["static_filter_list"], list):
-            raise ValueError("static_filter_list must be a list.")
-
-        elif len(bath_dict["static_filter_list"]) != 2:
-            raise ValueError("static_filter_list must be a 2-element list of the form: "
-                             "[filter_name, filter_params].")
-
-        elif bath_dict["static_filter_list"][0] not in ["Markovian", "Triangular",
-                                                        "LongEdge"]:
-            raise ValueError("Filter name must be 'Markovian', 'Triangular', or "
-                             "'LongEdge'.")
-
-        elif (bath_dict["static_filter_list"][0] == "Markovian" and
-              not all(isinstance(boolean, bool) for boolean in
-                      bath_dict["static_filter_list"][1])):
-            raise ValueError(
-                "filter_params for Markovian filter must be a list of booleans.")
-
-        elif (bath_dict["static_filter_list"][0] in ["Triangular", "LongEdge"] and
-              len(bath_dict["static_filter_list"][1]) != 2):
-            raise ValueError("The Triangular and LongEdge filter_params must be a "
-                             "list of booleans and an integer.")
-
-        elif (bath_dict["static_filter_list"][0] in ["Triangular", "LongEdge"] and
-              not isinstance(bath_dict["static_filter_list"][1][1], int)):
-            raise ValueError("The second entry in filter_params for the Triangular "
-                             "and LongEdge filters must be an integer.")
-
-        elif bath_dict["static_filter_list"][0] in ["Triangular", "LongEdge"]:
-            if not all(isinstance(boolean, bool) for boolean in
-                       bath_dict["static_filter_list"][1][0]):
-                raise ValueError("The first entry in filter_params for the "
-                                 "Triangular and LongEdge filters must be a "
-                                 "list of booleans.")
-
-        elif (bath_dict["static_filter_list"][0] in ["Triangular", "LongEdge"] and
-              bath_dict["static_filter_list"][1][1] < 0):
-            raise ValueError("Triangular and LongEdge filter_params must have a "
-                             "positive integer as the second element.")
-
-    # Checking bath_dict input structure
+    # Clean up bath_dict: convert arrays to lists and remove None/0 values
     for key, value in list(bath_dict.items()):
-        # Setting bath_dict arrays to lists
+        # Convert numpy arrays to lists for consistency
         if type(value) == np.ndarray:
             bath_dict[key] = list(value)
-
-        # Removing keys with None/0 values from bath_dict (except nmodes_LTC)
+        # Remove keys with None/0 values (except nmodes_LTC)
         elif (key != "nmodes_LTC") and (value is None or value == 0):
             del bath_dict[key]
 
-    # Checking list_modes/list_modes_by_bath over-definition
+    # Set default value for nmodes_LTC if not provided or None
+    if "nmodes_LTC" not in bath_dict.keys() or bath_dict["nmodes_LTC"] is None:
+        bath_dict["nmodes_LTC"] = 0
+    # Validate nmodes_LTC if provided
+    elif not isinstance(bath_dict["nmodes_LTC"], int):
+        raise ValueError("nmodes_LTC must be an integer or None.")
+    elif bath_dict["nmodes_LTC"] < 0:
+        raise ValueError("nmodes_LTC must be >= 0 or set to None.")
+
+    # Check that users don't try to use LTC with static filters
+    if bath_dict["nmodes_LTC"] > 0 and "static_filter_list" in bath_dict:
+        raise ValueError("The use of static hierarchy filters with low-temperature "
+                         "correction is not currently supported.")
+
+    # Check that list_modes and list_modes_by_bath are not both defined
     if "list_modes_by_bath" in bath_dict.keys() and "list_modes" in bath_dict.keys():
         raise ValueError(
             "list_modes_by_bath and list_modes should not both be defined.")
 
-    # Setting default list_lop if not defined
+    # Set default list_lop if not defined (site-projection operators)
     if "list_lop" not in bath_dict.keys():
-        # Site-projection L-operators
         bath_dict["list_lop"] = [sparse.coo_matrix(([1], ([chrom + 1], [chrom + 1])),
                                                    shape=(n_chromophore + 1,
                                                           n_chromophore + 1)) for
                                  chrom in range(n_chromophore)]
 
-    # Checking list_modes_by_bath/list_modes structure
-    if "list_modes_by_bath" in bath_dict:
-        # Checking list_modes_by_bath/list_lop compatibility
+    # Process list_modes if provided
+    if "list_modes" in bath_dict:
+        # Validate list_modes structure (must have paired Gs and Ws)
+        if len(bath_dict["list_modes"]) % 2 != 0:
+            raise ValueError("list_modes should contain paired Gs and Ws, which "
+                             "guarantees an even number of elements.")
+
+        # Create list_modes_by_bath by repeating list_modes for each bath
+        bath_dict["list_modes_by_bath"] = [bath_dict["list_modes"] for _ in
+                                           range(len(bath_dict["list_lop"]))]
+
+    # Process list_modes_by_bath if provided
+    elif "list_modes_by_bath" in bath_dict:
+        # Validate compatibility with list_lop
         if len(bath_dict["list_modes_by_bath"]) != len(bath_dict["list_lop"]):
             raise ValueError(
                 "list_modes_by_bath and list_lop must have the same length.")
 
-        # Checking that list_modes_by_bath is a list of lists of paired Gs and Ws
+        # Validate structure of each sublist (must have paired Gs and Ws)
         for sublist in bath_dict["list_modes_by_bath"]:
             if not isinstance(sublist, list):
                 raise ValueError("list_modes_by_bath must be a list of lists.")
             elif len(sublist) % 2 != 0:
-                raise ValueError("list_modes_by_bath should contain paired Gs and Ws, "
-                                 "which guarantees an even number of elements in each "
-                                 "sublist.")
+                raise ValueError("sublists within list_modes_by_bath should contain "
+                                 "paired Gs and Ws, which guarantees an even number of "
+                                 "elements in each sublist.")
 
-    elif "list_modes" in bath_dict:
-        # Checking that list_modes is a list of paired Gs and Ws
-        if len(bath_dict["list_modes"]) % 2 != 0:
-            raise ValueError("list_modes should contain paired Gs and Ws, which "
-                             "guarantees an even number of elements.")
+    # Require either list_modes or list_modes_by_bath is defined
     else:
         raise ValueError("Either list_modes_by_bath or list_modes must be defined.")
 
-    # Preparing empty chromophore dictionary
-    gw_sysbath = []
-    list_lop_sysbath_by_mode = []
-    gw_noise = []
-    list_lop_noise_by_mode = []
-    list_lop_ltc = []
-    list_ltc_param = []
+    # Process static_filter_list if provided
+    if "static_filter_list" in bath_dict.keys():
+        # Validate that static_filter_list is a list
+        if not isinstance(bath_dict["static_filter_list"], list):
+            raise ValueError("static_filter_list must be a list.")
 
-    # Populating chromophore dictionary
+        # Validate each filter in the list
+        for filter_idx, filter_item in enumerate(bath_dict["static_filter_list"]):
+            # Check each filter is a list of the form [filter_name, filter_params]
+            if not isinstance(filter_item, list):
+                raise ValueError(
+                    f"Error in filter {filter_idx}: static_filter_list must be a list.")
+            elif len(filter_item) != 2:
+                raise ValueError(
+                    f"Error in filter {filter_idx}: each filter in static_filter_list "
+                    f"must be a 2-element list of the form: "
+                    f"[filter_name, filter_params].")
+            # Check filter_name is a string and is one of the allowed types
+            elif filter_item[0] not in ["Markovian", "Triangular", "LongEdge"]:
+                raise ValueError(
+                    f"Error in filter {filter_idx}: Filter names must be 'Markovian', "
+                    f"'Triangular', or 'LongEdge'.")
+
+            # Validate filter parameters for Markovian filters
+            if filter_item[0] == "Markovian":
+                # Markovian filter_params should be a list of booleans
+                if not all(isinstance(boolean, bool) for boolean in filter_item[1]):
+                    raise ValueError(
+                        f"Error in filter {filter_idx}: filter_params for Markovian "
+                        f"filters must be a list of booleans.")
+
+                # Check that the length of filter_item[1] matches the number of modes
+                # in each bath if given list_modes input
+                if "list_modes" in bath_dict.keys():
+                    if len(filter_item[1]) != len(bath_dict["list_modes"]) // 2:
+                        raise ValueError(f"Error in filter {filter_idx}: The list of "
+                                         f"booleans in filter_params must have the "
+                                         f"same length as the number of modes in "
+                                         f"each bath.")
+                    else:
+                        # Expand filter to cover all baths
+                        filter_item[1] = filter_item[1] * len(bath_dict["list_lop"])
+
+                # If list_modes_by_bath is given, check against total number of modes
+                elif len(filter_item[1]) != np.sum([len(mode_list) for mode_list in
+                                                    bath_dict["list_modes_by_bath"]])//2:
+                    raise ValueError(f"Error in filter {filter_idx}: The list of "
+                                     f"booleans in filter_params must have "
+                                     f"the same length as the number of modes in all "
+                                     f"baths combined.")
+
+            # Validate filter parameters for Triangular and LongEdge filters
+            elif filter_item[0] in ["Triangular", "LongEdge"]:
+                # Triangular and LongEdge filter_params should be a list containing a
+                # list of booleans and an integer
+                if len(filter_item[1]) != 2:
+                    raise ValueError(
+                        f"Error in filter {filter_idx}: Triangular/LongEdge "
+                        f"filter_params must be a list containing a list of booleans "
+                        f"and an integer.")
+                elif not isinstance(filter_item[1][1], int):
+                    raise ValueError(
+                        f"Error in filter {filter_idx}: The second entry in "
+                        f"filter_params for Triangular/LongEdge filters must be an "
+                        f"integer.")
+                elif not all(
+                        isinstance(boolean, bool) for boolean in filter_item[1][0]):
+                    raise ValueError(f"Error in filter {filter_idx}: The first entry in"
+                                     f" filter_params for Triangular/LongEdge filters "
+                                     f"must be a list of booleans.")
+                elif filter_item[1][1] < 0:
+                    raise ValueError(f"Error in filter {filter_idx}: "
+                                     f"Triangular/LongEdge filter_params must have a "
+                                     f"positive integer as the second element.")
+
+                # Check that the length of filter_item[1][0] matches the number of modes
+                # in each bath if given list_modes input
+                if "list_modes" in bath_dict.keys():
+                    if len(filter_item[1][0]) != len(bath_dict["list_modes"]) // 2:
+                        raise ValueError(f"Error in filter {filter_idx}: The list of "
+                                         f"booleans in filter_params must have the same"
+                                         f" length as the number of modes in each bath.")
+                    else:
+                        # Expand filter to cover all baths
+                        filter_item[1][0] = (filter_item[1][0] *
+                                             len(bath_dict["list_lop"]))
+
+                # If list_modes_by_bath is given, check against total number of modes
+                elif len(filter_item[1][0]) != np.sum([len(mode_list) for mode_list in
+                                                       bath_dict["list_modes_by_bath"]])//2:
+                    raise ValueError(f"Error in filter {filter_idx}: The list of "
+                                     f"booleans in filter_params must have the same "
+                                     f"length as the number of modes in all baths "
+                                     f"combined.")
+
+    # Initialize empty lists for chromophore dictionary components
+    gw_sysbath = []  # G-W tuples for hierarchy
+    list_lop_sysbath_by_mode = []  # L-operators for hierarchy
+    gw_noise = []  # G-W tuples for noise
+    list_lop_noise_by_mode = []  # L-operators for noise
+    list_lop_ltc = []  # L-operators for low-temperature correction
+    list_ltc_param = []  # Low-temperature correction parameters
+
+    # Process each bath
     for bath in range(len(bath_dict["list_lop"])):
-        # Unpacking list of Gs and Ws for each bath in the list_modes_by_bath case
-        if "list_modes_by_bath" in bath_dict.keys():
-            bath_dict["list_modes"] = bath_dict["list_modes_by_bath"][bath]
+        # Convert list of Gs and Ws to list of coupled G-W tuples
+        list_modes_as_tuples = [(bath_dict["list_modes_by_bath"][bath][i],
+                                 bath_dict["list_modes_by_bath"][bath][i + 1]) for i in
+                                range(0, len(bath_dict["list_modes_by_bath"][bath]), 2)]
 
-        # Converting list of Gs and Ws to list of coupled G-W tuples
-        list_modes_as_tuples = [(bath_dict["list_modes"][i],
-                                 bath_dict["list_modes"][i + 1]) for i in
-                                range(0, len(bath_dict["list_modes"]), 2)]
-
-        # Checking nmodes_LTC and static_filter_list compatibility with number of modes
+        # Validate nmodes_LTC compatibility with number of modes
         if bath_dict["nmodes_LTC"] >= len(list_modes_as_tuples):
-            raise ValueError("nmodes_LTC must be less than the number of "
-                             "modes in each bath.")
+            raise ValueError("nmodes_LTC must be less than the number of modes in each "
+                             "bath.")
 
-        elif "static_filter_list" in bath_dict.keys():
-            if bath_dict["static_filter_list"][0] == 'Markovian':
-                if len(bath_dict["static_filter_list"][1]) != len(list_modes_as_tuples):
-                    raise ValueError("The list of booleans in static_filter_list must "
-                                     "have the same length as the number of modes.")
-
-            elif bath_dict["static_filter_list"][0] in ['Triangular', 'LongEdge']:
-                if len(bath_dict["static_filter_list"][1][0]) != len(
-                        list_modes_as_tuples):
-                    raise ValueError("The list of booleans in static_filter_list must "
-                                     "have the same length as the number of modes.")
-
+        # Initialize LTC parameter for this bath
         ltc_param = 0
         list_lop_ltc.append(bath_dict["list_lop"][bath])
-        # Appending gw_sysbath and lop_list for each G-W tuple
+
+        # Process each mode in the bath
         for nmode, mode in enumerate(list_modes_as_tuples):
+            # Append G-W tuples and L-operators to the appropriate lists
             gw_noise.append(mode)
             list_lop_noise_by_mode.append(bath_dict["list_lop"][bath])
 
-            # Checking if mode belongs to the low-temperature corrected modes
+            # Determine if mode is treated in hierarchy or with LTC
             if len(list_modes_as_tuples) - nmode > bath_dict["nmodes_LTC"]:
-                # Appending each G-W tuple treated in the hierarchy
+                # Mode is treated in hierarchy
                 gw_sysbath.append(mode)
                 list_lop_sysbath_by_mode.append(bath_dict["list_lop"][bath])
-
-            # Updating ltc parameter for each low-temperature corrected mode
             else:
+                # Mode is treated with low-temperature correction
                 ltc_param += mode[0] / mode[1]
 
-        # Appending ltc parameter to the bath
+        # Add LTC parameter for this bath
         list_ltc_param.append(ltc_param)
 
-    # Returning chromophore dictionary
     return {"M2_mu_ge": M2_mu_ge, "n_chromophore": n_chromophore,
             "H2_sys_hamiltonian": H2_sys_hamiltonian,
             "lop_list_hier": list_lop_sysbath_by_mode, "gw_sysbath_hier": gw_sysbath,
             "lop_list_noise": list_lop_noise_by_mode, "gw_sysbath_noise": gw_noise,
             "lop_list_ltc": list_lop_ltc, "ltc_param": list_ltc_param,
-            "static_filter_list": bath_dict.get("static_filter_list", None)}
+            "static_filter_list": bath_dict.get("static_filter_list", None),
+            }
 
 
 def prepare_convergence_parameter_dict(t_step, max_hier, delta_a=0, delta_s=0,
@@ -826,4 +883,3 @@ def prepare_convergence_parameter_dict(t_step, max_hier, delta_a=0, delta_s=0,
     return {"t_step": t_step, "max_hier": max_hier, "delta_a": delta_a,
             "delta_s": delta_s, "set_update_step": set_update_step,
             "set_f_discard": set_f_discard}
-

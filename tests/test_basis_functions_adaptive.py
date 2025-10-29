@@ -134,7 +134,7 @@ def get_error_term_hier_flux_up(list_k_vec, list_w_bymode, list_lop_bymode, P2_p
             #  E[m,k] = |w_m * (k_m+1)|^2 * \sum_d |(L_m @ \psi_k)[d]|^2
             E_mode_aux = np.abs(L2_lop) ** 2 @ np.abs(P2_phi[:, aux_index]) ** 2
             E_mode_aux *= np.abs((1 + k_mode) * w_mode) ** 2
-            E2_err[mode_index, aux_index] = np.sum(E_mode_aux)
+            E2_err[mode_index, aux_index] = float(np.sum(E_mode_aux))
     return E2_err / hbar2
 
 
@@ -192,12 +192,17 @@ def get_error_term_state_flux_up(list_k_vec, list_w_bymode, list_lop_bymode, P2_
                     # s] * \psi_k[s]|^2
                     for d in range(n_dest):
                         dest = dest_state_list[d]
-                        err_element = np.abs((1 + k_mode) * w_mode) ** 2 * np.abs(
-                            L2_lop[dest, state] * P2_phi[state_index,
-                            aux_index]) ** 2
+                        err_element = float(
+                            np.abs((1 + k_mode) * w_mode) ** 2
+                            * np.abs(
+                                L2_lop[dest, state]
+                                * P2_phi[state_index, aux_index]
+                            )
+                            ** 2
+                        )
                         E_state_aux += err_element
                         list_known_err_by_d[d] += err_element
-            E2_err[state_index, aux_index] = E_state_aux
+            E2_err[state_index, aux_index] = float(E_state_aux)
     return E2_err / hbar2, list_known_err_by_d / hbar2
 
 
@@ -559,12 +564,15 @@ def get_error_term_hier_flux_down(list_gw_bymode, list_lop_bymode, list_l_exp_by
         for aux_index in range(n_aux):
             E_mode_aux = np.abs(L2_lop)**2 @ np.abs(P2_phi[:, aux_index]) ** 2
             E_mode_aux *= np.abs(gw_mode)**2
-            E2_err[mode_index, aux_index] = np.sum(E_mode_aux)
+            E2_err[mode_index, aux_index] = float(np.sum(E_mode_aux))
             if len(list_s_not_in_d) > 0:
                 for s in list_rel_s_not_in_d:
-                    E2_err[mode_index, aux_index] += np.abs(gw_mode)**2 * np.abs(
-                        list_l_exp_bymode[mode_index]) **2 * np.abs(P2_phi[s,
-                    aux_index]) ** 2
+                    val = (
+                        np.abs(gw_mode) ** 2
+                        * np.abs(list_l_exp_bymode[mode_index]) ** 2
+                        * np.abs(P2_phi[s, aux_index]) ** 2
+                    )
+                    E2_err[mode_index, aux_index] += float(np.sum(val))
     return E2_err/hbar2
 
 def get_error_term_state_flux_down(list_gw_bymode, list_lop_bymode, list_l_exp_bymode,
@@ -629,17 +637,23 @@ def get_error_term_state_flux_down(list_gw_bymode, list_lop_bymode, list_l_exp_b
                               list_l_exp_bymode[mode_index])
                     for d in range(n_dest):
                         dest = dest_state_list[d]
-                        err_element = (np.abs(list_gw_bymode[mode_index] *
-                                L2_lop[dest, state_list[state_index]] *
-                                              P2_phi[state_index, aux_index])**2)
+                        err_element = np.abs(
+                            list_gw_bymode[mode_index]
+                            * L2_lop[dest, state_list[state_index]]
+                            * P2_phi[state_index, aux_index]
+                        ) ** 2
+                        err_element = float(np.sum(err_element))
                         E_state_aux += err_element
                         list_known_err_by_d[d] += err_element
                     if len(list_s_not_in_d) > 0:
                         if state_index in list_rel_s_not_in_d:
-                            E_state_aux += (np.abs(list_gw_bymode[mode_index] *
-                                                   list_l_exp_bymode[mode_index] *
-                                                  P2_phi[state_index, aux_index])**2)
-            E2_err[state_index, aux_index] = E_state_aux
+                            err_add = np.abs(
+                                list_gw_bymode[mode_index]
+                                * list_l_exp_bymode[mode_index]
+                                * P2_phi[state_index, aux_index]
+                            ) ** 2
+                            E_state_aux += float(np.sum(err_add))
+            E2_err[state_index, aux_index] = float(E_state_aux)
     return E2_err/hbar2, list_known_err_by_d/hbar2
 
 def get_X2_exp_mode_state(list_lop, list_states, list_exp_lop):

@@ -3,10 +3,11 @@ from scipy import sparse
 
 from mesohops.storage.storage_functions import storage_default_func as default_func
 from mesohops.util.exceptions import UnsupportedRequest
+from mesohops.util.git_utils import get_git_commit_hash
 
 __title__ = "Storage Class"
-__author__ = "D. I. G. Bennett, L. Varvelo"
-__version__ = "1.2"
+__author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
+__version__ = "1.6"
 
 
 class HopsStorage:
@@ -16,14 +17,17 @@ class HopsStorage:
 
     __slots__ = (
         # --- Core basis components  ---
-        '_adaptive',     # Adaptive calculation flag
-        '_n_dim',        # System dimension
+        '_adaptive',      # Adaptive calculation flag
+        '_n_dim',         # System dimension
 
         # --- Storage containers ---
-        'storage_dic',   # Main storage dictionary (current data)
-        'dic_save',      # Save function dictionary
+        'storage_dic',    # Main storage dictionary (current data)
+        'dic_save',       # Save function dictionary
         'data',           # Data storage
         'metadata',       # Metadata dictionary
+
+        # --- Storage managers ---
+        'storage_time',   # Controls which time points are saved
     )
 
     def __init__(self, adaptive, storage_dic):
@@ -40,12 +44,22 @@ class HopsStorage:
         self._adaptive = False
         self._n_dim = 0
         self.storage_dic = storage_dic
+        if "STORAGE_TIME" in storage_dic:
+            self.storage_time = storage_dic["STORAGE_TIME"]
+            del storage_dic["STORAGE_TIME"]
+        else:
+            self.storage_time = True
         self.dic_save = {}
         self.data = {}
         self.adaptive = adaptive
-        self.metadata = {"INITIALIZATION_TIME": 0,
-                         "LIST_PROPAGATION_TIME": []}
-        
+
+        # Initialize metadata with git commit hash
+        git_commit = get_git_commit_hash()
+        self.metadata = {
+            "INITIALIZATION_TIME": 0,
+            "LIST_PROPAGATION_TIME": [],
+            "GIT_COMMIT_HASH": git_commit
+        }
 
     def __repr__(self):
         key_dict = []
@@ -147,6 +161,45 @@ class HopsStorage:
         for (key,value) in self.dic_save.items():
             self.data[key].append(self.dic_save[key](**kwargs))
 
+    def check_storage_time(self, t):
+        """
+        Checks whether the current time is a time point that the user indicated
+        should be saved. If the storage time parameter is a list or array, returns
+        true if the current time is an element of the iterable. If the storage time is
+        a number, returns true if the current time is an integer multiple of that
+        number. Finally, a boolean storage time indicates that either all (True) or no
+        (False) time points should be saved.
+
+        Parameters
+        ----------
+        1. t : float
+               The current time [units: fs].
+
+        Returns
+        -------
+        1. save_flag : bool
+                       Whether the current time point's data should be saved.
+
+        """
+        if isinstance(self.storage_time, (list, np.ndarray)):
+            return t in self.storage_time
+
+        elif (isinstance(self.storage_time, (int, float)) and not
+        isinstance(self.storage_time, bool)):
+           return (t%self.storage_time == 0)
+
+        elif isinstance(self.storage_time, bool):
+            return self.storage_time
+
+        else:
+            raise UnsupportedRequest("Type {} is not allowed in the "
+                                     "STORAGE_TIME key of storage parameters "
+                                     "for checking whether the current time "
+                                     "should be saved".
+                                     format(type(self.storage_time)),
+                                     'check_storage_time',
+                                     override=True)
+
     @property
     def n_dim(self):
         return self._n_dim
@@ -154,4 +207,3 @@ class HopsStorage:
     @n_dim.setter
     def n_dim(self, N_dim):
         self._n_dim = N_dim
-

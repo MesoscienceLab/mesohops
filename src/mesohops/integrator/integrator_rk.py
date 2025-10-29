@@ -26,8 +26,9 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
                Random numbers for the bath (at three time points) [units: cm^-1].
 
     5. z_rnd2 : np.array(complex)
-                Secondary real contribution to the noise (at three time points).
-                Imaginary portion discarded in dsystem_dt [units: cm^-1].
+                Secondary, (typically) real contribution to the noise (at three time
+                points). Imaginary portion discarded by the FLAG_REAL key of the
+                noise object's parameter dictionary [units: cm^-1].
                 For primary use-case, see:
 
                 "Exact open quantum system dynamics using the Hierarchy of Pure States

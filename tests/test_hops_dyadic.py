@@ -1,10 +1,12 @@
-import pytest
-import numpy as np
 import time as timer
+
+import numpy as np
+import pytest
+from scipy import sparse
+
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_dyadic import DyadicTrajectory as DHOPS
 from mesohops.util.exceptions import UnsupportedRequest
-from scipy import sparse
 
 noise_param = {
     "SEED": 10,
@@ -201,6 +203,20 @@ def test_M2_dyad_conversion():
     np.testing.assert_allclose(sys_param_dense['L_NOISE1'], list(list_lop_dense_ref)*2)
     np.testing.assert_allclose(sys_param_dense['L_LT_CORR'], list_lop_dense_ref)
 
+
+    M2_complex = np.array([[1 + 2j, 2 - 1j],
+                          [3 + 0j, 4 - 0.5j]], dtype=np.complex128)
+    M2_dyad_ref = np.array([[1 + 2j, 2 - 1j, 0, 0],
+                          [3 + 0j, 4 - 0.5j, 0, 0],[0, 0, 1 + 2j, 2 - 1j],
+                          [0, 0, 3 + 0j, 4 - 0.5j]], dtype=np.complex128)
+
+    M2_dyad_test = dhops_dense._M2_dyad_conversion(M2_complex)  # call method manually
+
+    np.testing.assert_allclose(M2_dyad_ref, M2_dyad_test)
+    # Check dtype
+    assert sys_param_dense['HAMILTONIAN'].dtype == np.complex128
+    assert M2_dyad_test.dtype == np.complex128
+
     # Sparse Construct
     # ----------------
 
@@ -239,11 +255,9 @@ def test_dyad_operator():
                                       Op_bra_dense @ psi_b))) ** 2))
     np.testing.assert_allclose(dhops_dense.psi, psi_2_ref)
 
-    try:
+    with pytest.raises(UnsupportedRequest) as excinfo:
         dhops_dense._dyad_operator(Op_bra_dense, 'braket')
-    except UnsupportedRequest as excinfo:
-        if 'sides other than "ket" or "bra"' not in str(excinfo):
-             pytest.fail()
+    assert 'sides other than "ket" or "bra"' in str(excinfo.value)
 
     # Sparse Construct
     # ----------------
@@ -262,11 +276,9 @@ def test_dyad_operator():
                                                       Op_bra_sparse@psi_b))) ** 2))
     np.testing.assert_allclose(dhops_sparse.psi, psi_2_ref)
 
-    try:
+    with pytest.raises(UnsupportedRequest) as excinfo:
         dhops_sparse._dyad_operator(Op_bra_sparse, 'braket')
-    except UnsupportedRequest as excinfo:
-        if 'sides other than "ket" or "bra"' not in str(excinfo):
-             pytest.fail()
+    assert 'sides other than "ket" or "bra"' in str(excinfo.value)
 
 @pytest.mark.order(4)
 def test_norm_comp_list():

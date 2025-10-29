@@ -1,9 +1,12 @@
 import os
+import pytest
 import numpy as np
 import scipy as sp
 from mesohops.basis.hops_system import HopsSystem as HSystem
+from mesohops.basis.system_functions import initialize_system_dict
 from mesohops.trajectory.exp_noise import bcf_exp
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
+from .utils import compare_dictionaries
 
 __title__ = "test for System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo"
@@ -22,7 +25,7 @@ nsite = 4
 e_lambda = 20.0
 gamma = 50.0
 temp = 140.0
-(g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+(g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 
 loperator = np.zeros([4, 4, 4], dtype=np.float64)
 gw_sysbath = []
@@ -139,28 +142,6 @@ def test_initialize_false():
     assert np.array_equal(state, known_state)
 
 
-def test_get_states_from_L2_try():
-    """
-    This function test to make sure _get_states_from_L2 is properly listing the states
-    that the L operators interacts with
-    """
-    lop = lop_list[2]
-    lop = HS._get_states_from_L2(lop)
-    known_state_tuple = tuple([1])
-    assert lop == known_state_tuple
-
-
-def test_get_states_from_L2_except():
-    """
-    This function test to make sure _get_states_from_L2 is properly listing the states
-    that the L operators interacts with
-    """
-    lop = sp.sparse.coo_matrix(lop_list[2])
-    lop = HS._get_states_from_L2(lop)
-    known_state_tuple = tuple([1])
-    assert lop == known_state_tuple
-
-
 def test_state_list_setter():
     """
     Tests that the state list setter correctly manages helper objects for indexing
@@ -189,7 +170,7 @@ def test_state_list_setter():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
     loperator = np.zeros([nsite, nsite, nsite], dtype=np.float64)
     gw_sysbath = []
     lop_list = []
@@ -258,7 +239,7 @@ def test_state_list_setter():
     e_lambda = 20.0
     gamma = 50.0
     temp = 140.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
     gw_sysbath = []
     lop_list = []
     for loperatori in list_loperator:
@@ -394,3 +375,43 @@ def test_dict_relative_index_by_state():
     assert HS.dict_relative_index_by_state[2] == 1
     assert HS.dict_relative_index_by_state[3] == 2
 
+
+def test_from_file_missing():
+    """Ensures that constructing with a missing file raises a FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        hs_loaded = HSystem("missing.pkl")
+
+
+def test_save_and_load_full(tmp_path):
+    """Comprehensively tests saving and loading of system parameters."""
+    # Small two state system used to keep the test light weight
+    ham = np.zeros((2, 2))
+    l1 = np.array([[1.0, 0.0], [0.0, 0.0]])
+    l2 = np.array([[0.0, 0.0], [0.0, 1.0]])
+    l3 = np.array([[0.0, 1.0], [1.0, 0.0]])
+
+    param = {
+        "HAMILTONIAN": ham,
+        "GW_SYSBATH": [(0.1, 1.0), (0.2, 1.1), (0.3, 1.2)],
+        "L_HIER": [l1, l2, l3],
+        "L_NOISE1": [l1, l2, l3],
+        "PARAM_NOISE1": [(0.1, 1.0), (0.2, 1.1), (0.3, 1.2)],
+        "ALPHA_NOISE1": bcf_exp,
+    }
+
+    hs = HSystem(param)
+
+    fname = tmp_path / "sys.pkl"
+    hs.save_dict_param(fname)
+    assert fname.exists()
+
+    hs_loaded = HSystem(fname)
+
+    # Ensure all keys are present and values are equal
+    compare_dictionaries(hs.param, hs_loaded.param)
+
+
+def test_load_invalid_type():
+    """Ensures that constructing with an invalid type raises a TypeError."""
+    with pytest.raises(TypeError):
+        HSystem(123)

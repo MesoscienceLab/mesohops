@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import sparse
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.util.physical_constants import hbar
@@ -33,7 +33,7 @@ def const_gw_sysbath(nsite, e_lambda, gamma, temp, gamma_mark):
                   The diagonal Lindblad operator--a site-projection operator.
     """
     # define exponential parameters
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
     # define parameter lists
     gw_sysbath = []
     lop_list = []

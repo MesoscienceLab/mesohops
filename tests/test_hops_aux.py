@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+
 from mesohops.basis.hops_aux import AuxiliaryVector
 from mesohops.util.exceptions import AuxError
 
@@ -10,10 +12,8 @@ def test_auxvec_ordering():
     """
     aux_1010 = AuxiliaryVector([(0, 1), (2, 1)], 4)
     assert type(aux_1010) == AuxiliaryVector
-    try:
+    with pytest.raises(AuxError, match='array_aux_vec not properly ordered'):
         aux_1010 = AuxiliaryVector([(2, 1), (0, 1)], 4)
-    except AuxError as excinfo:
-        assert 'array_aux_vec not properly ordered' in str(excinfo)
 
 
 def test_keys():
@@ -221,11 +221,9 @@ def test_add_aux_connect():
     assert aux_1001.dict_aux_m1[3] == aux_1000
 
     # # Test when type != +/- 1
-    try:
+    with pytest.raises(AuxError, match='There is a problem in the hierarchy: '
+                                       'add_aux_connect does not support type=2'):
         aux_1002.add_aux_connect(3, aux_1000, 2)
-    except AuxError as excinfo:
-        assert 'There is a problem in the hierarchy: add_aux_connect does not support ' \
-               'type=2' in str(excinfo)
 
 
 def test_remove_aux_connect():
@@ -250,12 +248,9 @@ def test_remove_aux_connect():
     assert aux_1001.dict_aux_m1 == {}
 
     # Test when type != +/- 1
-    try:
+    with pytest.raises(AuxError, match='There is a problem in the hierarchy: '
+                                       'remove_aux_connect does not support type=2'):
         aux_1001.remove_aux_connect(3, 2)
-    except AuxError as excinfo:
-        assert 'There is a problem in the hierarchy: remove_aux_connect does not ' \
-               'support ' \
-               'type=2' in str(excinfo)
 
 def test_remove_pointers():
     """

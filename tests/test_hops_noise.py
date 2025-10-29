@@ -1,7 +1,8 @@
-import pytest
 import numpy as np
-from mesohops.trajectory.exp_noise import bcf_exp
+import pytest
+
 from mesohops.noise.hops_noise import HopsNoise
+from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.util.exceptions import UnsupportedRequest
 
 __title__ = "Test of hops_noise"
@@ -94,11 +95,13 @@ def test_initialize():
     assert noise_corr_working['N_L2'] == test_noise.param['N_L2']
     assert noise_corr_working['LIND_BY_NMODE'] == test_noise.param['LIND_BY_NMODE']
     assert noise_corr_working['CORR_PARAM'] == test_noise.param['CORR_PARAM']
+    # Test that FLAG_REAL defaults to False
+    assert test_noise.param["FLAG_REAL"] == False
     # Test that the keys overlap excepting T_AXIS (added by HopsNoise) and
     # STORE_RAW_NOISE (added by FFTFilterNoise)
     assert set(list(noise_param.keys()) + list(noise_corr_working.keys()) + [
-        'T_AXIS', 'RAND_MODEL', 'STORE_RAW_NOISE', 'NOISE_WINDOW', 'ADAPTIVE']) == set(
-        test_noise.param.keys())
+        'T_AXIS', 'RAND_MODEL', 'STORE_RAW_NOISE', 'NOISE_WINDOW', 'ADAPTIVE',
+        'FLAG_REAL' ]) == set(test_noise.param.keys())
 
 
 def test_get_noise(capsys):
@@ -162,12 +165,10 @@ def test_get_noise(capsys):
 
     # Tests that get_noise raises an UnsupportedRequest if using a nonexistent
     # NOISE_MODEL
-    try:
+    with pytest.raises(UnsupportedRequest) as excinfo:
         HopsNoise(noise_param_broken, noise_corr_working).get_noise(t_axis[:2])
-    except UnsupportedRequest as excinfo:
-        if 'does not support Noise.param[MODEL] NONEXISTENT_NOISE in the ' not in str(
-            excinfo):
-            pytest.fail()
+    assert ('does not support Noise.param[MODEL] NONEXISTENT_NOISE in the ' in
+            str(excinfo.value))
 
     # Windowed noise test
     test_noise_windowed = HopsNoise(noise_param_windowed, noise_corr_working)
@@ -239,6 +240,58 @@ def test_get_noise(capsys):
     out, err = capsys.readouterr()
     assert ("Warning: noise windowing is not supported while using interpolated "
             "noise") in out
+
+    # Tests of FLAG_REAL
+    noise_param_real = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 1000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs,
+        "INTERPOLATE": False,
+        "FLAG_REAL": True,
+    }
+    test_noise_real = HopsNoise(noise_param_real, noise_corr_working)
+    # if FLAG_REAL, noise should be purely real.
+    assert np.allclose(test_noise_real.get_noise(t_axis[:2])[0, :],
+                       np.real(test_noise_real._noise[0, :2]), atol=1e-8)
+
+    noise_param_complex = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 1000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs,
+        "INTERPOLATE": False,
+        "FLAG_REAL": False,
+    }
+    test_noise_complex = HopsNoise(noise_param_complex, noise_corr_working)
+    # If not FLAG_REAL, noise is not set to real.
+    assert not np.allclose(test_noise_complex.get_noise(t_axis[:2])[0, :],
+                           np.real(test_noise_complex._noise[0, :2]), atol=1e-8)
+
+    # Same test for interpolated noise
+    noise_param_interp_real = {
+        "SEED": 1j*noise,
+        "MODEL": "PRE_CALCULATED",
+        "TLEN": 1000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs,
+        "INTERPOLATE": True,
+        "FLAG_REAL": True,
+    }
+    test_noise_interp_real = HopsNoise(noise_param_interp_real, noise_corr_working)
+    assert np.allclose(test_noise_interp_real.get_noise([0, 0.25, 0.5, 0.75, 1]),
+                       np.zeros([2,5]), atol=1e-8)
+
+    noise_param_interp_complex = {
+        "SEED": 1j * noise,
+        "MODEL": "PRE_CALCULATED",
+        "TLEN": 1000.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs,
+        "INTERPOLATE": True,
+        "FLAG_REAL": False,
+    }
+    test_noise_interp_complex = HopsNoise(noise_param_interp_complex, noise_corr_working)
+    assert not np.allclose(test_noise_interp_complex.get_noise([0, 0.25, 0.5, 0.75, 1]),
+                       np.zeros([2, 5]), atol=1e-8)
 
 
 def test_noise_adaptivity():

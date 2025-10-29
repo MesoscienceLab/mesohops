@@ -6,7 +6,7 @@ from mesohops.trajectory.dyadic_spectra import DyadicSpectra as DHOPS
 from mesohops.trajectory.dyadic_spectra import (prepare_spectroscopy_input_dict,
                                             prepare_chromophore_input_dict,
                                             prepare_convergence_parameter_dict)
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 from mesohops.timing.helper_functions.hamiltonian_generation import (
     generate_spectroscopy_hamiltonian)
 from mesohops.timing.helper_functions.loperator_generation import (
@@ -41,7 +41,7 @@ spec_input = prepare_spectroscopy_input_dict(spectrum_type, time_dict,
 M2_mu_ge = np.tile(np.array([0, 0, 1]), (nsite, 1))
 H2_sys_hamiltonian = generate_spectroscopy_hamiltonian(nsite, V)
 list_loperators = generate_spectroscopy_loperators(nsite)
-list_modes = bcf_convert_sdl_to_exp(e_lambda, gamma, 0, temp)
+list_modes = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
 chromophore_input = prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian,
                                                    bath_dict={"list_lop":
                                                                   list_loperators,

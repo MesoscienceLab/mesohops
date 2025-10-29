@@ -11,7 +11,7 @@ from mesohops.eom.eom_hops_ksuper import (
 )
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
-from mesohops.util.bath_corr_functions import bcf_convert_sdl_to_exp
+from mesohops.util.bath_corr_functions import bcf_convert_dl_to_exp
 
 __title__ = "Test of eom_hops_ksuper"
 __author__ = "D. I. G. Bennett, B. Citty, J. K. Lynd"
@@ -628,7 +628,7 @@ def test_add_crossterms_arbitrary_lop():
     e_lambda = 65.
     gamma = 53.0
     temp = 300.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
     numsites2 = nsite*(nsite+1)/2
     gw_sysbath = []
     for i in range(nsite):
@@ -914,7 +914,7 @@ def test_add_crossterms_stable_arbitrary_lop():
     e_lambda = 65.
     gamma = 53.0
     temp = 300.0
-    (g_0, w_0) = bcf_convert_sdl_to_exp(e_lambda, gamma, 0.0, temp)
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
     numsites2 = nsite*(nsite+1)/2
     gw_sysbath = []
     for i in range(nsite):

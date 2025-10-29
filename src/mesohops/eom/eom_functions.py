@@ -214,15 +214,16 @@ def calc_norm_corr(
 
 def calc_LT_corr(
     list_LT_coeff, list_L2, list_avg_L2, list_L2_sq):
-    """
+    r"""
     Computes the low-temperature correction factor associated with each member of the
     hierarchy in the nonlinear equation of motion. The factor is given by the sum over
-    the low-temperature correction coefficients and associated L-operators c_n and L_n:
+    the low-temperature correction coefficients and associated L-operators ``c_n`` and
+    ``L_n``:
     \sum_n conj(c_n)<L_n>L_n
     to all auxiliary wave functions and
     \sum_n c_n(<L_n> - L_n)L_n
-    to the physical wave function, where c_n is the nth low-temperature correction
-    factor, and L_n is the nth L-operator associated with that factor.
+    to the physical wave function, where ``c_n`` is the nth low-temperature correction
+    factor, and ``L_n`` is the nth L-operator associated with that factor.
 
     Parameters
     ----------
@@ -257,13 +258,13 @@ def calc_LT_corr(
 def calc_LT_corr_to_norm_corr(
     list_LT_coeff, list_avg_L2, list_avg_L2_sq
 ):
-    """
+    r"""
     Computes the low-temperature correction to the normalization factor in the
     normalized nonlinear equation of motion. The correction is given by the sum over
-    the low-temperature correction coefficients and associated L-operators c_n and L_n:
+    the low-temperature correction coefficients and associated L-operators ``c_n`` and ``L_n``:
     \sum_n Re[c_n](2<L_n>^2 - <L_n^2>),
-    where c_n is the nth low-temperature correction
-    factor, and L_n is the nth L-operator associated with that factor.
+    where ``c_n`` is the nth low-temperature correction
+    factor, and ``L_n`` is the nth L-operator associated with that factor.
 
     Parameters
     ----------
@@ -285,12 +286,12 @@ def calc_LT_corr_to_norm_corr(
 def calc_LT_corr_linear(
     list_LT_coeff, list_L2_sq
 ):
-    """
+    r"""
     Computes the low-temperature correction factor associated with each member of the
     hierarchy in the linear equation of motion. The factor is given by the sum over the
-    low-temperature correction coefficients and associated L-operators c_n and L_n:
+    low-temperature correction coefficients and associated L-operators ``c_n`` and ``L_n``:
     -\sum_n c_nL_n^2,
-    where c_n is the nth low-temperature correction factor, and L_n is
+    where ``c_n`` is the nth low-temperature correction factor, and ``L_n`` is
     the nth L-operator associated with that factor.
     NOTE: This correction should only be applied to the physical wavefunction.
 
