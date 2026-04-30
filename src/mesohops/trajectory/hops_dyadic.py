@@ -80,6 +80,105 @@ class DyadicTrajectory(HopsTrajectory):
         super().__init__(system_param, eom_param, noise_param, noise2_param,
                          hierarchy_param, storage_param, integration_param)
 
+    def save_checkpoint(self, filepath, compress=True, drop_seed=False):
+        """
+        Override ``HopsTrajectory.save_checkpoint`` to save dyadic response
+        function normalization data alongside the trajectory checkpoint.
+
+        Parameters
+        ----------
+        1. filepath : str or os.PathLike
+                      Output filename for the checkpoint.
+        2. compress : bool, optional
+                      If True, save compressed checkpoint data.
+        3. drop_seed : bool, optional
+                       If True, omit noise seeds in checkpoint params.
+
+        Returns
+        -------
+        None
+        """
+        self.storage.dyadic_data = {
+            "list_response_norm_sq": np.array(
+                self.list_response_norm_sq, dtype=np.float64
+            )
+        }
+        super().save_checkpoint(filepath, compress=compress, drop_seed=drop_seed)
+
+    def _initialize_from_checkpoint(self, state_list: np.ndarray,
+                                    phi: np.ndarray) -> None:
+        """
+        Restore the checkpoint wavefunction before reconstructing the full basis.
+
+        Dyadic-specific normalization history is restored in ``load_checkpoint``
+        from ``storage.dyadic_data`` after the wavefunction has been
+        initialized from the checkpoint file.
+
+        Parameters
+        ----------
+        1. state_list : np.array(int)
+                        Active state indices in the checkpoint basis.
+
+        2. phi : np.array(complex)
+                 Full checkpoint wavefunction in reduced basis ordering.
+
+        Returns
+        -------
+        None
+        """
+        psi_0 = np.zeros(self.basis.system.param['NSTATES'], dtype=np.complex128)
+        psi_0[state_list] = phi[:state_list.size]
+        # Call the base initialize method directly. Using self.initialize here
+        # would re-enter DyadicTrajectory.initialize, which expects separate ket
+        # and bra wavefunctions rather than the single checkpoint wavefunction.
+        super().initialize(psi_0)
+
+    @classmethod
+    def load_checkpoint(cls,
+                        filename,
+                        add_seed1=None,
+                        add_seed2=None,
+                        add_system_param=None):
+        """
+        Load a DyadicTrajectory checkpoint and restore dyadic normalization history.
+
+        Parameters
+        ----------
+        1. filename : str or os.PathLike
+                      Path to the ``.npz`` checkpoint file.
+
+        2. add_seed1 : int, str, os.PathLike, np.ndarray or None
+                       Optional override for noise-1 seed during load.
+
+        3. add_seed2 : int, str, os.PathLike, np.ndarray or None
+                       Optional override for noise-2 seed during load.
+
+        4. add_system_param : str or os.PathLike or None
+                              Optional system parameter source used by the base loader.
+
+        Returns
+        -------
+        1. traj : DyadicTrajectory
+                  Reconstructed dyadic trajectory object.
+        """
+        traj = super().load_checkpoint(
+            filename,
+            add_seed1=add_seed1,
+            add_seed2=add_seed2,
+            add_system_param=add_system_param,
+        )
+        dyadic_data = traj.storage.dyadic_data
+        list_norm_sq = dyadic_data.get("list_response_norm_sq")
+        if list_norm_sq is None:
+            raise ValueError(
+                "Invalid DyadicTrajectory checkpoint: missing "
+                "storage_dyadic_data['list_response_norm_sq']."
+            )
+        traj._DyadicTrajectory__list_response_norm_sq = list(
+            np.array(list_norm_sq, dtype=np.float64).tolist()
+        )
+        return traj
+
     def initialize(self, psi_ket, psi_bra, timer_checkpoint=None):
         """
         Prepares the initial dyadic wave function and passes it to
@@ -242,5 +341,16 @@ class DyadicTrajectory(HopsTrajectory):
 
     @property
     def list_response_norm_sq(self):
-        return self.__list_response_norm_sq
+        """
+        Returns dyadic normalization factors accumulated through trajectory actions.
 
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        1. list_response_norm_sq : list(float)
+                                   Normalization factors used in response evaluation.
+        """
+        return self.__list_response_norm_sq

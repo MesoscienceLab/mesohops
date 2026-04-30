@@ -10,6 +10,7 @@ import scipy as sp
 from scipy import sparse
 
 from mesohops.basis.system_functions import initialize_system_dict
+from mesohops.util.physical_constants import hbar
 
 __title__ = "System Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd, B. Z. Citty"
@@ -26,20 +27,25 @@ class HopsSystem:
         'param',            # System parameters (main dictionary)
         '__ndim',           # System dimension (number of states)
         '_list_lt_corr_param',   # Low-temperature correction parameters
-        '_hamiltonian',     # System Hamiltonian (sparse or dense)
+        '_hamiltonian',     # System Hamiltonian, basis states (sparse or dense)
+        '_H2_hamiltonian_extd', # System Hamiltonian, basis + boundary states (sparse or dense)
+        '_dict_nzhamiltonian_abs', # System Hamiltonian nonzero dictionary keyed by (row, col)
 
         # --- State list bookkeeping (for adaptive basis) ---
         '__previous_state_list',  # Previous state list (for adaptive updates)
-        '__state_list',           # Current state list
+        '_list_stateidx_abs',     # Current state list
         'adaptive',               # Adaptive flag (True if adaptive basis is used)
-        '__list_add_state',       # States to add in update
-        '__list_stable_state',    # States stable between updates
-        '_list_boundary_state',   # States coupled to basis by Hamiltonian
+        '_list_newstateidx_abs',  # States to add in update
+        '_list_stblstateidx_abs', # States stable between updates
+        '_list_bndstateidx_abs',  # States coupled to basis by Hamiltonian
+        '_system_timescale',      # The estimated fastest timescale of H2
+        '_list_stateidx_extd',          # Indices of basis elements in system + boundary state list
+        '_list_bndstateidx_extd',       # Indices of boundary elements in system + boundary state list
 
         # --- Indexing of modes & L-operators in the current basis ---
-        '__list_absindex_state_modes',     # State mode indices (absolute)
-        '__list_absindex_new_state_modes', # New state mode indices (absolute)
-        '__list_absindex_L2_active',       # Active L2 indices (absolute)
+        '_list_statemodeidx_abs',          # State mode indices (absolute)
+        '_list_newstatemodeidx_abs',       # New state mode indices (absolute)
+        '_list_activel2idx_abs',           # Active L2 indices (absolute)
         '__list_destination_state',        # Destination states for each state
         '__dict_relindex_states',          # Relative state indices
     )
@@ -97,21 +103,22 @@ class HopsSystem:
             c. N_L2 : int
                       Number of unique system-bath coupling operators.
             d. LIST_INDEX_L2_BY_NMODE1 : np.array(int)
-                                         Maps list_absindex_noise1 to index_L2.
+                                         Maps noise1 mode indices to index_L2.
             e. LIST_INDEX_L2_BY_NMODE2 : np.array(int)
-                                         Maps list_absindex_noise2 to index_L2.
+                                         Maps noise2 mode indices to index_L2.
             f. LIST_INDEX_L2_BY_LT_CORR : np.array(int)
-                                          Maps list_absindex_LT_CORR to index_L2.
+                                          Maps low-temperature correction indices
+                                          to index_L2.
             g. LIST_INDEX_L2_BY_HMODE : np.array(int)
-                                        Maps list_absindex_by_hmode to index_L2.
+                                        Maps hierarchy mode index to index_L2.
             h. LIST_STATE_INDICES_BY_HMODE : np.array(int)
-                                             Maps list_absindex_by_hmode to
-                                             list_absindex_states.
+                                             Maps hierarchy mode index to
+                                             state indices.
             i. LIST_L2_COO : np.array(sparse matrix)
-                             Maps list_absindex_L2 to coo_sparse.
+                             Maps list_l2idx_abs to coo_sparse.
             j. LIST_STATE_INDICES_BY_INDEX_L2 : np.array(int)
-                                                Maps list_absindex_L2 to
-                                                list_absindex_states.
+                                                Maps list_l2idx_abs to
+                                                state indices.
             k. SPARSE_HAMILTONIAN : sp.sparse.csc_array(complex)
                                     Sparse representation of the Hamiltonian.
 
@@ -133,7 +140,17 @@ class HopsSystem:
             raise TypeError("system_param must be a dictionary or a file path.")
         self.__ndim = self.param["NSTATES"]
         self.__previous_state_list = None
-        self.__state_list = []
+        self._list_stateidx_abs = []
+        H2_hamiltonian_abs_coo = self.param["SPARSE_HAMILTONIAN"].tocoo()
+        self._dict_nzhamiltonian_abs = {}
+        for row, col, data in zip(
+            H2_hamiltonian_abs_coo.row, H2_hamiltonian_abs_coo.col, H2_hamiltonian_abs_coo.data
+        ):
+            key = (row, col)
+            if key in self._dict_nzhamiltonian_abs:
+                self._dict_nzhamiltonian_abs[key] += data
+            else:
+                self._dict_nzhamiltonian_abs[key] = data
 
     def initialize(self, flag_adaptive: bool, psi_0: np.ndarray) -> None:
         """
@@ -181,24 +198,24 @@ class HopsSystem:
 
     @property
     def size(self) -> int:
-        return len(self.__state_list)
+        return len(self._list_stateidx_abs)
 
     @property
     def state_list(self) -> np.ndarray | list:
-        return self.__state_list
+        return self._list_stateidx_abs
 
     @property
     def list_destination_state(self) -> np.ndarray:
         return self.__list_destination_state
         
     @property
-    def list_boundary_state(self) -> list[int]:
-        return self._list_boundary_state
+    def list_bndstateidx_abs(self) -> list[int]:
+        return self._list_bndstateidx_abs
 
-    @property 
-    def list_sc(self) -> list[int]:
-        list_boundary_lop = list(set(self.list_destination_state) - set(self.state_list))
-        return list(set(list_boundary_lop) | set(self.list_boundary_state))
+    @property
+    def list_fullbndidx_abs(self) -> list[int]:
+        list_bndl2 = sorted(set(self.list_destination_state) - set(self.state_list))
+        return sorted(set(list_bndl2) | set(self.list_bndstateidx_abs))
     @property
     def dict_relative_index_by_state(self) -> dict[int, int]:
         return self.__dict_relindex_states
@@ -207,33 +224,32 @@ class HopsSystem:
     def state_list(self, new_state_list: Sequence[int] | np.ndarray) -> None:
         # Construct information about previous timestep
         # --------------------------------------------
-        self.__previous_state_list = self.__state_list
-        self.__list_add_state = list(set(new_state_list) - set(self.__previous_state_list ))
-        self.__list_add_state.sort()
-        self.__list_stable_state = list(
+        self.__previous_state_list = self._list_stateidx_abs
+        self._list_newstateidx_abs = sorted(set(new_state_list) - set(self.__previous_state_list ))
+        self._list_newstateidx_abs.sort()
+        self._list_stblstateidx_abs = sorted(
             set(self.__previous_state_list ).intersection(set(new_state_list))
         )
-        self.__list_stable_state.sort()
+        self._list_stblstateidx_abs.sort()
 
         if set(new_state_list) != set(self.__previous_state_list):
             # Prepare New State List
             # ----------------------
             new_state_list.sort()
-            self.__state_list = np.array(new_state_list)
+            self._list_stateidx_abs = np.array(new_state_list)
 
             # Update Local Indexing
             # ----------------------
             # state_list is the indexing system for states (takes i_rel --> i_abs)
-            # list_absindex_L2_active is the indexing system for L2 (takes i_rel --> i_abs)
-            # list_absindex_state_modes is the indexing system for hierarchy modes (takes i_rel --> i_abs)
-            self.__list_absindex_state_modes = np.array(
-                [   
+            # list_activel2idx_abs is the indexing system for L2 (takes i_rel --> i_abs)
+            # list_statemodeidx_abs is the indexing system for hierarchy modes (takes i_rel --> i_abs)
+            self._list_statemodeidx_abs = np.array(
+                [
                     self.param["LIST_HMODE_INDICES_BY_STATE"][state][mode]
                     for state in self.state_list
                     for mode in range(len(self.param["LIST_HMODE_INDICES_BY_STATE"][state]))
                 ], dtype=int
             )
-
 
             # Get the list of destination states linked to the current state basis by
             # the full set of L-operators, under the assumption that an L-operator
@@ -252,25 +268,25 @@ class HopsSystem:
             self.__dict_relindex_states = {self.state_list[s]: s for s in range(len(
                 self.state_list))}
 
-            self.__list_absindex_state_modes = np.sort(np.array(list(set(self.__list_absindex_state_modes))))
-            self.__list_absindex_new_state_modes = np.array(
-                [   
+            self._list_statemodeidx_abs = np.sort(np.array(sorted(set(self._list_statemodeidx_abs))))
+            self._list_newstatemodeidx_abs = np.array(
+                [
                     self.param["LIST_HMODE_INDICES_BY_STATE"][new_state][mode]
-                    for new_state in self.__list_add_state
+                    for new_state in self._list_newstateidx_abs
                     for mode in range(len(self.param["LIST_HMODE_INDICES_BY_STATE"][new_state]))
                 ], dtype=int
             )
-            self.__list_absindex_new_state_modes = np.sort(np.array(list(set(self.__list_absindex_new_state_modes))))
-            self.__list_absindex_L2_active = np.array(
-                [   
+            self._list_newstatemodeidx_abs = np.sort(np.array(sorted(set(self._list_newstatemodeidx_abs))))
+            self._list_activel2idx_abs = np.array(
+                [
                     self.param["LIST_INDEX_L2_BY_STATE_INDICES"][state][L2]
                     for state in self.state_list
                     for L2 in range(len(self.param["LIST_INDEX_L2_BY_STATE_INDICES"][state]))
                 ], dtype=int
             )
-            self.__list_absindex_L2_active = np.sort(np.array(list(set(self.__list_absindex_L2_active)),dtype=int))
+            self._list_activel2idx_abs = np.sort(np.array(sorted(set(self._list_activel2idx_abs)),dtype=int))
             self._list_lt_corr_param = np.array(self.param["LIST_LT_PARAM"])[
-                 self.__list_absindex_L2_active]
+                 self._list_activel2idx_abs]
 
             # Update Local Properties
             # -----------------------
@@ -282,34 +298,61 @@ class HopsSystem:
                 self._hamiltonian = self.param["HAMILTONIAN"][
                     np.ix_(self.state_list, self.state_list)
                 ]
-            self._list_boundary_state = [self.param["COUPLED_STATES"][state] for state in self.state_list]
-            self._list_boundary_state = list(set([state_conn for conn_list in self._list_boundary_state for state_conn in conn_list ]) - set(self.state_list))
-            
+
+            self._list_bndstateidx_abs = [self.param["COUPLED_STATES"][state] for state in self.state_list]
+            self._list_bndstateidx_abs = sorted(set([state_conn for conn_list in self._list_bndstateidx_abs for state_conn in conn_list ]) - set(self.state_list))
+            energy_spread = np.max(self._hamiltonian) - np.min(self._hamiltonian)
+            if energy_spread == 0:
+                self._system_timescale = np.inf
+            else:
+                self._system_timescale = np.abs(hbar / energy_spread)
+
+            list_state_extd = sorted(
+                set(self.state_list)
+                | set(self.list_destination_state)
+                | set(self.list_bndstateidx_abs)
+            )
+            self._list_stateidx_extd = [list_state_extd.index(state) for state in self.state_list]
+            self._list_bndstateidx_extd = [list_state_extd.index(state) for state in self.list_fullbndidx_abs]
+            H2_hamiltonian_extd_coo = self.reduce_sparse_matrix(
+                self._dict_nzhamiltonian_abs, list_state_extd, True
+            )
+            self._H2_hamiltonian_extd = sparse.csr_array(
+                (H2_hamiltonian_extd_coo.data, (H2_hamiltonian_extd_coo.row, H2_hamiltonian_extd_coo.col)),
+                shape=H2_hamiltonian_extd_coo.shape,
+            )
     @property
     def previous_state_list(self) -> np.ndarray | None:
         return self.__previous_state_list
 
     @property
-    def list_stable_state(self) -> np.ndarray | list:
-        return self.__list_stable_state
+    def list_stblstateidx_abs(self) -> np.ndarray | list:
+        return self._list_stblstateidx_abs
 
     @property
-    def list_add_state(self) -> np.ndarray | list:
-        return self.__list_add_state
+    def list_newstateidx_abs(self) -> np.ndarray | list:
+        return self._list_newstateidx_abs
 
     @property
     def hamiltonian(self) -> sp.sparse.spmatrix | np.ndarray:
         return self._hamiltonian
 
     @property
-    def list_absindex_state_modes(self) -> np.ndarray:
-        return self.__list_absindex_state_modes
+    def H2_hamiltonian_extd(self) -> np.ndarray:
+        return self._H2_hamiltonian_extd
+
     @property
-    def list_absindex_new_state_modes(self) -> np.ndarray:
-        return self.__list_absindex_new_state_modes
+    def list_statemodeidx_abs(self) -> np.ndarray:
+        return self._list_statemodeidx_abs
+
     @property
-    def list_absindex_L2_active(self) -> np.ndarray:
-        return self.__list_absindex_L2_active
+    def list_newstatemodeidx_abs(self) -> np.ndarray:
+        return self._list_newstatemodeidx_abs
+
+    @property
+    def list_activel2idx_abs(self) -> np.ndarray:
+        return self._list_activel2idx_abs
+
     @property
     def list_lt_corr_param(self) -> np.ndarray:
         return self._list_lt_corr_param
@@ -318,37 +361,98 @@ class HopsSystem:
     def list_off_diag(self) -> np.ndarray:
         return self.param["list_L2_off_diag"]
 
+    @property
+    def system_timescale(self) -> float:
+        return self._system_timescale
+
+    @property
+    def list_stateidx_extd(self) -> list:
+        return self._list_stateidx_extd
+
+    @property
+    def list_bndstateidx_extd(self) -> list:
+        return self._list_bndstateidx_extd
+
     @staticmethod
     def reduce_sparse_matrix(
-        coo_mat: sp.sparse.spmatrix, state_list: Sequence[int]
+        dict_l2_nnz: dict,
+        state_list: Sequence[int],
+        off_diag: bool,
+        filter_nz: bool = False,
     ) -> sp.sparse.coo_matrix:
         """
         Takes in a sparse matrix and list which represents the absolute
         state to a new relative state represented in a sparse matrix.
 
+        This version is size invariant with respect to global operator size.
+        Naive global slicing or filtering carries scaling with the full-system
+        nonzero structure, which can grow as O(N) in the total number of
+        system states.
+
         Parameters
         ----------
-        1. coo_mat : scipy sparse matrix
-                     Sparse matrix.
+        1. dict_l2_nnz: dict
+                        Sparse nonzero entries keyed by (state_i, state_j).
 
-        2. state_list : list
+        2. state_list: list(int)
                         List of relative index.
+
+        3. off_diag: bool
+                     True if off-diagonal couplings are included.
+
+        4. filter_nz: bool
+                     If True, filter state_list to only states that participate
+                     in nonzero entries before building the matrix.
 
         Returns
         -------
-        1. sparse : np.array
-                    Sparse matrix in relative basis.
+        1. sparse: scipy sparse matrix
+                   Sparse matrix in relative basis.
         """
-        coo_tuple = np.array([(i, j, data) for (i,j,data) in zip(coo_mat.row, coo_mat.col, coo_mat.data)
-                               if ((i in state_list) and (j in state_list))])
-        if len(coo_tuple) == 0:
-            return sp.sparse.coo_matrix((len(state_list), len(state_list)))
-        else:
-            coo_tuple = np.atleast_2d(coo_tuple)
-            coo_row = [list(state_list).index(i) for i in coo_tuple[:,0]]
-            coo_col = [list(state_list).index(i) for i in coo_tuple[:,1]]
-            coo_data = coo_tuple[:,2]
+        state_list = list(state_list)
 
-            return sp.sparse.coo_matrix(
-                (coo_data, (coo_row, coo_col)), shape=(len(state_list), len(state_list))
-            )
+        # Determine which states to iterate over
+        if filter_nz:
+            if not off_diag:
+                # Filter to diag states present in dict
+                iter_states = [
+                    s for s in state_list if (s, s) in dict_l2_nnz
+                ]
+            else:
+                # Collect all states involved in any nonzero entry
+                nonzero_states = []
+                for s1 in state_list:
+                    for s2 in state_list:
+                        if (s1, s2) in dict_l2_nnz:
+                            nonzero_states.append(s1)
+                            nonzero_states.append(s2)
+                iter_states = sorted(set(nonzero_states))
+        else:
+            iter_states = state_list
+
+        # Build sparse matrix from iter_states
+        row = []
+        col = []
+        data = []
+        if not off_diag:
+            for (i, state) in enumerate(iter_states):
+                try:
+                    value = dict_l2_nnz[(state, state)]
+                    row.append(i)
+                    col.append(i)
+                    data.append(value)
+                except KeyError:
+                    pass
+        else:
+            for (i, state1) in enumerate(iter_states):
+                for (j, state2) in enumerate(iter_states):
+                    try:
+                        value = dict_l2_nnz[(state1, state2)]
+                        row.append(i)
+                        col.append(j)
+                        data.append(value)
+                    except KeyError:
+                        pass
+        return sp.sparse.coo_matrix(
+            (data, (row, col)), shape=(len(iter_states), len(iter_states))
+        )

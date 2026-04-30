@@ -1,8 +1,35 @@
+import os
+import subprocess
 import pytest
 from unittest.mock import patch, MagicMock
+from mesohops.util import git_utils
 from mesohops.util.git_utils import get_git_commit_hash
 
 
+def _pkg_in_git_repo():
+    """True iff the installed git_utils.py lives inside a git working tree.
+
+    Editable installs (`pip install -e .`) leave the package inside the
+    source repo, so git commands succeed; wheel installs (`pip install .`)
+    place the package in site-packages, where git has no repo to query.
+    """
+    pkg_dir = os.path.dirname(os.path.abspath(git_utils.__file__))
+    try:
+        result = subprocess.run(
+            ['git', '-C', pkg_dir, 'rev-parse', '--is-inside-work-tree'],
+            capture_output=True, text=True, check=False,
+        )
+        return result.returncode == 0 and result.stdout.strip() == 'true'
+    except FileNotFoundError:
+        return False
+
+
+@pytest.mark.skipif(
+    not _pkg_in_git_repo(),
+    reason='get_git_commit_hash returns a hash only when the installed '
+           'package directory is inside a git working tree; the error-path '
+           'is exercised by test_get_git_commit_hash_command_error.',
+)
 def test_get_git_commit_hash_success():
     """Test that get_git_commit_hash returns a valid hash in a git repository."""
     # Since we're running in a git repository, we should get a valid hash

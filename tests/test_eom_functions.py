@@ -110,24 +110,36 @@ def test_calc_delta_zmem():
     in the noise are properly taken into account
     during a HOPS simulation.
     """
-    lind_dict = hops.basis.system.param["LIST_L2_COO"]
-    lop_list = lind_dict
+    lop_list = hops.basis.system.param["LIST_L2_COO"]
     lavg_list = [operator_expectation(L2, hops.psi) for L2 in lop_list]
-    g_list = hops.basis.system.param["G"]
-    w_list = hops.basis.system.param["W"]
-
+    g_list = hops.basis.noise_memory.list_zmemg_abs
+    w_list = hops.basis.noise_memory.list_zmemw_abs
+    list_index_L2_by_mode = hops.basis.mode.list_index_L2_by_hmode
+    list_modeidx_abs = hops.basis.mode.list_modeidx_abs
+    list_zmemmodeidx_abs = hops.basis.noise_memory.list_zmemmodeidx_abs
+    list_l2idx_abs = hops.basis.mode.list_l2idx_abs
+    list_activel2idx_abs = list_l2idx_abs
     # Tests calc_delta_zmem when all noise memory terms are zero
     z_mem = np.array([0.0 for g in g_list])
+
+    # l_avg = [1,    0, -1,   0]
+    # g = w = [10,5,10,5,10,5,10,5]
+    # z_mem = [0,0,0,0,0,0,0,0]
+
     d_zmem = calc_delta_zmem(
         z_mem,
         lavg_list,
         g_list,
         w_list,
-        hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
-        np.array(range(len(g_list))),
-        list(np.arange(len(lavg_list)))
+        list_index_L2_by_mode,
+        list_modeidx_abs,
+        list_zmemmodeidx_abs,
+        list_l2idx_abs,
+        list_activel2idx_abs
     )
-    assert len(d_zmem) == len(g_list)
+
+    # d_zmem[i] = l_avg * np.conj(g) - np.conj(w) * z_mem[i]
+    assert len(d_zmem) == len(z_mem)
     assert d_zmem[0] == 10.0
     assert d_zmem[1] == 5.0
     assert d_zmem[2] == 0
@@ -140,56 +152,161 @@ def test_calc_delta_zmem():
 
     # Tests calc_delta_zmem when nonzero noise memory terms are present
     z_mem = np.array([5.0, 0.0, 0.0, 3.0, 0.0, 1.0, 1.0, 0.0])
+    lavg_list = [1, -1, -1]
+
+    hops.basis.system.state_list = [0]
+    hops.basis.mode.list_modeidx_abs = [0, 1, 4, 5, 6, 7]
+
+    g_list = hops.basis.noise_memory.list_zmemg_abs
+    w_list = hops.basis.noise_memory.list_zmemw_abs
+    list_index_L2_by_mode = hops.basis.mode.list_index_L2_by_hmode
+    list_modeidx_abs = hops.basis.mode.list_modeidx_abs
+    list_zmemmodeidx_abs = hops.basis.noise_memory.list_zmemmodeidx_abs
+    list_l2idx_abs = hops.basis.mode.list_l2idx_abs
+    list_activel2idx_abs = list_l2idx_abs
+
+    # l_avg = [1,        -1,  -1]
+    # g = w = [10,5,10,5,10,5,10,5]
+    # z_mem = [5, 0, 0,3, 0,1, 1,0]
     d_zmem = calc_delta_zmem(
-        z_mem,
-        [1, 1, -1, -1],
-        g_list,
-        w_list,
-        hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
-        np.array([0, 1, 6]),
-        list(np.arange(len(lavg_list)))
-    )
-    assert len(d_zmem) == len(g_list)
-    assert d_zmem[0] == 10.0 - (5.0*10.0)
-    assert d_zmem[1] == 5.0
-    assert d_zmem[2] == 0.0
-    assert d_zmem[3] == -3.0*5.0
-    assert d_zmem[4] == 0.0
-    assert d_zmem[5] == -1.0*5.0
-    assert d_zmem[6] == -1*10.0 - (1.0*10.0)
-    assert d_zmem[7] == 0
-
-    assert type(d_zmem) == type(np.array([]))
-
-def test_compress_zmem():
-    """
-    This is a test to ensure that memory-compression,
-    or the implicit accumulation of Matsubara modes,
-    is properly taken into account during a HOPS
-    simulation.
-    """
-    lind_dict = hops.basis.system.param["LIST_L2_COO"]
-    lop_list = lind_dict
-    lavg_list = [operator_expectation(L2, hops.psi) for L2 in lop_list]
-    g_list = hops.basis.system.param["G"]
-    w_list = hops.basis.system.param["W"]
-    z_mem = np.array([0.0 for g in g_list])
-    z_mem = calc_delta_zmem(
         z_mem,
         lavg_list,
         g_list,
         w_list,
-        hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
-        range(len(g_list)),
-        list(np.arange(len(lavg_list)))
+        list_index_L2_by_mode,
+        list_modeidx_abs,
+        hops.basis.noise_memory.list_zmemmodeidx_abs,
+        list_l2idx_abs,
+        list_activel2idx_abs,
     )
+    # d_zmem[i] = l_avg * np.conj(g) - np.conj(w) * z_mem[i]
+    assert len(d_zmem) == len(z_mem)
+    assert d_zmem[0] == 10.0 - (5.0*10.0)
+    assert d_zmem[1] == 5.0
+    assert d_zmem[2] == 0.0
+    assert d_zmem[3] == -3.0*5.0
+    assert d_zmem[4] == -1.0*10.0
+    assert d_zmem[5] == -1.0*5.0 - (1.0*5.0)
+    assert d_zmem[6] == -1.0*10.0 - (1.0*10.0)
+    assert d_zmem[7] == -1.0*5.0
+    assert type(d_zmem) == type(np.array([]))
+
+
+    # Tests that it still works when not all L2 are active
+    z_mem = [1, 2, 3, 4, 5, 6, 7, 8]
+    lavg_list = [1,1,-1] #Note:  lavg_list must have same length as list_activel2idx_abs!
+    g_list = w_list = [10,5,10,5,10,5,10,5]
+    list_index_L2_by_mode = [0,0,1,1,2,2,3,3]
+    list_modeidx_abs = [0,1,2,3,4,5,6,7]
+    list_zmemmodeidx_abs = [0,1,2,3,4,5,6,7]
+    list_l2idx_abs = [0,1,2,3]
+    list_activel2idx_abs = [0,2,3]
+    d_zmem = calc_delta_zmem(
+        z_mem,
+        lavg_list,
+        g_list,
+        w_list,
+        list_index_L2_by_mode,
+        list_modeidx_abs,
+        hops.basis.noise_memory.list_zmemmodeidx_abs,
+        list_l2idx_abs,
+        list_activel2idx_abs,
+    )
+    # d_zmem[i] = l_avg * np.conj(g) - np.conj(w) * z_mem[i]
+    assert len(d_zmem) == len(z_mem)
+    assert d_zmem[0] == (1.0*10.0) - (10.0*1.0)
+    assert d_zmem[1] == (1.0*5.0) - (5.0*2.0)
+    assert d_zmem[2] == (0.0*10.0) - (10.0*3.0)
+    assert d_zmem[3] == (0.0*5.0) - (5.0*4.0)
+    assert d_zmem[4] == (1.0*10.0) - (10.0*5.0)
+    assert d_zmem[5] == (1.0*5.0) - (5.0*6.0)
+    assert d_zmem[6] == (-1.0*10.0) - (10.0*7.0)
+    assert d_zmem[7] == (-1.0*5.0) - (5.0*8.0)
+
+    # Tests that it still works when z_mem contains extra modes
+    z_mem = [1, 2, 3, 4, 5, 6, 7, 8]
+    lavg_list = [1,-1,1,-1] #Note:  lavg_list must have same length as list_activel2idx_abs!
+    g_list = w_list = [10,5,10,5,10,5,10,5]
+    list_index_L2_by_mode = [0,0,1,2,3,3]
+    list_modeidx_abs = [0,1,3,4,6,7]
+    list_zmemmodeidx_abs = [0,1,2,3,4,5,6,7]
+    list_l2idx_abs = [0,1,2,3]
+    list_activel2idx_abs = [0,1,2,3]
+    d_zmem = calc_delta_zmem(
+        z_mem,
+        lavg_list,
+        g_list,
+        w_list,
+        list_index_L2_by_mode,
+        list_modeidx_abs,
+        hops.basis.noise_memory.list_zmemmodeidx_abs,
+        list_l2idx_abs,
+        list_activel2idx_abs,
+    )
+    # d_zmem[i] = l_avg * np.conj(g) - np.conj(w) * z_mem[i]
+    assert len(d_zmem) == len(z_mem)
+    assert d_zmem[0] == (1.0*10.0) - (10.0*1.0)
+    assert d_zmem[1] == (1.0*5.0) - (5.0*2.0)
+    assert d_zmem[2] == (0.0*10.0) - (10.0*3.0)
+    assert d_zmem[3] == (-1.0*5.0) - (5.0*4.0)
+    assert d_zmem[4] == (1.0*10.0) - (10.0*5.0)
+    assert d_zmem[5] == (0.0*5.0) - (5.0*6.0)
+    assert d_zmem[6] == (-1.0*10.0) - (10.0*7.0)
+    assert d_zmem[7] == (-1.0*5.0) - (5.0*8.0)
+
+
+def test_compress_zmem():
+    """
+    This is a test to ensure that all modes corresponding to
+    each L-operator is summed correctly
+    """
+    z_mem = [10, 5, 0, 0, -10, -5, 0, 0]
+    list_zmemactivemodeidx_rel = [0,1,2,3,4,5,6,7]
+    list_index_L2_by_hmode = [0,0,1,1,2,2,3,3]
+
     z_compress = compress_zmem(
         z_mem,
-        hops.basis.system.param["LIST_INDEX_L2_BY_NMODE1"],
-        hops.basis.list_absindex_mode,
+        list_index_L2_by_hmode,
+        list_zmemactivemodeidx_rel,
     )
     assert len(z_compress) == 4
     assert z_compress[0] == 15.0
     assert z_compress[1] == 0.0
     assert z_compress[2] == -15.0
     assert z_compress[3] == 0.0
+
+    # Now we test to ensure that the method can handle partial bases.
+
+    # The z_mem array can be larger than the relindex_mode_active list, but it must
+    # contain the indices therein.
+
+    # We start with a two mode per site system, but leave some modes out.
+    z_mem = [1,2,3,4,5,6,7,8]
+    list_index_L2_by_hmode = [0,0,1,2]
+    list_zmemactivemodeidx_rel = [0,1,5,7]
+
+    z_compress = compress_zmem(
+        z_mem,
+        list_index_L2_by_hmode,
+        list_zmemactivemodeidx_rel
+    )
+    # The length of z_compress is the number of unique L2-indices in "list_index_L2_by_hmode"
+    assert len(z_compress) == 3
+    assert z_compress[0] == 1 + 2
+    assert z_compress[1] ==  6
+    assert z_compress[2] == 8
+
+    # Tests that the compression still works when list_index_L2_by_hmode is not trivial
+    z_mem = [1,2,3,4,5,6,7,8]
+    list_index_L2_by_hmode = [0,0,0,0,1,2,3,3]
+    list_zmemactivemodeidx_rel = [0,1,2,3,4,5,6,7]
+    z_compress = compress_zmem(
+        z_mem,
+        list_index_L2_by_hmode,
+        list_zmemactivemodeidx_rel
+    )
+    assert len(z_compress) == 4
+    assert z_compress[0] == 1 + 2 + 3 + 4
+    assert z_compress[1] ==  5
+    assert z_compress[2] == 6
+    assert z_compress[3] == 7 + 8

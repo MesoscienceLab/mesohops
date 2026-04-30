@@ -1,5 +1,7 @@
 import pytest
 import numpy as np
+import scipy as sp
+from mesohops.basis.hops_aux import AuxiliaryVector
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory as HOPS
 from mesohops.util.physical_constants import hbar
@@ -8,6 +10,74 @@ __title__ = "Test of hops_eom.py"
 __author__ = "J. K. Lynd"
 __version__ = "1.6"
 __date__ = "3/2/2023"
+
+
+def _make_small_hops():
+    noise_param = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 500.0,
+        "TAU": 0.5,
+    }
+
+    noise2_param = {
+        "SEED": 1010101,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 500.0,
+        "TAU": 0.5,
+    }
+
+    loperator = np.zeros([2, 2, 2], dtype=np.float64)
+    loperator[0, 0, 0] = 1.0
+    loperator[1, 1, 1] = 1.0
+
+    sys_param = {
+        "HAMILTONIAN": np.array([[0, 10.0], [10.0, 0]], dtype=np.float64),
+        "GW_SYSBATH": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+        "L_HIER": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "L_NOISE1": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+        "L_NOISE2": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "ALPHA_NOISE2": bcf_exp,
+        "PARAM_NOISE2": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+    }
+
+    hier_param = {"MAXHIER": 2}
+    eom_param = {"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        "EARLY_ADAPTIVE_INTEGRATOR": "INCH_WORM",
+        "EARLY_INTEGRATOR_STEPS": 5,
+        "INCHWORM_CAP": 5,
+        "STATIC_BASIS": None,
+        "EFFECTIVE_NOISE_INTEGRATION": False,
+    }
+
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        noise2_param=noise2_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops.initialize([1.0 + 0.0j, 0.0 + 0.0j])
+    return hops
+
+
+def _assert_sparse_equal(a, b):
+    if sp.sparse.issparse(a) or sp.sparse.issparse(b):
+        assert sp.sparse.issparse(a) and sp.sparse.issparse(b)
+        np.testing.assert_allclose(a.toarray(), b.toarray())
+        return
+    if isinstance(a, (list, tuple, np.ndarray)) and isinstance(b, (list, tuple, np.ndarray)):
+        assert len(a) == len(b)
+        for a_i, b_i in zip(a, b):
+            _assert_sparse_equal(a_i, b_i)
+        return
+    np.testing.assert_allclose(a, b)
+
 
 # Manual HOPS EoM helper functions (the "by-hand" solution)
 
@@ -161,7 +231,7 @@ def dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham, noise_t_pre
     list_abs_modes = list_modes[2]
     list_rel_modes = range(len(list_abs_modes))
     I2 = np.eye(n_state)
-    noise_matrix = np.sum([(noise_t[n]+list_noise_memory.toarray()[n])*list_l_op[n]
+    noise_matrix = np.sum([(noise_t[n]+list_noise_memory[n])*list_l_op[n]
                            for n in range(len(list_l_op))],axis=0)
     psi_0 = P2_reshape[0]
     # Build a list of l-operator expectation values
@@ -175,7 +245,7 @@ def dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham, noise_t_pre
     # Build normalization correction factor:
     if type == "normalized_nonlinear":
         norm_corr = np.sum(np.array(list_l_exp)*(
-            np.real(np.array(noise_t)+list_noise_memory.toarray().flatten())))
+            np.real(np.array(noise_t)+list_noise_memory.flatten())))
         for m in list_rel_modes:
             e_m = np.zeros_like(list_aux[0])
             e_m[list_abs_modes[m]] = 1
@@ -227,6 +297,59 @@ def dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham, noise_t_pre
                                             list_l_exp[m]*I2)@P2_reshape[u_ind]
 
     return D2_deriv/hbar
+
+
+def test_prepare_derivative_skip_ksuper_identity():
+    """skip_ksuper should reuse existing K-super objects."""
+    hops = _make_small_hops()
+
+    # First call computes K-super operators.
+    hops.basis.eom._prepare_derivative(
+        hops.basis.system,
+        hops.basis.hierarchy,
+        hops.basis.mode,
+        hops.basis.noise_memory,
+        skip_ksuper=False,
+    )
+
+    k2_k_before = hops.basis.eom.K2_k
+    k2_kp1_before = hops.basis.eom.K2_kp1
+    z2_kp1_before = hops.basis.eom.Z2_kp1
+    k2_km1_before = hops.basis.eom.K2_km1
+    list_hier_mask_before = hops.basis.eom.list_hier_mask_Zp1
+
+    # skip_ksuper=True should reuse the same operator objects (identity check).
+    hops.basis.eom._prepare_derivative(
+        hops.basis.system,
+        hops.basis.hierarchy,
+        hops.basis.mode,
+        hops.basis.noise_memory,
+        skip_ksuper=True,
+    )
+
+    assert hops.basis.eom.K2_k is k2_k_before
+    assert hops.basis.eom.K2_kp1 is k2_kp1_before
+    assert hops.basis.eom.Z2_kp1 is z2_kp1_before
+    assert hops.basis.eom.K2_km1 is k2_km1_before
+    assert hops.basis.eom.list_hier_mask_Zp1 is list_hier_mask_before
+
+    # skip_ksuper=False should rebuild operators (new objects) but preserve values.
+    hops.basis.eom._prepare_derivative(
+        hops.basis.system,
+        hops.basis.hierarchy,
+        hops.basis.mode,
+        hops.basis.noise_memory,
+        skip_ksuper=False,
+    )
+
+    assert hops.basis.eom.K2_k is not k2_k_before
+    assert hops.basis.eom.K2_kp1 is not k2_kp1_before
+    assert hops.basis.eom.Z2_kp1 is not z2_kp1_before
+    assert hops.basis.eom.K2_km1 is not k2_km1_before
+    _assert_sparse_equal(hops.basis.eom.K2_k, k2_k_before)
+    _assert_sparse_equal(hops.basis.eom.K2_kp1, k2_kp1_before)
+    _assert_sparse_equal(hops.basis.eom.Z2_kp1, z2_kp1_before)
+    _assert_sparse_equal(hops.basis.eom.K2_km1, k2_km1_before)
 
 # Helper function to get an aux vector from a HopsAux object:
 def build_aux_vector(hops_aux):
@@ -353,11 +476,11 @@ def test_linear_eom():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
-        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_modeidx_abs]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_linear_manual(phi_t, list_state, list_aux, H2_ham,
                                                   noise_t_prepared, list_modes, list_l_op,
                                                   self_interaction=True,
@@ -380,12 +503,12 @@ def test_linear_eom():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
         list_l_op = [sys_param["L_HIER"][m] for m in
-                     hops.basis.mode.list_absindex_mode]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+                     hops.basis.mode.list_modeidx_abs]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_linear_manual(phi_t, list_state, list_aux, H2_ham,
                                                   noise_t_prepared, list_modes, list_l_op,
                                                   self_interaction=True,
@@ -423,11 +546,11 @@ def test_normalized_nonlinear_nonadaptive_eom():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
-        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_modeidx_abs]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state,
                                                                 list_aux, H2_ham,
                                                                 noise_t_prepared,
@@ -450,12 +573,12 @@ def test_normalized_nonlinear_nonadaptive_eom():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
         list_l_op = [sys_param["L_HIER"][m] for m in
-                     hops.basis.mode.list_absindex_mode]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+                     hops.basis.mode.list_modeidx_abs]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
                                                      noise_t_prepared, list_modes,
                                                      list_l_op, list_noise_memory,
@@ -492,11 +615,11 @@ def test_nonlinear_eom():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
-        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_absindex_mode]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
+        list_l_op = [sys_param["L_HIER"][m] for m in hops.basis.mode.list_modeidx_abs]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
                                                      noise_t_prepared, list_modes,
                                                      list_l_op, list_noise_memory,
@@ -518,12 +641,12 @@ def test_nonlinear_eom():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
         list_l_op = [sys_param["L_HIER"][m] for m in
-                     hops.basis.mode.list_absindex_mode]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+                     hops.basis.mode.list_modeidx_abs]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux, H2_ham,
                                                      noise_t_prepared, list_modes,
                                                      list_l_op, list_noise_memory,
@@ -618,14 +741,14 @@ def test_eom_adaptive():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
         list_l_op = [sys_param["L_HIER"][m] for m in
-                     hops.basis.mode.list_absindex_mode]
+                     hops.basis.mode.list_modeidx_abs]
         list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
 
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
                                                      H2_ham_trunc, noise_t_prepared,
                                                      list_modes, list_l_op_trunc,
@@ -649,13 +772,13 @@ def test_eom_adaptive():
         # Note: the noise we construct here is pre-conjugation, so noise 2 needs a
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
-        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_absindex_mode]
+        list_modes = [hops.basis.mode.list_g, hops.basis.mode.list_w, hops.basis.mode.list_modeidx_abs]
         list_l_op = [sys_param["L_HIER"][m] for m in
-                     hops.basis.mode.list_absindex_mode]
+                     hops.basis.mode.list_modeidx_abs]
         list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
-        list_noise_memory = hops.z_mem[hops.basis.mode.list_absindex_mode]
+        list_noise_memory = hops.z_mem[hops.basis.mode.list_modeidx_abs]
         noise_t_prepared = prepare_noise(list_l_by_mode_6mode, noise_t_combined,
-                                         hops.basis.mode.list_absindex_mode)
+                                         hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
                                                      H2_ham_trunc, noise_t_prepared,
                                                      list_modes, list_l_op_trunc,
@@ -692,21 +815,21 @@ def test_eom_adaptive():
         # sign of +2j, rather than -2j.
         noise_t_combined = noise_t + 1.0j * noise2_t
         list_modes = [linear_chain_hops.basis.mode.list_g, linear_chain_hops.basis.mode.list_w,
-                      linear_chain_hops.basis.mode.list_absindex_mode]
+                      linear_chain_hops.basis.mode.list_modeidx_abs]
         list_l_op = [linear_chain_sys_param["L_HIER"][m] for m in
-                     linear_chain_hops.basis.mode.list_absindex_mode]
+                     linear_chain_hops.basis.mode.list_modeidx_abs]
         list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
-        list_noise_memory = linear_chain_hops.z_mem[linear_chain_hops.basis.mode.list_absindex_mode]
+        list_noise_memory = linear_chain_hops.z_mem
         noise_t_prepared = prepare_noise(linear_chain_sys_param[
                                               "index_l_by_mode_abs"], noise_t_combined,
-                                         linear_chain_hops.basis.mode.list_absindex_mode)
+                                         linear_chain_hops.basis.mode.list_modeidx_abs)
         dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
                                                      H2_ham_trunc, noise_t_prepared,
                                                      list_modes, list_l_op_trunc,
                                                      list_noise_memory, type=
                                                      "normalized_nonlinear").flatten()
-        noise_t = noise_t[linear_chain_hops.basis.mode.list_absindex_mode]
-        noise2_t = noise2_t[linear_chain_hops.basis.mode.list_absindex_mode]
+        noise_t = noise_t[linear_chain_hops.basis.mode.list_modeidx_abs]
+        noise2_t = noise2_t[linear_chain_hops.basis.mode.list_modeidx_abs]
         dsystem_dt_test = linear_chain_hops.dsystem_dt(phi_t, linear_chain_hops.z_mem, noise_t,
                                           noise2_t)[0] / hbar
         assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
@@ -728,24 +851,124 @@ def test_eom_adaptive():
             # sign of +2j, rather than -2j.
             noise_t_combined = noise_t + 1.0j * noise2_t
             list_modes = [linear_chain_hops.basis.mode.list_g, linear_chain_hops.basis.mode.list_w,
-                          linear_chain_hops.basis.mode.list_absindex_mode]
+                          linear_chain_hops.basis.mode.list_modeidx_abs]
             list_l_op = [linear_chain_sys_param["L_HIER"][m] for m in
-                         linear_chain_hops.basis.mode.list_absindex_mode]
+                         linear_chain_hops.basis.mode.list_modeidx_abs]
             list_l_op_trunc = [l_op[np.ix_(list_state, list_state)] for l_op in list_l_op]
-            list_noise_memory = linear_chain_hops.z_mem[
-                linear_chain_hops.basis.mode.list_absindex_mode]
+            list_noise_memory = linear_chain_hops.z_mem
             noise_t_prepared = prepare_noise(linear_chain_sys_param[
                                                   "index_l_by_mode_abs"],
                                              noise_t_combined,
-                                             linear_chain_hops.basis.mode.list_absindex_mode)
+                                             linear_chain_hops.basis.mode.list_modeidx_abs)
             dsystem_dt_ref = dsystem_dt_nonlinear_manual(phi_t, list_state, list_aux,
                                                          H2_ham_trunc, noise_t_prepared,
                                                          list_modes, list_l_op_trunc,
                                                          list_noise_memory, type=
                                                          "normalized_nonlinear").flatten()
-            noise_t = noise_t[linear_chain_hops.basis.mode.list_absindex_mode]
-            noise2_t = noise2_t[linear_chain_hops.basis.mode.list_absindex_mode]
+            noise_t = noise_t[linear_chain_hops.basis.mode.list_modeidx_abs]
+            noise2_t = noise2_t[linear_chain_hops.basis.mode.list_modeidx_abs]
             dsystem_dt_test = \
             linear_chain_hops.dsystem_dt(phi_t, linear_chain_hops.z_mem, noise_t,
                                          noise2_t)[0] / hbar
             assert np.allclose(dsystem_dt_test, dsystem_dt_ref)
+
+def test_hier_timescale():
+    """
+    Tests that the _prepare_derivative function generates the correct hierarchy
+    timescale.
+    """
+    noise_param = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    nsite = 10
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = 1000, 50
+
+    loperator = np.zeros([10, 10, 10], dtype=np.float64)
+    gw_sysbath = []
+    lop_list = []
+    for i in range(nsite):
+        loperator[i, i, i] = 1.0
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(loperator[i])
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(loperator[i])
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 40
+    hs[1, 0] = 40
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 40
+    hs[3, 2] = 40
+    hs[3, 4] = 10
+    hs[4, 3] = 10
+    hs[4, 5] = 40
+    hs[5, 4] = 40
+    hs[5, 6] = 10
+    hs[6, 5] = 10
+    hs[6, 7] = 40
+    hs[7, 6] = 40
+    hs[7, 8] = 10
+    hs[8, 7] = 10
+    hs[8, 9] = 40
+    hs[9, 8] = 40
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[5] = 1.0
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1, 1e-3)
+    hops_ad.initialize(psi_0)
+
+    # Just checking that the EOM grabs the fastest decay timescale - not testing
+    # actual hierarchy management, which is messy and does not belong in a test of
+    # this scope. As such, we use two completely independent bases to test this to
+    # avoid dealing with permutation etc.
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([], 20),
+                                              AuxiliaryVector([(10, 1)], 20),
+                                              AuxiliaryVector([(10, 1), (11, 1)], 20)]
+    hops_ad.basis.eom._prepare_derivative(hops_ad.basis.system,
+                                          hops_ad.basis.hierarchy,
+                                          hops_ad.basis.mode,
+                                          hops_ad.basis.noise_memory)
+    assert np.allclose(hops_ad.basis.eom.hier_timescale, hbar/550)
+
+    hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([], 20),
+                                              AuxiliaryVector([(12, 1)], 20)]
+    hops_ad.basis.eom._prepare_derivative(hops_ad.basis.system,
+                                          hops_ad.basis.hierarchy,
+                                          hops_ad.basis.mode,
+                                          hops_ad.basis.noise_memory)
+    assert np.allclose(hops_ad.basis.eom.hier_timescale, hbar/50)

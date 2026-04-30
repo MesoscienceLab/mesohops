@@ -110,11 +110,11 @@ class HopsFluxFilters:
         F2_filter_any_m1 = np.zeros([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
 
         # Now find the allowed flux down along modes that have non-zero indices
-        list_absindex_mode = list(self.mode.list_absindex_mode)
+        list_modeidx_abs = list(self.mode.list_modeidx_abs)
         for aux in self.hierarchy.auxiliary_list:
             array_index2 = np.array(
-                [list_absindex_mode.index(mode) for mode in aux.keys()
-                 if mode in list_absindex_mode], dtype=int)
+                [list_modeidx_abs.index(mode) for mode in aux.keys()
+                 if mode in list_modeidx_abs], dtype=int)
 
             F2_filter_any_m1[array_index2, aux._index] = True
 
@@ -147,14 +147,14 @@ class HopsFluxFilters:
         # Filter for Boundary Auxiliary, Flux Up
         # --------------------------------------
         F2_filter_p1 = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
-        list_absindex_mode = list(self.mode.list_absindex_mode)
+        list_modeidx_abs = list(self.mode.list_modeidx_abs)
         for aux in self.hierarchy.auxiliary_list:
             if aux._sum < self.hierarchy.param['MAXHIER']:
                 # Remove flux that contributes to an aux in A_t
                 # ---------------------------------------------
-                array_index = np.array([list_absindex_mode.index(mode)
+                array_index = np.array([list_modeidx_abs.index(mode)
                                         for mode in aux.dict_aux_p1.keys()
-                                        if mode in list_absindex_mode],
+                                        if mode in list_modeidx_abs],
                                        dtype=int)
                 F2_filter_p1[array_index, aux._index] = False
             else:
@@ -189,7 +189,7 @@ class HopsFluxFilters:
         """
         # Filter for Boundary Auxiliary, Flux Down
         # ----------------------------------------
-        list_absindex_mode = list(self.mode.list_absindex_mode)
+        list_modeidx_abs = list(self.mode.list_modeidx_abs)
 
         # Assume all fluxes are allowed
         F2_filter_m1 = np.ones([self.n_hmodes, len(self.hierarchy.auxiliary_list)],dtype=bool)
@@ -197,8 +197,8 @@ class HopsFluxFilters:
         for aux in self.hierarchy.auxiliary_list:
             if list(aux.dict_aux_m1.keys()) != list(aux.keys()):
                 # Filter out flux to auxiliaries present in the previous basis
-                array_index = np.array([list_absindex_mode.index(mode) for mode in
-                                        aux.dict_aux_m1.keys() if mode in list_absindex_mode],
+                array_index = np.array([list_modeidx_abs.index(mode) for mode in
+                                        aux.dict_aux_m1.keys() if mode in list_modeidx_abs],
                                        dtype=int)
                 F2_filter_m1[array_index, aux._index] = False
 
@@ -206,8 +206,8 @@ class HopsFluxFilters:
                 # basis for example, all modes in the main auxiliary will be filtered
                 # here, all but one mode in first-order auxiliaries, two modes in
                 # second-order auxiliaries, etc.
-                array_index2 = np.array([list_absindex_mode.index(mode) for mode in
-                                         aux.keys() if mode in list_absindex_mode], dtype=int)
+                array_index2 = np.array([list_modeidx_abs.index(mode) for mode in
+                                         aux.keys() if mode in list_modeidx_abs], dtype=int)
                 array_index2 = np.setdiff1d(np.arange(self.n_hmodes), array_index2)
 
                 F2_filter_m1[array_index2, aux._index] = False
@@ -256,7 +256,7 @@ class HopsFluxFilters:
         F2_filter = np.zeros([self.n_hmodes, self.n_hier],dtype=bool)
         for aux in list_aux_bound:
             list_id_up, list_value_connects, list_mode_connect = \
-                aux.get_list_id_up(self.mode.list_absindex_mode)
+                aux.get_list_id_up(self.mode.list_modeidx_abs)
             for (rel_ind,my_id) in enumerate(list_id_up):
                 if (my_id in self.hierarchy.dict_aux_by_id.keys()):
                     aux_up = self.hierarchy.dict_aux_by_id[my_id]
@@ -306,7 +306,7 @@ class HopsFluxFilters:
             for (rel_ind, my_id) in enumerate(list_ids_down):
                 if (my_id in self.hierarchy.dict_aux_by_id.keys()):
                     aux_down = self.hierarchy.dict_aux_by_id[my_id]
-                    F2_filter[list(self.mode.list_absindex_mode).index(list_mode_connects[
+                    F2_filter[list(self.mode.list_modeidx_abs).index(list_mode_connects[
                                                                   rel_ind]), aux_down._index] = True
         return F2_filter
 
@@ -332,12 +332,12 @@ class HopsFluxFilters:
                        filtered out) while False indicates otherwise
                        (positioning is (mode, aux)).
         """
-        if len(self.mode.list_absindex_mode) == 0:
+        if len(self.mode.list_modeidx_abs) == 0:
             return True
 
         M2_mark_filtered_modes = np.array(
             [
-                np.array([param[m] for m in self.mode.list_absindex_mode])
+                np.array([param[m] for m in self.mode.list_modeidx_abs])
                 for (name, param) in self.hierarchy.param["STATIC_FILTERS"]
                 if name == "Markovian"
             ]
@@ -363,7 +363,7 @@ class HopsFluxFilters:
             aux0 = self.hierarchy.auxiliary_list[0]
             mark_aux1 = np.array([aux0.dict_aux_p1[mode]._index for mode in
                                   aux0.dict_aux_p1.keys() if mode in
-                                  self.mode.list_absindex_mode[M1_filtered_mode_mask]])
+                                  self.mode.list_modeidx_abs[M1_filtered_mode_mask]])
             if len(mark_aux1) > 0:
                 F2_filter[:, mark_aux1] = False
 
@@ -392,12 +392,12 @@ class HopsFluxFilters:
                        filtered out) while False indicates otherwise
                        (positioning is (mode, aux)).
         """
-        if len(self.mode.list_absindex_mode) == 0:
+        if len(self.mode.list_modeidx_abs) == 0:
             return True
 
         M2_tri_filtered_modes = np.array(
             [
-                np.array([param[0][m] for m in self.mode.list_absindex_mode])
+                np.array([param[0][m] for m in self.mode.list_modeidx_abs])
                 for (name, param) in self.hierarchy.param["STATIC_FILTERS"]
                 if name == "Triangular"
             ]
@@ -415,7 +415,7 @@ class HopsFluxFilters:
             M1_filtered_mode_mask = M2_tri_filtered_modes[i]
             # Determine which modes are filtered
             # -----------------------------------
-            list_modes_filtered = self.mode.list_absindex_mode[M1_filtered_mode_mask]
+            list_modes_filtered = self.mode.list_modeidx_abs[M1_filtered_mode_mask]
             kmax_2 = list_kmax_2[i]
             for aux in self.hierarchy.auxiliary_list:
                 # If the sum of the depth in the filtered modes would be greater than
@@ -448,12 +448,12 @@ class HopsFluxFilters:
                        filtered out) while False indicates otherwise
                        (positioning is (mode, aux)).
         """
-        if len(self.mode.list_absindex_mode) == 0:
+        if len(self.mode.list_modeidx_abs) == 0:
             return True
 
         M2_le_filtered_modes = np.array(
             [
-                np.array([param[0][m] for m in self.mode.list_absindex_mode])
+                np.array([param[0][m] for m in self.mode.list_modeidx_abs])
                 for (name, param) in self.hierarchy.param["STATIC_FILTERS"]
                 if name == "LongEdge"
             ]
@@ -470,7 +470,7 @@ class HopsFluxFilters:
             M1_filtered_mode_mask = M2_le_filtered_modes[i]
             # Determine which modes are filtered
             # -----------------------------------
-            list_modes_filtered = self.mode.list_absindex_mode[M1_filtered_mode_mask]
+            list_modes_filtered = self.mode.list_modeidx_abs[M1_filtered_mode_mask]
             kmax_2 = list_kmax_2[i]
             for aux in self.hierarchy.auxiliary_list:
                 depth = aux.sum()
@@ -483,7 +483,7 @@ class HopsFluxFilters:
                         F2_filter[:, aux._index] = False
                         # Edge auxes connect to the edge aux one step upward.
                         if len(aux.keys()) == 1:
-                            mode_index = np.where(self.mode.list_absindex_mode ==
+                            mode_index = np.where(self.mode.list_modeidx_abs ==
                                                   aux.keys()[0])[0][0]
                             F2_filter[mode_index, aux._index] = True
                         # Non-edge auxes don't connect upwards to anything.

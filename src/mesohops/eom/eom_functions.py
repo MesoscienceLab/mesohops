@@ -4,8 +4,8 @@ from mesohops.util.physical_constants import precision
 
 
 __title__ = "EOM Functions"
-__author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__author__ = "D. I. G. Bennett, J. K. Lynd, B. Z. Citty"
+__version__ = "1.6"
 
 
 def operator_expectation(oper, vec):
@@ -29,7 +29,7 @@ def operator_expectation(oper, vec):
     return (np.conj(vec) @ (oper @ vec)) / (np.conj(vec) @ vec)
 
 
-def compress_zmem(z_mem, list_index_L2_by_mode, list_absindex_mode):
+def compress_zmem(z_mem, list_index_L2_by_mode, list_zmemactivemodeidx_rel):
     """
     Compresses all of the memory terms into their respective slots for each L_operator.
 
@@ -39,11 +39,10 @@ def compress_zmem(z_mem, list_index_L2_by_mode, list_absindex_mode):
                List of all the memory terms in absolute basis.
 
     2. list_index_L2_by_mode : list(complex)
-                               List of length equal to the number of modes in the
-                               current hierarchy basis.
+                               The relative L2 index for each mode in the mode basis.
 
-    3. list_absindex_mode : list(int)
-                            List of absolute mode indices in relative mode order.
+    3. list_zmemactivemodeidx_rel : list(int)
+                               List of z_mem relative mode indices in hops.modes mode order.
 
     Returns
     -------
@@ -52,32 +51,28 @@ def compress_zmem(z_mem, list_index_L2_by_mode, list_absindex_mode):
     """
     dz_hat = [0 for i in set(list_index_L2_by_mode)]
     for (i, lind) in enumerate(list_index_L2_by_mode):
-        if(sp.sparse.issparse(z_mem)):
-            try:
-                dz_hat[lind] += z_mem[list_absindex_mode[i],0]
-            except:
-                None
-        else:
-            dz_hat[lind] += z_mem[list_absindex_mode[i]]
+        dz_hat[lind] += z_mem[list_zmemactivemodeidx_rel[i]]
     return dz_hat
 
 
-def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_absindex_L2_by_mode,
-                        list_absindex_mode, list_absindex_L2_active):
+def calc_delta_zmem(z_mem, list_avg_L2, list_zmemg_abs, list_zmemw_abs, list_index_L2_by_mode,
+                        list_modeidx_abs, list_zmemmodeidx_abs, list_l2idx_abs, list_activel2idx_abs):
     """
     Updates the memory term. The form of the equation depends on expanding the
     memory integral assuming an exponential expansion.
 
-    NOTE: This asumes the noise has exponential form.
+    NOTE: This assumes the noise has exponential form.
 
     NOTE: This function mixes relative and absolute indexing.
           z_mem : absolute
           list_avg_L2 : relative
-          list_g : absolute
-          list_w : absolute
-          list_absindex_L2_by_mode : absolute
-          list_absindex_mode : mapping from relative-->absolute
-          list_absindex_L2_active : absolute
+          list_zmemg_abs : absolute (indexed over z_mem modes)
+          list_zmemw_abs : absolute (indexed over z_mem modes)
+          list_index_L2_by_mode : relative
+          list_modeidx_abs : mapping from relative-->absolute
+          list_zmemmodeidx_abs : mapping from relative-->absolute
+          list_l2idx_abs : absolute
+          list_activel2idx_abs : absolute
           
     Parameters
     ----------
@@ -87,77 +82,65 @@ def calc_delta_zmem(z_mem, list_avg_L2, list_g, list_w, list_absindex_L2_by_mode
     2. list_avg_L2 : list(complex)
                      Relative list of the expectation values of the L operators.
 
-    3. list_g : list(complex)
-                List of pre exponential factors for bath correlation functions [units:
-                cm^-2].
+    3. list_zmemg_abs : list(complex)
+                     List of pre exponential factors for bath correlation
+                     functions [units: cm^-2]. Indexed over
+                     list_zmemmodeidx_abs.
 
-    4. list_w :  list(complex)
-                 List of exponents for bath correlation functions (w = γ+iΩ) [units:
-                 cm^-1].
+    4. list_zmemw_abs : list(complex)
+                        List of exponents for bath correlation functions
+                        (w = γ+iΩ) [units: cm^-1]. Indexed over
+                        list_zmemmodeidx_abs.
 
-    5. list_absindex_L2_by_mode : list(int)
-                                  List of indices for the absolute list of L-operators
-                                  to match L-operators to the associated absolute mode
-                                  index.
+    5. list_index_L2_by_mode : list(int)
+                               List of indices for the absolute list of L-operators
+                               to match L-operators to the associated absolute mode
+                               index.
 
-    6. list_absindex_mode : list(int)
-                            List of the absolute indices  of the modes in current basis.
+    6. list_modeidx_abs : list(int)
+                          List of the absolute indices of the modes in the basis.
 
-    7. list_absindex_L2_active : list(int)
-                                 List of absolute indices of L-operators that have any 
-                                 non-zero values.
+    7. list_zmemmodeidx_abs : list(int)
+                              List of the absolute indices of the modes in z_mem.
+
+    8. list_l2idx_abs : list(int)
+                         List of absolute indices of L-operators in the basis.
+
+    9. list_activel2idx_abs : list(int)
+                              List of absolute indices of L-operators that have any
+                              non-zero values.
 
     Returns
     -------
-    1. delta_z_mem : list(complex)
-                     List of updated memory terms.
-    """                        
-                
-    if sp.sparse.issparse(z_mem):        
-        delta_z_mem_row = []
-        delta_z_mem_data = []
-    else:
-        delta_z_mem = np.zeros(len(z_mem), dtype=np.complex128)
+    1. Z1_deltazmem : list(complex)
+                      List of updated memory terms.
+    """
+
+    Z1_deltazmem = np.zeros(len(z_mem), dtype=np.complex128)
         
-    # Determine modes where z_mem > precision but not in current basis
-    
-    if sp.sparse.issparse(z_mem):
-        z_mem_coo = z_mem.tocoo()
-        z_mem_nonzero = z_mem_coo.row[np.where(z_mem_coo.data > precision)[0]]
-    else:
-        z_mem_nonzero = np.where(z_mem > precision)[0]
-        
-    list_nonzero_zmem = list(
-        set(z_mem_nonzero) - set(list_absindex_mode)
-    )
-    # Loop over modes in the current basis
-    for (i,absindex_mode) in enumerate(list_absindex_mode):
-        absindex_L2 = list_absindex_L2_by_mode[absindex_mode]
+    # Loop over all modes corresponding to z_mem
+    for (i,absindex_mode) in enumerate(list_zmemmodeidx_abs):
         try:
-            relindex_L2 = list(list_absindex_L2_active).index(absindex_L2)
+            # For a given z_mem mode, if it is in the current mode basis,
+            # get its absolute index.
+            idx_mode_rel = list(list_modeidx_abs).index(absindex_mode)
+            idx_l2_abs = list_l2idx_abs[list_index_L2_by_mode[idx_mode_rel]]
+            # If the L2 operator is nonzero (part of the state modes), then
+            # get its relative index.
+            relindex_L2 = list(list_activel2idx_abs).index(idx_l2_abs)
+            # Finally, get the average L2 (list_avg_L2 is sliced by active modes).
             l_avg = list_avg_L2[relindex_L2]
+            g = list_zmemg_abs[i]
+            w = list_zmemw_abs[i]
         except:
+            # Any failure point means we are dealing with a mode that is
+            # not in the current mode basis or is zero (not active).
             l_avg = 0
-        if(sp.sparse.issparse(z_mem)):
-            temp = l_avg * np.conj(list_g[absindex_mode]) - np.conj(list_w[absindex_mode]) * z_mem[absindex_mode,0]
-            delta_z_mem_data.append(temp)
-            delta_z_mem_row.append(absindex_mode)
-        else:
-            temp = l_avg * np.conj(list_g[absindex_mode]) - np.conj(list_w[absindex_mode]) * z_mem[absindex_mode]
-            delta_z_mem[absindex_mode] = temp
-            
-    for mode in list_nonzero_zmem:
-        if(sp.sparse.issparse(z_mem)):
-            delta_z_mem_data.append(-np.conj(list_w[mode]) * z_mem[mode,0])
-            delta_z_mem_row.append(mode)
-        else:
-            delta_z_mem[mode] -= (np.conj(list_w[mode]) * z_mem[mode])
-        
-    if(sp.sparse.issparse(z_mem)):   
-        delta_z_mem_col = [0]*len(delta_z_mem_row) 
-        delta_z_mem = sp.sparse.coo_matrix((delta_z_mem_data,(delta_z_mem_row,delta_z_mem_col)),shape=z_mem.shape, dtype=np.complex128)
-        
-    return delta_z_mem
+            g = 0
+            w = list_zmemw_abs[i]
+        # d(z_mem)/dt = <L> * g* - w* * z_mem  (Eq. of motion for the memory drift)
+        Z1_deltazmem[i] = l_avg * np.conj(g) - np.conj(w) * z_mem[i]
+    return Z1_deltazmem
 
 
 def calc_norm_corr(
@@ -172,7 +155,7 @@ def calc_norm_corr(
              Full hierarchy.
 
     2. z_hat : list(complex)
-               List of memory term with both with random noise.
+               List of memory terms combined with random noise.
 
     3. list_avg_L2 : list(complex)
                      Relative list of the expectation values of the L operators.
@@ -183,10 +166,11 @@ def calc_norm_corr(
     5. nstate : int
                 Current dimension (size) of the system.
 
-    6. list_index_L2_by_mode : list(int)
-                               List of length equal to the number of modes in the
-                               current hierarchy basis: each entry is an index for the
-                               relative list_L2.
+    6. list_index_phi_L2_mode : list(int)
+                                List of length equal to the number of modes in the
+                                current hierarchy basis: each entry is an index for
+                                the relative list_L2.
+
     7. list_g : list(complex)
                 List of pre exponential factors for bath correlation functions [
                 absolute].
@@ -199,10 +183,14 @@ def calc_norm_corr(
     1. delta : float
                Norm correction factor.
     """
+    # z-component of the normalization correction: sum_m z_hat_m * <L_m>
     delta = np.dot(z_hat, list_avg_L2)
+    # Extract the physical (zeroth-order) wave function
     phi_0 = phi[0:nstate]
 
+    # Subtract hierarchy correction: loop over first-order auxiliary connections
     for (i_aux, l_ind, nmode) in list_index_phi_L2_mode:
+        # Extract first-order auxiliary wave function scaled by (g_m / w_m)
         phi_1 = (list_g[nmode] / list_w[nmode]) * phi[
             nstate * (i_aux) : nstate * (i_aux + 1)
         ]
@@ -214,16 +202,15 @@ def calc_norm_corr(
 
 def calc_LT_corr(
     list_LT_coeff, list_L2, list_avg_L2, list_L2_sq):
-    r"""
+    """
     Computes the low-temperature correction factor associated with each member of the
     hierarchy in the nonlinear equation of motion. The factor is given by the sum over
-    the low-temperature correction coefficients and associated L-operators ``c_n`` and
-    ``L_n``:
-    \sum_n conj(c_n)<L_n>L_n
+    the low-temperature correction coefficients and associated L-operators c_n and L_n:
+    sum_n conj(c_n)<L_n>L_n
     to all auxiliary wave functions and
-    \sum_n c_n(<L_n> - L_n)L_n
-    to the physical wave function, where ``c_n`` is the nth low-temperature correction
-    factor, and ``L_n`` is the nth L-operator associated with that factor.
+    sum_n c_n(<L_n> - L_n)L_n
+    to the physical wave function, where c_n is the nth low-temperature correction
+    factor, and L_n is the nth L-operator associated with that factor.
 
     Parameters
     ----------
@@ -258,13 +245,13 @@ def calc_LT_corr(
 def calc_LT_corr_to_norm_corr(
     list_LT_coeff, list_avg_L2, list_avg_L2_sq
 ):
-    r"""
+    """
     Computes the low-temperature correction to the normalization factor in the
     normalized nonlinear equation of motion. The correction is given by the sum over
-    the low-temperature correction coefficients and associated L-operators ``c_n`` and ``L_n``:
-    \sum_n Re[c_n](2<L_n>^2 - <L_n^2>),
-    where ``c_n`` is the nth low-temperature correction
-    factor, and ``L_n`` is the nth L-operator associated with that factor.
+    the low-temperature correction coefficients and associated L-operators c_n and L_n:
+    sum_n Re[c_n](2<L_n>^2 - <L_n^2>),
+    where c_n is the nth low-temperature correction
+    factor, and L_n is the nth L-operator associated with that factor.
 
     Parameters
     ----------
@@ -286,12 +273,12 @@ def calc_LT_corr_to_norm_corr(
 def calc_LT_corr_linear(
     list_LT_coeff, list_L2_sq
 ):
-    r"""
+    """
     Computes the low-temperature correction factor associated with each member of the
     hierarchy in the linear equation of motion. The factor is given by the sum over the
-    low-temperature correction coefficients and associated L-operators ``c_n`` and ``L_n``:
-    -\sum_n c_nL_n^2,
-    where ``c_n`` is the nth low-temperature correction factor, and ``L_n`` is
+    low-temperature correction coefficients and associated L-operators c_n and L_n:
+    -sum_n c_nL_n^2,
+    where c_n is the nth low-temperature correction factor, and L_n is
     the nth L-operator associated with that factor.
     NOTE: This correction should only be applied to the physical wavefunction.
 

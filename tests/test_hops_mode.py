@@ -58,16 +58,16 @@ def test_mode_setter():
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [1, 2]
 
-    # Test list_absindex_mode
-    known_list_absindex_mode = [1, 2, 3, 4, 5]
-    assert np.all(list(set(hops_ad.basis.hierarchy.list_absindex_hierarchy_modes) | set(
-        hops_ad.basis.system.list_absindex_state_modes)) == known_list_absindex_mode)
+    # Test list_modeidx_abs
+    known_list_modeidx_abs = [1, 2, 3, 4, 5]
+    assert np.all(sorted(set(hops_ad.basis.hierarchy.list_absindex_hierarchy_modes) | set(
+        hops_ad.basis.system.list_statemodeidx_abs)) == known_list_modeidx_abs)
 
     # Set mode list
-    hops_ad.basis.mode.list_absindex_mode = known_list_absindex_mode
-    # Test list_absindex_L2
-    known_list_absindex_L2 = [0, 1, 2]
-    assert np.all(hops_ad.basis.mode.list_absindex_L2 == known_list_absindex_L2)
+    hops_ad.basis.mode.list_modeidx_abs = known_list_modeidx_abs
+    # Test list_l2idx_abs
+    known_list_l2idx_abs = [0, 1, 2]
+    assert np.all(hops_ad.basis.mode.list_l2idx_abs == known_list_l2idx_abs)
     # Test n_hmodes
     known_n_hmodes = 5
     assert hops_ad.basis.n_hmodes == known_n_hmodes
@@ -149,7 +149,7 @@ def test_empty_modelist():
                    integration_param=integrator_param, )
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
-    assert len(hops_ad.basis.mode.list_absindex_mode) == 0
+    assert len(hops_ad.basis.mode.list_modeidx_abs) == 0
     hops_ad.propagate(4.0, 2.0)
 
 
@@ -157,7 +157,7 @@ def test_list_off_diag_active_mask():
     """
     Tests that the list_off_diag_active_mask property accurately specifies whether each
     L-operator in the current basis is diagonal or off-diagonal, and in turn whether
-    the ensuing list_rel_ind_off_diag_L2 is correct.
+    the ensuing list_offdiagl2idx_rel is correct.
     """
     noise_param = {
         "SEED": 0,
@@ -243,7 +243,7 @@ def test_list_off_diag_active_mask():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0, 3]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7, 8, 9, 12, 13]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
     # There are 4 unique L-operators represented by these modes: the Holstein coupling
     # for site 0, the Holstein coupling for site 3, the Peierls coupling linking
     # sites 0 and 1, and the Peierls coupling linking sites 2 and 3. (Note that each
@@ -252,5 +252,5 @@ def test_list_off_diag_active_mask():
                        np.array([False, False, True, True]))
     # If the above is true, then the relative indices of the modes associated with
     # off-diagonal L-operator components must be 2 and 3.
-    assert np.allclose(hops_ad.basis.mode.list_rel_ind_off_diag_L2,
+    assert np.allclose(hops_ad.basis.mode.list_offdiagl2idx_rel,
                        np.array([2,3]))

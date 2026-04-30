@@ -265,7 +265,7 @@ def test_lt_corr_list():
                        np.array([[1]]))
 
     hopsmodes_ltc_modes_adap.system.state_list = [0, 1]
-    hopsmodes_ltc_modes_adap.mode.list_absindex_mode = [0, 1, 2, 3]
+    hopsmodes_ltc_modes_adap.mode.list_modeidx_abs = [0, 1, 2, 3]
     assert list(hopsmodes_ltc_modes_adap.system.list_lt_corr_param) == \
            [250.0 / 1000.0, 250.0 / 2000.0]
     assert np.allclose(hopsmodes_ltc_modes_adap.mode.list_L2_coo[0].todense(),

@@ -25,6 +25,7 @@ class HopsStorage:
         'dic_save',       # Save function dictionary
         'data',           # Data storage
         'metadata',       # Metadata dictionary
+        'dyadic_data',    # Dyadic-only checkpoint data
 
         # --- Storage managers ---
         'storage_time',   # Controls which time points are saved
@@ -51,6 +52,7 @@ class HopsStorage:
             self.storage_time = True
         self.dic_save = {}
         self.data = {}
+        self.dyadic_data = {}
         self.adaptive = adaptive
 
         # Initialize metadata with git commit hash
@@ -58,7 +60,8 @@ class HopsStorage:
         self.metadata = {
             "INITIALIZATION_TIME": 0,
             "LIST_PROPAGATION_TIME": [],
-            "GIT_COMMIT_HASH": git_commit
+            "GIT_COMMIT_HASH": git_commit,
+            "STORAGE_TIME": self.storage_time,
         }
 
     def __repr__(self):
@@ -117,7 +120,13 @@ class HopsStorage:
             self.storage_dic.setdefault('state_list', True)
             self.storage_dic.setdefault('list_nhier', True)
             self.storage_dic.setdefault('list_nstate', True)
-            self.storage_dic.setdefault('list_aux_norm', True)
+            self.storage_dic.setdefault('list_aux_norm', False)
+            self.storage_dic.setdefault('list_zmemmodeidx_abs', False)
+            # When saving z_mem in adaptive mode, the zmem mode indexing must
+            # also be saved so that the checkpoint can restore the mapping
+            # between z_mem entries and their corresponding modes.
+            if self.storage_dic.get('z_mem', False):
+                self.storage_dic['list_zmemmodeidx_abs'] = True
 
 
         for (key, value) in self.storage_dic.items():

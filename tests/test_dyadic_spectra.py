@@ -8,6 +8,63 @@ from mesohops.trajectory.dyadic_spectra import (prepare_spectroscopy_input_dict,
                                               prepare_convergence_parameter_dict)
 from mesohops.util.bath_corr_functions import ishizaki_decomposition_bcf_dl
 
+
+def _base_chromophore_dict(spectrum_type):
+    M2_mu_ge = np.array([[0.5, 0.2, 0.1], [0.45, 0.1, 0.2]])
+    list_modes = ishizaki_decomposition_bcf_dl(35, 50, 295, 0)
+    if spectrum_type in ["ESA-R", "ESA-NR"]:
+        H2_sys_hamiltonian = np.zeros((4, 4), dtype=np.complex128)
+        H2_sys_hamiltonian[1:3, 1:3] = np.array([[0, -80], [-80, 0]])
+        H2_sys_hamiltonian[3, 3] = 150
+        # Let helper build default full-dimension L-operators for ESA.
+        return prepare_chromophore_input_dict(
+            M2_mu_ge, H2_sys_hamiltonian, {"list_modes": list_modes}
+        )
+    else:
+        H2_sys_hamiltonian = np.zeros((3, 3), dtype=np.complex128)
+        H2_sys_hamiltonian[1:, 1:] = np.array([[0, -80], [-80, 0]])
+    list_lop = [sparse.coo_matrix(([1], ([1], [2])), shape=(3, 3)),
+                sparse.coo_matrix(([1], ([2], [1])), shape=(3, 3))]
+    return prepare_chromophore_input_dict(
+        M2_mu_ge, H2_sys_hamiltonian, {"list_lop": list_lop, "list_modes": list_modes}
+    )
+
+
+def _build_dhops_for_spectrum(spectrum_type):
+    cluster_dict = {
+        "list_interaction_cluster_1": np.array([1, 2]),
+        "list_interaction_cluster_2": np.array([1, 2]),
+        "list_interaction_cluster_3": np.array([1, 2]),
+    }
+    if spectrum_type == "ABSORPTION":
+        propagation_time_dict = {"t_1": 0.4}
+        field_dict = {"E_1": np.array([0.0, 0.0, 1.0])}
+    elif spectrum_type == "FLUORESCENCE":
+        propagation_time_dict = {"t_2": 0.3, "t_3": 0.1}
+        field_dict = {
+            "E_1": np.array([0.0, 0.0, 1.0]),
+            "E_sig": np.array([0.0, 0.0, 1.0]),
+        }
+    else:
+        propagation_time_dict = {"t_1": 0.2, "t_2": 0.3, "t_3": 0.1}
+        field_dict = {
+            "E_1": np.array([0.0, 0.0, 1.0]),
+            "E_2": np.array([0.0, 1.0, 0.0]),
+            "E_3": np.array([1.0, 0.0, 0.0]),
+            "E_sig": np.array([0.0, 0.0, 1.0]),
+        }
+    spectroscopy_dict = prepare_spectroscopy_input_dict(
+        spectrum_type, propagation_time_dict, field_dict, cluster_dict
+    )
+    convergence_dict = prepare_convergence_parameter_dict(t_step=0.1, max_hier=2)
+    return DHOPS(
+        spectroscopy_dict,
+        _base_chromophore_dict(spectrum_type),
+        convergence_dict,
+        seed=10,
+    )
+
+
 def test_DyadicSpectra():
     """
     Tests the DyadicSpectra class for properly unpacking input dictionaries, and ensures
@@ -18,19 +75,23 @@ def test_DyadicSpectra():
     spectrum_type = "FLUORESCENCE"
     propagation_time_dict = {"t_2": 2.0, "t_3": 3.0}
     field_dict = {"E_1": np.array([0, 0, 1]), "E_sig": np.array([0, 0, 1])}
-    site_dict = {"list_ket_sites": np.array([1, 2]), "list_bra_sites": np.array([1, 2])}
+    cluster_dict = {
+        "list_interaction_cluster_1": np.array([1, 2]),
+        "list_interaction_cluster_2": np.array([1, 2]),
+        "list_interaction_cluster_3": np.array([1, 2]),
+    }
 
     spectroscopy_dict = prepare_spectroscopy_input_dict(spectrum_type,
                                                         propagation_time_dict,
-                                                        field_dict, site_dict)
+                                                        field_dict, cluster_dict)
 
     # Chromophore input dictionary
     M2_mu_ge = np.array([np.array([0.5, 0.2, 0.1]), np.array([0.5, 0.2, 0.1])])
     H2_sys_hamiltonian = np.zeros((3, 3), dtype=np.complex128)
     H2_sys_hamiltonian[1:, 1:] = np.array([[0, -100], [-100, 0]])
 
-    list_lop = [sparse.coo_matrix(([1], ([1], [2])), shape=(3, 3)),
-                sparse.coo_matrix(([1], ([2], [1])), shape=(3, 3))]
+    list_lop = [sparse.coo_matrix(([1, 1], ([1, 2], [2, 1])), shape=(3, 3)),
+                sparse.coo_matrix(([1, 1], ([2, 1], [1, 2])), shape=(3, 3))]
 
     # Case 1: list_modes
     list_modes = ishizaki_decomposition_bcf_dl(35, 50, 295, 0)
@@ -86,8 +147,9 @@ def test_DyadicSpectra():
     assert dhops_1a.static_filter_list is None
     assert np.allclose(dhops_1a.M2_mu_ge, M2_mu_ge)
     assert dhops_1a.n_chromophore == 2
-    assert np.allclose(dhops_1a.list_ket_sites, np.array([1, 2]))
-    assert np.allclose(dhops_1a.list_bra_sites, np.array([1, 2]))
+    assert np.allclose(dhops_1a.list_interaction_cluster_1, np.array([1, 2]))
+    assert np.allclose(dhops_1a.list_interaction_cluster_2, np.array([1, 2]))
+    assert np.allclose(dhops_1a.list_interaction_cluster_3, np.array([1, 2]))
     assert dhops_1a.spectrum_type == spectrum_type
     assert np.allclose(dhops_1a.E_1, np.array([0, 0, 1]))
     assert np.allclose(dhops_1a.E_2, np.array([0, 0, 1]))
@@ -149,16 +211,10 @@ def test_DyadicSpectra():
 
     H2_sys_hamiltonian_wrongshape = np.zeros((4, 4), dtype=np.complex128)
     bath_dict_wrongshape = {"list_lop": list_lop, "list_modes": list_modes}
-    chromophore_dict_wrongshape = (
-        prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian_wrongshape,
-                                       bath_dict_wrongshape))
-
-    with pytest.raises(ValueError,
-                      match='H2_sys_hamiltonian must be \\(\\(n_chrom \\+ 1\\) x '
-                            '\\(n_chrom \\+ 1\\)\\) to account for each chromophore and'
-                            ' the ground state.'):
-        DHOPS(spectroscopy_dict, chromophore_dict_wrongshape,
-              convergence_dict_float_dt, seed)
+    with pytest.raises(ValueError, match='Each list_lop operator must have shape'):
+        prepare_chromophore_input_dict(
+            M2_mu_ge, H2_sys_hamiltonian_wrongshape, bath_dict_wrongshape
+        )
 
     # Test "INITIALIZATION_TIME" is greater than 0
     dhops_4 = DHOPS(spectroscopy_dict, chromophore_dict_1, convergence_dict_float_dt,
@@ -175,7 +231,8 @@ def test_DyadicSpectra():
         prepare_spectroscopy_input_dict("ABSORPTION",
                                         {"t_1": 1.0},
                                         {"E_1": np.array([0, 0, 1])},
-                                        {"list_ket_sites": np.array([1, 2])}))
+                                        {"list_interaction_cluster_1":
+                                             np.array([1, 2])}))
     dhops_5 = DHOPS(spectroscopy_dict_abs, chromophore_dict_1,
                     convergence_dict_float_dt, seed)
     dhops_5.calculate_spectrum()
@@ -193,11 +250,11 @@ def test_initialize(capsys):
     spectrum_type = "ABSORPTION"
     propagation_time_dict = {"t_1": 1.0}
     field_dict = {"E_1": np.array([0, 0, 1])}
-    site_dict = {"list_ket_sites": np.array([1, 2])}
+    cluster_dict = {"list_interaction_cluster_1": np.array([1, 2])}
 
     spectroscopy_dict = prepare_spectroscopy_input_dict(spectrum_type,
                                                         propagation_time_dict,
-                                                        field_dict, site_dict)
+                                                        field_dict, cluster_dict)
 
     # Chromophore input dictionary
     M2_mu_ge = np.array([np.array([0.5, 0.2, 0.1]), np.array([0.5, 0.2, 0.1])])
@@ -218,10 +275,10 @@ def test_initialize(capsys):
 
     # Testing initialized property works upon initialization
     dhops = DHOPS(spectroscopy_dict, chromophore_dict, convergence_dict, seed)
-    assert  dhops.__initialized__ is False
+    assert dhops.initialized is False
 
     dhops.initialize()
-    assert dhops.__initialized__ is True
+    assert dhops.initialized is True
 
     # Testing that multiple calls to initialize() triggers a warning
     dhops.initialize()
@@ -261,11 +318,11 @@ def test_hilb_operator():
     spectrum_type = "ABSORPTION"
     propagation_time_dict = {"t_1": 1.0}
     field_dict = {"E_1": np.array([2, 3, 1])}
-    site_dict = {"list_ket_sites": np.array([1, 2])}
+    cluster_dict = {"list_interaction_cluster_1": np.array([1, 2])}
 
     spectroscopy_dict = prepare_spectroscopy_input_dict(spectrum_type,
                                                         propagation_time_dict,
-                                                        field_dict, site_dict)
+                                                        field_dict, cluster_dict)
 
     # Chromophore input dictionary
     M2_mu_ge = np.array([np.array([0.5, 0.2, 0.1]), np.array([0.5, 0.2, 0.1])])
@@ -295,18 +352,21 @@ def test_hilb_operator():
     dense_lower = np.zeros((3, 3), dtype=np.float64)
     dense_lower[0, np.array([1, 2])] = 1.7
 
-    assert np.allclose(dhops._hilb_operator("raise", np.array([2, 3, 1]),
-                                            dhops.list_ket_sites).toarray(),
+    assert np.allclose(dhops._hilb_operator("g_to_e", np.array([2, 3, 1]),
+                                            dhops.list_interaction_cluster_1).toarray(),
                        dense_raise)
 
-    assert np.allclose(dhops._hilb_operator("lower", np.array([2, 3, 1]),
-                                            dhops.list_ket_sites).toarray(),
+    assert np.allclose(dhops._hilb_operator("e_to_g", np.array([2, 3, 1]),
+                                            dhops.list_interaction_cluster_1).toarray(),
                        dense_lower)
 
-    # Testing that the method raises an error if not given a valid action_type
-    with pytest.raises(ValueError, match="action_type must be either 'raise' or "
-                                         "'lower'."):
-        dhops._hilb_operator("cha_cha_slide", np.array([2, 3, 1]), dhops.list_ket_sites)
+    # Testing that the method raises an error if not given a valid transition_type
+    with pytest.raises(
+        ValueError,
+        match="transition_type must be 'g_to_e', 'e_to_g', or 'e_to_ee'",
+    ):
+        dhops._hilb_operator("cha_cha_slide", np.array([2, 3, 1]),
+                             dhops.list_interaction_cluster_1)
 
 def test_final_dyad_operator():
     """
@@ -318,11 +378,15 @@ def test_final_dyad_operator():
     spectrum_type = "FLUORESCENCE"
     propagation_time_dict = {"t_2": 2.0, "t_3": 3.0}
     field_dict = {"E_1": np.array([2, 3, 1]), "E_sig": np.array([1, 2, 3])}
-    site_dict = {"list_ket_sites": np.array([1, 2]), "list_bra_sites": np.array([1, 2])}
+    cluster_dict = {
+        "list_interaction_cluster_1": np.array([1, 2]),
+        "list_interaction_cluster_2": np.array([1, 2]),
+        "list_interaction_cluster_3": np.array([1, 2]),
+    }
 
     spectroscopy_dict = prepare_spectroscopy_input_dict(spectrum_type,
                                                         propagation_time_dict,
-                                                        field_dict, site_dict)
+                                                        field_dict, cluster_dict)
 
     # Chromophore input dictionary
     M2_mu_ge = np.array([np.array([0.5, 0.2, 0.1]), np.array([0.5, 0.2, 0.1])])
@@ -366,11 +430,12 @@ def test_prepare_spectroscopy_input_dict(capsys):
     bad_spectrum_type = "SHARKESCENCE"
 
     # Site definitions
-    ket_sites = np.array([1, 2])
-    ket_sites_index_issue = np.array([0, 1])
-    ket_sites_list = [1, 2]
-    bra_sites = np.array([1, 2])
-    bra_sites_list = [1, 2]
+    cluster_1 = np.array([1, 2])
+    cluster_1_index_issue = np.array([0, 1])
+    cluster_1_list = [1, 2]
+    cluster_2 = np.array([1, 2])
+    cluster_2_list = [1, 2]
+    cluster_3 = np.array([1, 2])
 
     # Field definitions
     E1 = np.array([0, 0, 1])
@@ -387,20 +452,24 @@ def test_prepare_spectroscopy_input_dict(capsys):
     abs_test = prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
                                                propagation_time_dict={"t_1": t1},
                                                field_dict={"E_1": E1},
-                                               site_dict={"list_ket_sites": ket_sites})
+                                               cluster_dict={"list_interaction_cluster_1": cluster_1})
     assert abs_test["spectrum_type"] == 'ABSORPTION'
     assert abs_test["t_1"] == t1
     assert abs_test["t_2"] == 0
     assert abs_test["t_3"] == 0
     assert np.allclose(abs_test["E_1"], E1)
     assert np.allclose(abs_test["E_sig"], E1)
-    assert np.allclose(abs_test["list_ket_sites"], ket_sites)
+    assert np.allclose(abs_test["list_interaction_cluster_1"], cluster_1)
 
     fluor_test = prepare_spectroscopy_input_dict(
         spectrum_type=fluorescence_spectrum_type,
         propagation_time_dict={"t_2": t2, "t_3": t3},
         field_dict={"E_1": E1, "E_sig": Esig},
-        site_dict={"list_ket_sites": ket_sites, "list_bra_sites": bra_sites})
+        cluster_dict={
+            "list_interaction_cluster_1": cluster_1,
+            "list_interaction_cluster_2": cluster_2,
+            "list_interaction_cluster_3": cluster_3,
+        })
     assert fluor_test["spectrum_type"] == 'FLUORESCENCE'
     assert fluor_test["t_1"] == 0
     assert fluor_test["t_2"] == t2
@@ -409,40 +478,45 @@ def test_prepare_spectroscopy_input_dict(capsys):
     assert np.allclose(fluor_test["E_2"], E1)
     assert np.allclose(fluor_test["E_3"], Esig)
     assert np.allclose(fluor_test["E_sig"], Esig)
-    assert np.allclose(fluor_test["list_ket_sites"], ket_sites)
-    assert np.allclose(fluor_test["list_bra_sites"], bra_sites)
+    assert np.allclose(fluor_test["list_interaction_cluster_1"], cluster_1)
+    assert np.allclose(fluor_test["list_interaction_cluster_2"], cluster_2)
+    assert np.allclose(fluor_test["list_interaction_cluster_3"], cluster_3)
 
     # Testing site definition errors
 
-    # Case 1: list_ket_sites not defined
-    with pytest.raises(ValueError, match='list_ket_sites must be defined.'):
-        prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
-                                        propagation_time_dict={"t_1": t1},
-                                        field_dict={"E_1": E1},
-                                        site_dict={})
+    # Case 1: list_interaction_cluster_1 not defined -> warning + ALL
+    with pytest.warns(UserWarning, match='list_interaction_cluster_1 not defined'):
+        cluster_all = prepare_spectroscopy_input_dict(
+            spectrum_type=absorption_spectrum_type,
+            propagation_time_dict={"t_1": t1},
+            field_dict={"E_1": E1},
+            cluster_dict={})
+    assert cluster_all["list_interaction_cluster_1"] == "ALL"
 
-    # Case 2: list_ket_sites not a numpy array
-    ket_list = prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
-                                               propagation_time_dict={"t_1": t1},
-                                               field_dict={"E_1": E1},
-                                               site_dict={
-                                                   "list_ket_sites": ket_sites_list})
+    # Case 2: list_interaction_cluster_1 not a numpy array
+    cluster_list = prepare_spectroscopy_input_dict(
+        spectrum_type=absorption_spectrum_type,
+        propagation_time_dict={"t_1": t1},
+        field_dict={"E_1": E1},
+        cluster_dict={"list_interaction_cluster_1": cluster_1_list})
 
-    ket_array = prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
-                                                propagation_time_dict={"t_1": t1},
-                                                field_dict={"E_1": E1},
-                                                site_dict={"list_ket_sites": ket_sites})
+    cluster_array = prepare_spectroscopy_input_dict(
+        spectrum_type=absorption_spectrum_type,
+        propagation_time_dict={"t_1": t1},
+        field_dict={"E_1": E1},
+        cluster_dict={"list_interaction_cluster_1": cluster_1})
 
-    assert np.allclose(ket_list["list_ket_sites"], ket_array["list_ket_sites"])
+    assert np.allclose(cluster_list["list_interaction_cluster_1"],
+                       cluster_array["list_interaction_cluster_1"])
 
     # Case 3: sites indexed from 0
-    with pytest.raises(ValueError, match='Ket and Bra sites must be indexed starting '
-                                         'from 1.'):
+    with pytest.raises(ValueError, match="Clusters' indices should not include 0."):
         prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
                                         propagation_time_dict={"t_1": t1},
                                         field_dict={"E_1": E1},
-                                        site_dict={
-                                            "list_ket_sites": ket_sites_index_issue})
+                                        cluster_dict={
+                                            "list_interaction_cluster_1":
+                                                cluster_1_index_issue})
 
     # Testing field input formatting
 
@@ -451,7 +525,8 @@ def test_prepare_spectroscopy_input_dict(capsys):
         prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
                                         propagation_time_dict={"t_1": t1},
                                         field_dict={"E_1": E1_list},
-                                        site_dict={"list_ket_sites": ket_sites})
+                                        cluster_dict={"list_interaction_cluster_1":
+                                                          cluster_1})
 
     # Case 2: Field not a numpy array with exactly 3 entries
     with pytest.raises(ValueError,
@@ -460,7 +535,8 @@ def test_prepare_spectroscopy_input_dict(capsys):
         prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
                                         propagation_time_dict={"t_1": t1},
                                         field_dict={"E_1": E1_wrong_length},
-                                        site_dict={"list_ket_sites": ket_sites})
+                                        cluster_dict={"list_interaction_cluster_1":
+                                                          cluster_1})
 
     # Testing under-defined absorption input
 
@@ -471,134 +547,216 @@ def test_prepare_spectroscopy_input_dict(capsys):
         prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
                                         propagation_time_dict={},
                                         field_dict={"E_1": E1},
-                                        site_dict={"list_ket_sites": ket_sites})
+                                        cluster_dict={"list_interaction_cluster_1":
+                                                          cluster_1})
 
-    # Case 2: E_1 not defined
-    with pytest.raises(ValueError, match='E_1 must be defined for absorption.'):
-        prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
-                                        propagation_time_dict={"t_1": t1},
-                                        field_dict={},
-                                        site_dict={"list_ket_sites": ket_sites})
+    # Case 2: E_1 not defined (warns but raises KeyError when accessed)
+    with pytest.warns(UserWarning, match='E_1 is not defined'):
+        with pytest.raises(KeyError):
+            prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
+                                            propagation_time_dict={"t_1": t1},
+                                            field_dict={},
+                                            cluster_dict={
+                                                "list_interaction_cluster_1":
+                                                    cluster_1})
 
     # Testing over-defined absorption input
 
     # Case 1: propagation_time_dict contains too many inputs
-    prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
-                                    propagation_time_dict={"t_1": t1, "t_2": t2},
-                                    field_dict={"E_1": E1},
-                                    site_dict={"list_ket_sites": ket_sites})
-    out, err = capsys.readouterr()
-    assert out.strip() == ('WARNING: Only t_1 is necessary for absorption. '
-                                   'Setting all other propagation times to zero.')
+    with pytest.warns(UserWarning,
+                      match='Only t_1 is necessary for absorption.'):
+        prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
+                                        propagation_time_dict={"t_1": t1, "t_2": t2},
+                                        field_dict={"E_1": E1},
+                                        cluster_dict={
+                                            "list_interaction_cluster_1":
+                                                cluster_1})
 
     # Case 2: field_dict contains too many inputs
-    prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
-                                    propagation_time_dict={"t_1": t1},
-                                    field_dict={"E_1": E1, "E_sig": Esig},
-                                    site_dict={"list_ket_sites": ket_sites})
-    out, err = capsys.readouterr()
-    assert out.strip() == ('WARNING: Only E_1 is necessary for absorption. E_sig is '
-                                   'set to E_1. All other field definitions will be '
-                                   'discarded')
+    with pytest.warns(UserWarning,
+                      match='Only E_1 is necessary for absorption.'):
+        prepare_spectroscopy_input_dict(spectrum_type=absorption_spectrum_type,
+                                        propagation_time_dict={"t_1": t1},
+                                        field_dict={"E_1": E1, "E_sig": Esig},
+                                        cluster_dict={
+                                            "list_interaction_cluster_1":
+                                                cluster_1})
 
     # Testing under-defined fluorescence input
 
-    # Case 1: list_bra_sites not defined
-    with pytest.raises(ValueError, match='list_bra_sites must be defined for fluorescence.'):
-        prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
-                                        propagation_time_dict={"t_2": t2, "t_3": t3},
-                                        field_dict={"E_1": E1, "E_sig": Esig},
-                                        site_dict={"list_ket_sites": ket_sites})
+    # Case 1: list_interaction_cluster_2/3 not defined -> warnings + ALL
+    with pytest.warns(UserWarning) as warning_list:
+        cluster_defaults = prepare_spectroscopy_input_dict(
+            spectrum_type=fluorescence_spectrum_type,
+            propagation_time_dict={"t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1, "E_sig": Esig},
+            cluster_dict={"list_interaction_cluster_1": cluster_1})
+    warning_messages = [str(item.message) for item in warning_list]
+    assert any("list_interaction_cluster_2 not defined" in msg
+               for msg in warning_messages)
+    assert any("list_interaction_cluster_3 not defined" in msg
+               for msg in warning_messages)
+    assert cluster_defaults["list_interaction_cluster_2"] == "ALL"
+    assert cluster_defaults["list_interaction_cluster_3"] == "ALL"
 
-    # Case 2: list_bra_sites not a numpy array
-    bra_list = prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
-                                               propagation_time_dict={"t_2": t2,
-                                                                      "t_3": t3},
-                                               field_dict={"E_1": E1, "E_sig": Esig},
-                                               site_dict={"list_ket_sites": ket_sites,
-                                                          "list_bra_sites":
-                                                              bra_sites_list})
-    bra_array = prepare_spectroscopy_input_dict(
+    # Case 2: list_interaction_cluster_2 not a numpy array
+    cluster2_list = prepare_spectroscopy_input_dict(
         spectrum_type=fluorescence_spectrum_type,
         propagation_time_dict={"t_2": t2, "t_3": t3},
         field_dict={"E_1": E1, "E_sig": Esig},
-        site_dict={"list_ket_sites": ket_sites,
-                   "list_bra_sites": bra_sites})
+        cluster_dict={
+            "list_interaction_cluster_1": cluster_1,
+            "list_interaction_cluster_2": cluster_2_list,
+            "list_interaction_cluster_3": cluster_3,
+        })
+    cluster2_array = prepare_spectroscopy_input_dict(
+        spectrum_type=fluorescence_spectrum_type,
+        propagation_time_dict={"t_2": t2, "t_3": t3},
+        field_dict={"E_1": E1, "E_sig": Esig},
+        cluster_dict={
+            "list_interaction_cluster_1": cluster_1,
+            "list_interaction_cluster_2": cluster_2,
+            "list_interaction_cluster_3": cluster_3,
+        })
+    assert np.allclose(cluster2_list["list_interaction_cluster_2"],
+                       cluster2_array["list_interaction_cluster_2"])
 
-    assert np.allclose(bra_list["list_bra_sites"], bra_array["list_bra_sites"])
-
-    # Note: There is no need to test case if list_ket_sites is not defined, as this is
-    # already tested prior to determining the spectrum type.
+    # Note: There is no need to test case if list_interaction_cluster_1 is not defined,
+    # as this is already tested prior to determining the spectrum type.
 
     # Case 3: t_2 or t_3 not defined
     with pytest.raises(ValueError,
-                      match='Propagation times after second and third field '
-                            'interactions \\(t_2, t_3\\) must be defined as > 0 for '
-                            'fluorescence.'):
+                       match='Propagation time after second field '
+                             'interactions \\(t_2\\) must be defined for '
+                             'FLUORESCENCE.'):
         prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
                                         propagation_time_dict={"t_3": t3},
                                         field_dict={"E_1": E1, "E_sig": Esig},
-                                        site_dict={"list_ket_sites": ket_sites,
-                                                   "list_bra_sites": bra_sites})
+                                        cluster_dict={
+                                            "list_interaction_cluster_1": cluster_1,
+                                            "list_interaction_cluster_2": cluster_2,
+                                            "list_interaction_cluster_3": cluster_3,
+                                        })
 
     with pytest.raises(ValueError,
-                      match='Propagation times after second and third field '
-                            'interactions \\(t_2, t_3\\) must be defined as > 0 for '
-                            'fluorescence.'):
+                       match='Propagation time after third field '
+                             'interactions \\(t_3\\) must be defined for '
+                             'FLUORESCENCE.'):
         prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
                                         propagation_time_dict={"t_2": t2},
                                         field_dict={"E_1": E1, "E_sig": Esig},
-                                        site_dict={"list_ket_sites": ket_sites,
-                                                   "list_bra_sites": bra_sites})
+                                        cluster_dict={
+                                            "list_interaction_cluster_1": cluster_1,
+                                            "list_interaction_cluster_2": cluster_2,
+                                            "list_interaction_cluster_3": cluster_3,
+                                        })
 
     # Case 4: E_1 not defined
-    with pytest.raises(ValueError, match='E_1 must be defined for fluorescence.'):
-        prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
-                                        propagation_time_dict={"t_2": t2, "t_3": t3},
-                                        field_dict={"E_sig": Esig},
-                                        site_dict={"list_ket_sites": ket_sites,
-                                                   "list_bra_sites": bra_sites})
+    with pytest.warns(UserWarning, match='E_1 is not defined'):
+        fluorescence_default = prepare_spectroscopy_input_dict(
+            spectrum_type=fluorescence_spectrum_type,
+            propagation_time_dict={"t_2": t2, "t_3": t3},
+            field_dict={"E_sig": Esig},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            })
+    assert np.allclose(fluorescence_default["E_1"], np.array([0, 0, 1]))
 
     # Case 5: E_sig not defined
-    prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
-                                    propagation_time_dict={"t_2": t2, "t_3": t3},
-                                    field_dict={"E_1": E1},
-                                    site_dict={"list_ket_sites": ket_sites,
-                                               "list_bra_sites": bra_sites})
-    out, err = capsys.readouterr()
-    assert out.strip() == ('WARNING: E_sig is not defined. Setting E_sig to default, '
-                                   '[0, 0, 1].')
+    with pytest.warns(UserWarning,
+                      match='E_sig is not defined. Setting E_sig to default'):
+        prepare_spectroscopy_input_dict(
+            spectrum_type=fluorescence_spectrum_type,
+            propagation_time_dict={"t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            })
 
     # Testing over-defined fluorescence input
 
     # Case 1: propagation_time_dict contains too many inputs
-    prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
-                                    propagation_time_dict={"t_1": t1, "t_2": t2,
-                                                           "t_3": t3},
-                                    field_dict={"E_1": E1, "E_sig": Esig},
-                                    site_dict={"list_ket_sites": ket_sites,
-                                               "list_bra_sites": bra_sites})
-    out, err = capsys.readouterr()
-    assert out.strip() == ('WARNING: Only t_2 and t_3 are necessary for fluorescence. '
-                                   'Setting all other propagation times to zero.')
+    with pytest.warns(UserWarning,
+                      match='Only t_2 and t_3 are necessary for fluorescence.'):
+        prepare_spectroscopy_input_dict(
+            spectrum_type=fluorescence_spectrum_type,
+            propagation_time_dict={"t_1": t1, "t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1, "E_sig": Esig},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            })
 
     # Case 2: field_dict contains too many inputs
-    prepare_spectroscopy_input_dict(spectrum_type=fluorescence_spectrum_type,
-                                    propagation_time_dict={"t_2": t2, "t_3": t3},
-                                    field_dict={"E_1": E1, "E_sig": Esig, "E_2": Esig},
-                                    site_dict={"list_ket_sites": ket_sites,
-                                               "list_bra_sites": bra_sites})
-    out, err = capsys.readouterr()
-    assert out.strip() == ('WARNING: Only E_1 and E_sig are necessary for fluorescence.'
-                                   ' All other field definitions will be discarded.')
+    with pytest.warns(UserWarning,
+                      match='Only E_1 and E_sig are necessary for fluorescence.'):
+        prepare_spectroscopy_input_dict(
+            spectrum_type=fluorescence_spectrum_type,
+            propagation_time_dict={"t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1, "E_sig": Esig, "E_2": Esig},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            })
+
+    # Testing under-defined third-order non-fluorescence input
+    with pytest.raises(
+        ValueError,
+        match='Propagation time after first field interactions \\(t_1\\) must be defined for GSB-R.'
+    ):
+        prepare_spectroscopy_input_dict(
+            spectrum_type="GSB-R",
+            propagation_time_dict={"t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1, "E_2": Esig, "E_3": Esig, "E_sig": Esig},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            },
+        )
+
+    with pytest.warns(UserWarning, match='E_2 is not defined'):
+        nls_default_E2 = prepare_spectroscopy_input_dict(
+            spectrum_type="GSB-R",
+            propagation_time_dict={"t_1": t1, "t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1, "E_3": Esig, "E_sig": Esig},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            },
+        )
+    assert np.allclose(nls_default_E2["E_2"], np.array([0, 0, 1]))
+
+    with pytest.warns(UserWarning, match='E_3 is not defined'):
+        nls_default_E3 = prepare_spectroscopy_input_dict(
+            spectrum_type="GSB-R",
+            propagation_time_dict={"t_1": t1, "t_2": t2, "t_3": t3},
+            field_dict={"E_1": E1, "E_2": Esig, "E_sig": Esig},
+            cluster_dict={
+                "list_interaction_cluster_1": cluster_1,
+                "list_interaction_cluster_2": cluster_2,
+                "list_interaction_cluster_3": cluster_3,
+            },
+        )
+    assert np.allclose(nls_default_E3["E_3"], np.array([0, 0, 1]))
 
     # Testing incorrect spectrum_type input
     with pytest.raises(ValueError, match='spectrum_type must be one of the following:'):
         prepare_spectroscopy_input_dict(spectrum_type=bad_spectrum_type,
                                         propagation_time_dict={"t_2": t2, "t_3": t3},
                                         field_dict={"E_1": E1, "E_sig": Esig},
-                                        site_dict={"list_ket_sites": ket_sites,
-                                                   "list_bra_sites": bra_sites})
+                                        cluster_dict={
+                                            "list_interaction_cluster_1": cluster_1,
+                                            "list_interaction_cluster_2": cluster_2,
+                                            "list_interaction_cluster_3": cluster_3,
+                                        })
 
 
 def test_prepare_chromophore_input_dict():
@@ -726,6 +884,44 @@ def test_prepare_chromophore_input_dict():
                                                          list_modes[2]/list_modes[3]])
     assert chromophore_dict_3["static_filter_list"] == None
 
+    # Case 4: ESA default list_lop uses full Hilbert dimension and includes ee occupation
+    H2_sys_hamiltonian_esa = np.zeros((4, 4), dtype=np.complex128)
+    H2_sys_hamiltonian_esa[1:3, 1:3] = np.array([[0, -100], [-100, 0]])
+    H2_sys_hamiltonian_esa[3, 3] = 150.0
+    chromophore_dict_4 = prepare_chromophore_input_dict(
+        M2_mu_ge, H2_sys_hamiltonian_esa, {"list_modes": list_modes}
+    )
+    for lop in chromophore_dict_4["lop_list_hier"]:
+        assert lop.shape == (4, 4)
+    # For n=2 there is one doubly-excited state at index 3; both site L-ops include it.
+    diagonal_patterns = {
+        tuple(np.array(lop.diagonal(), dtype=int))
+        for lop in chromophore_dict_4["lop_list_hier"]
+    }
+    assert (0, 1, 0, 1) in diagonal_patterns
+    assert (0, 0, 1, 1) in diagonal_patterns
+
+    # Case 6: sparse Hamiltonian input is accepted and preserved
+    H2_sys_hamiltonian_sparse = sparse.coo_matrix(H2_sys_hamiltonian)
+    chromophore_dict_6 = prepare_chromophore_input_dict(
+        M2_mu_ge, H2_sys_hamiltonian_sparse, {"list_modes": list_modes}
+    )
+    assert sparse.issparse(chromophore_dict_6["H2_sys_hamiltonian"])
+    assert chromophore_dict_6["H2_sys_hamiltonian"].shape == (3, 3)
+
+    # Case 5: non-ESA default list_lop (no ee manifold) keeps only site projectors
+    chromophore_dict_5 = prepare_chromophore_input_dict(
+        M2_mu_ge, H2_sys_hamiltonian, {"list_modes": list_modes}
+    )
+    for lop in chromophore_dict_5["lop_list_hier"]:
+        assert lop.shape == (3, 3)
+    non_esa_diagonal_patterns = {
+        tuple(np.array(lop.diagonal(), dtype=int))
+        for lop in chromophore_dict_5["lop_list_hier"]
+    }
+    assert (0, 1, 0) in non_esa_diagonal_patterns
+    assert (0, 0, 1) in non_esa_diagonal_patterns
+
     # Testing M2_mu_ge input errors
     M2_mu_ge_wrongshape = np.array([np.array([0.5, 0.2]), np.array([0.5, 0.2])])
 
@@ -733,6 +929,14 @@ def test_prepare_chromophore_input_dict():
                                          '\\(n_chromophore, 3\\).'):
         prepare_chromophore_input_dict(M2_mu_ge_wrongshape, H2_sys_hamiltonian,
                                        bath_dict_1)
+
+    # list_lop shape must match Hamiltonian Hilbert-space shape
+    with pytest.raises(ValueError, match='Each list_lop operator must have shape'):
+        prepare_chromophore_input_dict(
+            M2_mu_ge,
+            H2_sys_hamiltonian_esa,
+            {"list_lop": list_lop, "list_modes": list_modes},
+        )
 
     # Testing nmodes_LTC input errors
     nmodes_LTC_wrongtype = '1'
@@ -763,8 +967,8 @@ def test_prepare_chromophore_input_dict():
     # Case 2: static_filter_list not a list of length 2 [filter_name, filter_params]
     static_filter_list_wronglength = [['Markovian']]
     with pytest.raises(ValueError,
-                      match='static_filter_list must be a 2-element list of the form: '
-                            '\\[filter_name, filter_params\\].'):
+                      match='each filter in static_filter_list must be a 2-element '
+                            'list of the form:'):
         prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian,
                                       {"list_modes": list_modes,
                                        "static_filter_list":
@@ -920,8 +1124,9 @@ def test_prepare_chromophore_input_dict():
     # list_modes_by_bath doesn't contain paired Gs and Ws
     list_modes_by_bath_wrongpairing = [ishizaki_decomposition_bcf_dl(35, 50, 295, 0), [1, 2, 3]]
     with pytest.raises(ValueError,
-                      match='list_modes_by_bath should contain paired Gs and Ws, which '
-                            'guarantees an even number of elements in each sublist.'):
+                      match='sublists within list_modes_by_bath should contain paired '
+                            'Gs and Ws, which guarantees an even number of elements in '
+                            'each sublist.'):
         prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian,
                                       {"list_modes_by_bath":
                                            list_modes_by_bath_wrongpairing})
@@ -969,3 +1174,78 @@ def test_prepare_convergence_parameter_dict():
     assert convergence_dict["delta_s"] == 0
     assert convergence_dict["set_update_step"] == 1
     assert convergence_dict["set_f_discard"] == 0
+
+
+@pytest.mark.parametrize(
+    "spectrum_type,expected_transition,expected_sides,expected_scale",
+    [
+        ("ABSORPTION", ["g_to_e"], ["ket"], 2),
+        ("FLUORESCENCE", ["g_to_e", "g_to_e", "e_to_g"], ["bra", "ket", "bra"], 4),
+        ("GSB-R", ["g_to_e", "e_to_g", "g_to_e"], ["bra", "bra", "ket"], 1),
+        ("SE-R", ["g_to_e", "g_to_e", "e_to_g"], ["bra", "ket", "bra"], 1),
+        ("ESA-R", ["g_to_e", "g_to_e", "e_to_ee"], ["bra", "ket", "ket"], -1),
+        ("GSB-NR", ["g_to_e", "e_to_g", "g_to_e"], ["ket", "ket", "ket"], 1),
+        ("SE-NR", ["g_to_e", "g_to_e", "e_to_g"], ["ket", "bra", "bra"], 1),
+        ("ESA-NR", ["g_to_e", "g_to_e", "e_to_ee"], ["ket", "bra", "ket"], -1),
+    ],
+)
+def test_get_pathway_returns_only_selected_config(
+    spectrum_type, expected_transition, expected_sides, expected_scale
+):
+    dhops = _build_dhops_for_spectrum(spectrum_type)
+    pathway = dhops._get_pathway()
+    assert pathway["list_transition"] == expected_transition
+    assert pathway["list_sides"] == expected_sides
+    assert pathway["scaling_factor"] == expected_scale
+    assert len(pathway["list_transition"]) == len(pathway["list_sides"])
+    assert len(pathway["list_transition"]) == len(pathway["list_clusters"])
+
+
+def test_calculate_spectrum_uses_get_pathway(monkeypatch):
+    dhops = _build_dhops_for_spectrum("SE-R")
+    calls = []
+
+    monkeypatch.setattr(DHOPS, "initialize", lambda self: None)
+    monkeypatch.setattr(DHOPS, "_final_dyad_operator", lambda self: (None, 0))
+    monkeypatch.setattr(DHOPS, "_response_function_comp", lambda self, op, idx: 1.0)
+    monkeypatch.setattr(
+        DHOPS,
+        "_get_pathway",
+        lambda self: {
+            "list_transition": ["a", "b", "c"],
+            "list_sides": ["ket", "bra", "ket"],
+            "scaling_factor": 7,
+            "list_clusters": [np.array([1]), np.array([2]), np.array([1, 2])],
+        },
+    )
+    monkeypatch.setattr(
+        DHOPS,
+        "_hilb_operator",
+        lambda self, transition, field, cluster: (transition, tuple(cluster.tolist())),
+    )
+    monkeypatch.setattr(
+        DHOPS,
+        "_dyad_operator",
+        lambda self, op, side: calls.append((op[0], op[1], side)),
+    )
+    monkeypatch.setattr(
+        DHOPS,
+        "propagate",
+        lambda self, t, t_step, timer_checkpoint: None,
+    )
+
+    response = dhops.calculate_spectrum()
+
+    assert response == 7.0
+    assert calls == [
+        ("a", (1,), "ket"),
+        ("b", (2,), "bra"),
+        ("c", (1, 2), "ket"),
+    ]
+
+
+def test_get_pathway_invalid_type_raises():
+    dhops = _build_dhops_for_spectrum("ABSORPTION")
+    dhops.spectrum_type = "NOT-A-PATHWAY"
+    with pytest.raises(ValueError, match="Unknown spectrum_type: NOT-A-PATHWAY"):
+        dhops._get_pathway()

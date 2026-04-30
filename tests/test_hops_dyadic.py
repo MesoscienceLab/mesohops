@@ -354,3 +354,290 @@ def test_response_function_comp():
 
     assert np.array_equal(response_fn_sparse_ref, response_fn_sparse_test)
 
+
+def _build_local_dyadic_case(use_sparse_ops=False):
+    """
+    Builds a compact dyadic test system and staged operators for checkpoint tests.
+
+    Parameters
+    ----------
+    1. use_sparse_ops : bool
+                        If True, returns sparse operator matrices for operator
+                        application; otherwise returns dense arrays.
+    """
+    nsite_local = 3
+    noise_param_local = {
+        "SEED": 123,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 80.0,
+        "TAU": 1.0,
+    }
+    eom_param_local = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+    hier_param_local = {"MAXHIER": 3}
+    integrator_param_local = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        "EARLY_ADAPTIVE_INTEGRATOR": "INCH_WORM",
+        "EARLY_INTEGRATOR_STEPS": 5,
+        "INCHWORM_CAP": 5,
+        "STATIC_BASIS": None,
+    }
+
+    list_lop = []
+    for i in range(nsite_local):
+        lop = np.zeros((nsite_local + 1, nsite_local + 1), dtype=np.float64)
+        lop[i + 1, i + 1] = 1.0
+        list_lop.append(lop)
+
+    V = 8.0
+    H_ex = (np.diag([0.0] * nsite_local)
+            + np.diag([V] * (nsite_local - 1), k=-1)
+            + np.diag([V] * (nsite_local - 1), k=1))
+    H_sys = np.zeros((nsite_local + 1, nsite_local + 1), dtype=np.float64)
+    H_sys[1:, 1:] = H_ex
+
+    sys_param_local = {
+        "HAMILTONIAN": H_sys,
+        "GW_SYSBATH": [[10.0, 10.0]] * nsite_local,
+        "L_HIER": list_lop,
+        "L_NOISE1": list_lop * 2,
+        "L_LT_CORR": list_lop,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0]] * (2 * nsite_local),
+        "PARAM_LT_CORR": [0.0] * nsite_local,
+    }
+
+    psi_k_local = np.zeros(nsite_local + 1, dtype=np.complex128)
+    psi_k_local[0] = 1.0
+    psi_b_local = np.zeros(nsite_local + 1, dtype=np.complex128)
+    psi_b_local[0] = 1.0
+
+    op_ket_exc = np.zeros((nsite_local + 1, nsite_local + 1), dtype=np.float64)
+    op_ket_exc[1:, 0] = 1.0
+    op_bra_exc = np.zeros((nsite_local + 1, nsite_local + 1), dtype=np.float64)
+    op_bra_exc[1:, 0] = 1.0
+    op_bra_to_g = np.zeros((nsite_local + 1, nsite_local + 1), dtype=np.float64)
+    op_bra_to_g[0, 1:] = 1.0
+    if use_sparse_ops:
+        op_ket_exc = sparse.coo_matrix(op_ket_exc)
+        op_bra_exc = sparse.coo_matrix(op_bra_exc)
+        op_bra_to_g = sparse.coo_matrix(op_bra_to_g)
+
+    return (sys_param_local, noise_param_local, hier_param_local, eom_param_local,
+            integrator_param_local, psi_k_local, psi_b_local,
+            op_ket_exc, op_bra_exc, op_bra_to_g)
+
+
+def _extract_storage_block(storage_data, t_start, t_end):
+    """
+    Extracts trajectory storage entries in a strict time window (t_start, t_end].
+    """
+    t_axis = np.array(storage_data["t_axis"], dtype=float)
+    list_block_idx = np.where((t_axis > t_start + 1e-12) &
+                              (t_axis <= t_end + 1e-12))[0]
+    psi_traj = [np.array(storage_data["psi_traj"][i]) for i in list_block_idx]
+    state_list_block = None
+    if "state_list" in storage_data:
+        state_list_block = [np.array(storage_data["state_list"][i], dtype=int)
+                            for i in list_block_idx]
+    return t_axis[list_block_idx], psi_traj, state_list_block
+
+
+def _run_and_compare_checkpoint_flow(tmp_path, use_sparse_ops=False,
+                                     adaptive=False, two_checkpoints=False):
+    """
+    Executes and validates a staged dyadic checkpoint/resume workflow.
+
+    Coverage in this helper includes:
+    - dense/sparse operator execution paths,
+    - midpoint checkpoint integrity,
+    - resumed-block storage equivalence vs uninterrupted run,
+    - optional adaptive basis mode,
+    - optional two-checkpoint chaining.
+    """
+    (sys_param_local, noise_param_local, hier_param_local, eom_param_local,
+     integrator_param_local, psi_k_local, psi_b_local,
+     op_ket_exc, op_bra_exc, op_bra_to_g) = _build_local_dyadic_case(
+        use_sparse_ops=use_sparse_ops
+    )
+
+    storage_param = {"psi_traj": True, "t_axis": True, "state_list": True}
+
+    traj_ref = DHOPS(
+        sys_param_local.copy(),
+        noise_param=noise_param_local.copy(),
+        hierarchy_param=hier_param_local,
+        eom_param=eom_param_local,
+        integration_param=integrator_param_local,
+        storage_param=storage_param,
+    )
+    if adaptive:
+        traj_ref.make_adaptive(1e-3, 1e-3, list_permanent_sites=[0])
+
+    traj_ref.initialize(psi_k_local, psi_b_local)
+    assert len(traj_ref.list_response_norm_sq) == 1
+    traj_ref._dyad_operator(op_ket_exc, "ket")
+    assert len(traj_ref.list_response_norm_sq) == 2
+    traj_ref._dyad_operator(op_bra_exc, "bra")
+    assert len(traj_ref.list_response_norm_sq) == 3
+
+    len_before_prop = len(traj_ref.list_response_norm_sq)
+    traj_ref.propagate(6.0, 2.0)
+    assert len(traj_ref.list_response_norm_sq) == len_before_prop
+
+    traj_ref._dyad_operator(op_bra_to_g, "bra")
+    assert len(traj_ref.list_response_norm_sq) == len_before_prop + 1
+
+    len_before_prop = len(traj_ref.list_response_norm_sq)
+    traj_ref.propagate(8.0, 2.0)
+    assert len(traj_ref.list_response_norm_sq) == len_before_prop
+
+    ckpt1_path = tmp_path / "dyadic_multi_stage_ckpt_1.npz"
+    traj_ref.save_checkpoint(str(ckpt1_path))
+
+    # Capture exact checkpoint-point state for pre-resume integrity checks.
+    phi_mid = traj_ref.phi.copy()
+    t_mid = traj_ref.t
+    norm_mid = np.array(traj_ref.list_response_norm_sq, dtype=np.float64)
+    t_axis_mid = np.array(traj_ref.storage.data["t_axis"], dtype=float)
+    psi_traj_mid = [np.array(psi_step) for psi_step in traj_ref.storage.data["psi_traj"]]
+    state_list_mid = [np.array(state, dtype=int)
+                      for state in traj_ref.storage.data.get("state_list", [])]
+
+    # Uninterrupted reference continuation.
+    len_before_prop = len(traj_ref.list_response_norm_sq)
+    traj_ref.propagate(10.0, 2.0)
+    assert len(traj_ref.list_response_norm_sq) == len_before_prop
+    t_after_first_resume_block = traj_ref.t
+
+    if two_checkpoints:
+        ckpt2_path = tmp_path / "dyadic_multi_stage_ckpt_2.npz"
+        traj_ref.save_checkpoint(str(ckpt2_path))
+        len_before_prop = len(traj_ref.list_response_norm_sq)
+        traj_ref.propagate(4.0, 2.0)
+        assert len(traj_ref.list_response_norm_sq) == len_before_prop
+
+    phi_expected = traj_ref.phi.copy()
+    t_expected = traj_ref.t
+    norm_expected = np.array(traj_ref.list_response_norm_sq, dtype=np.float64)
+    t_block_ref, psi_block_ref, state_block_ref = _extract_storage_block(
+        traj_ref.storage.data, t_mid, t_after_first_resume_block
+    )
+
+    # Resume from checkpoint 1 and verify exact restored midpoint state.
+    traj_loaded = DHOPS.load_checkpoint(str(ckpt1_path))
+    np.testing.assert_allclose(traj_loaded.phi, phi_mid, atol=1e-12)
+    assert traj_loaded.t == t_mid
+    np.testing.assert_allclose(
+        np.array(traj_loaded.list_response_norm_sq, dtype=np.float64),
+        norm_mid,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(np.array(traj_loaded.storage.data["t_axis"], dtype=float),
+                               t_axis_mid, atol=1e-12)
+    for psi_test, psi_ref in zip(traj_loaded.storage.data["psi_traj"], psi_traj_mid):
+        np.testing.assert_allclose(psi_test, psi_ref, atol=1e-12)
+    if state_list_mid:
+        for state_test, state_ref in zip(traj_loaded.storage.data["state_list"],
+                                         state_list_mid):
+            np.testing.assert_array_equal(state_test, state_ref)
+
+    len_before_prop = len(traj_loaded.list_response_norm_sq)
+    traj_loaded.propagate(10.0, 2.0)
+    assert len(traj_loaded.list_response_norm_sq) == len_before_prop
+
+    # Compare resumed storage block against uninterrupted reference block.
+    t_block_loaded, psi_block_loaded, state_block_loaded = _extract_storage_block(
+        traj_loaded.storage.data, t_mid, t_after_first_resume_block
+    )
+    np.testing.assert_allclose(t_block_loaded, t_block_ref, atol=1e-12)
+    for psi_test, psi_ref in zip(psi_block_loaded, psi_block_ref):
+        np.testing.assert_allclose(psi_test, psi_ref, atol=1e-12)
+    if state_block_ref is not None and state_block_loaded is not None:
+        for state_test, state_ref in zip(state_block_loaded, state_block_ref):
+            np.testing.assert_array_equal(state_test, state_ref)
+
+    traj_final = traj_loaded
+    if two_checkpoints:
+        # Explicitly checkpoint/reload a second time to validate chained resumes.
+        ckpt2_loaded_path = tmp_path / "dyadic_multi_stage_ckpt_2_loaded.npz"
+        traj_loaded.save_checkpoint(str(ckpt2_loaded_path))
+        traj_loaded_2 = DHOPS.load_checkpoint(str(ckpt2_loaded_path))
+        np.testing.assert_allclose(traj_loaded_2.phi, traj_loaded.phi, atol=1e-12)
+        assert traj_loaded_2.t == traj_loaded.t
+        np.testing.assert_allclose(
+            np.array(traj_loaded_2.list_response_norm_sq, dtype=np.float64),
+            np.array(traj_loaded.list_response_norm_sq, dtype=np.float64),
+            atol=1e-12,
+        )
+        len_before_prop = len(traj_loaded_2.list_response_norm_sq)
+        traj_loaded_2.propagate(4.0, 2.0)
+        assert len(traj_loaded_2.list_response_norm_sq) == len_before_prop
+        traj_final = traj_loaded_2
+
+    np.testing.assert_allclose(traj_final.phi, phi_expected, atol=1e-12)
+    assert traj_final.t == t_expected
+    np.testing.assert_allclose(
+        np.array(traj_final.list_response_norm_sq, dtype=np.float64),
+        norm_expected,
+        atol=1e-12,
+    )
+
+
+@pytest.mark.parametrize("use_sparse_ops", [False, True])
+def test_dyadic_checkpoint_resume_after_multi_stage_ops(tmp_path, use_sparse_ops):
+    """
+    Validates dense and sparse operator checkpoint/resume equivalence.
+    """
+    _run_and_compare_checkpoint_flow(
+        tmp_path,
+        use_sparse_ops=use_sparse_ops,
+        adaptive=False,
+        two_checkpoints=False,
+    )
+
+
+def test_dyadic_checkpoint_resume_after_multi_stage_ops_adaptive_two_checkpoints(tmp_path):
+    """
+    Validates adaptive dyadic checkpoint/resume with two consecutive checkpoints.
+    """
+    _run_and_compare_checkpoint_flow(
+        tmp_path,
+        use_sparse_ops=False,
+        adaptive=True,
+        two_checkpoints=True,
+    )
+
+
+def test_dyadic_checkpoint_load_fails_without_storage_dyadic_data(tmp_path):
+    """
+    Loading a DyadicTrajectory checkpoint must fail if dyadic storage data is missing.
+    """
+    (sys_param_local, noise_param_local, hier_param_local, eom_param_local,
+     integrator_param_local, psi_k_local, psi_b_local,
+     op_ket_exc, _, _) = _build_local_dyadic_case(use_sparse_ops=False)
+
+    traj = DHOPS(
+        sys_param_local.copy(),
+        noise_param=noise_param_local.copy(),
+        hierarchy_param=hier_param_local,
+        eom_param=eom_param_local,
+        integration_param=integrator_param_local,
+    )
+    traj.initialize(psi_k_local, psi_b_local)
+    traj._dyad_operator(op_ket_exc, "ket")
+    traj.propagate(4.0, 2.0)
+
+    ckpt_path = tmp_path / "dyadic_missing_storage_dyadic_data_src.npz"
+    broken_path = tmp_path / "dyadic_missing_storage_dyadic_data_broken.npz"
+    traj.save_checkpoint(str(ckpt_path))
+
+    data = np.load(ckpt_path, allow_pickle=True)
+    checkpoint = {
+        key: data[key]
+        for key in data.files
+        if key not in {"storage_dyadic_data", "allow_pickle"}
+    }
+    np.savez_compressed(broken_path, **checkpoint)
+
+    with pytest.raises(ValueError, match="missing storage_dyadic_data"):
+        DHOPS.load_checkpoint(str(broken_path))
