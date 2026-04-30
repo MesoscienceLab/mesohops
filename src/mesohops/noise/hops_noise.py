@@ -1,16 +1,15 @@
 import copy
 import os
+import warnings
 
 import numpy as np
-import scipy as sp
-from scipy.interpolate import interp1d
-
+from scipy.interpolate import CubicSpline
 from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import LockedException, UnsupportedRequest
 from mesohops.util.physical_constants import precision  # constant
 
-__title__ = "Pyhops Noise"
-__author__ = "D. I. G. B. Raccah, B. Citty, J. K. Lynd"
+__title__ = "MesoHOPS Noise"
+__author__ = "D. I. G. B. Raccah, B. Z. Citty, J. K. Lynd"
 __version__ = "1.6"
 
 # NOISE MODELS:
@@ -31,7 +30,7 @@ NOISE_DICT_DEFAULT = {
 }
 
 NOISE_TYPE_DEFAULT = {
-    "SEED": [int, type(None), str, np.ndarray],
+    "SEED": [int, type(None), str, list, np.ndarray],
     "MODEL": [str],
     "TLEN": [float],
     "TAU": [float],
@@ -58,14 +57,6 @@ class HopsNoise(Dict_wDefaults):
     """
 
     __slots__ = (
-        # --- Sparse matrix components for adaptive noise storage ---
-        '_row',            # Row indices for sparse noise storage
-        '_col',            # Column indices for sparse noise storage
-        '_data',           # Matrix data for sparse noise storage
-
-        # --- Locking mechanism ---
-        '__locked__',      # Lock status to prevent parameter changes after noise is generated
-
         # --- Parameter management ---
         'masterseed',      # Master random seed for reproducibility
         '_default_param',  # Default parameter dictionary
@@ -74,10 +65,11 @@ class HopsNoise(Dict_wDefaults):
 
         # --- Noise trajectory data ---
         '_noise',          # Main noise array or interpolation function
-        '_lop_active',     # List of active L-operators for which noise is prepared
+        '_spline_noise',   # Interpolated Noise Object
+        '_list_activel2idx_abs',     # List of active L-operators for which noise is prepared
 
         # --- Noise windowing (for memory efficiency) ---
-        'Z2_windowed',     # Windowed noise array (current window)
+        'Z2_noise_windowed',     # Windowed noise array (current window)
         't_ax_windowed',   # Time axis for the current noise window
         'list_window_mask' # Indices for the current noise window
     )
@@ -131,9 +123,6 @@ class HopsNoise(Dict_wDefaults):
         -------
         None
         """
-        self._row = []
-        self._col = []
-        self._data = []
         # In order to ensure that each NoiseModel instance is used to
         # calculate precisely one trajectory, there is a __locked__
         # property that tracks when the NoiseModel actually calculates
@@ -142,7 +131,6 @@ class HopsNoise(Dict_wDefaults):
         # trajectory is calculated the class instance is locked.
         #
         # Only play with this parameter if you know what you are doing.
-        self.__locked__ = False
         if type(self) == HopsNoise:
             self._default_param, self._param_types = self._prepare_default(
             NOISE_DICT_DEFAULT, NOISE_TYPE_DEFAULT
@@ -154,12 +142,18 @@ class HopsNoise(Dict_wDefaults):
         nstep_min = int(np.ceil(self.param["TLEN"] / self.param["TAU"])) + 1
         t_axis = np.arange(nstep_min) * self.param["TAU"]
         self.param["T_AXIS"] = t_axis
+        if self.param['MODEL'] == 'PRE_CALCULATED' and self.param['ADAPTIVE']:
+            warnings.warn(
+                'PRE_CALCULATED noise does not support adaptive mode. '
+                'Setting ADAPTIVE to False.'
+            )
+            self.param['ADAPTIVE'] = False
         if type(self.param["SEED"]) == int:
             self.masterseed = self.param["SEED"]
 
         self._noise = None
-        self._lop_active = [] 
-        self.Z2_windowed = None
+        self._list_activel2idx_abs = [] 
+        self.Z2_noise_windowed = None
         self.t_ax_windowed = None
         if self.param["NOISE_WINDOW"] is not None and self.param["NOISE_WINDOW"] > self.param["TLEN"]:
             self.param["NOISE_WINDOW"] = self.param["TLEN"]
@@ -191,7 +185,7 @@ class HopsNoise(Dict_wDefaults):
                 )
         return alpha
 
-    def _prepare_noise(self, new_lop):
+    def _prepare_noise(self, list_newl2idx_abs):
         """
         Generates the correlated noise trajectory based on the choice of noise model.
         Options include generating a zero noise trajectory, using an FFT filter
@@ -200,70 +194,59 @@ class HopsNoise(Dict_wDefaults):
 
         Parameters
         ----------
-        1.  new_lop : list(int)
+        1.  list_newl2idx_abs : list(int)
                       Absolute indices of L-operators for which noise is prepared.
 
         Returns
         -------
         None
         """
+
+        list_newl2idx_abs = sorted(list_newl2idx_abs)
         if not self.param["ADAPTIVE"]:
-            new_lop = list(np.arange(self.param["N_L2"]))
-        
-        n_l2 = len(new_lop)
-        n_taus = len(self.param["T_AXIS"])
+            list_newl2idx_abs = list(np.arange(self.param["N_L2"]))
 
         # Zero noise case:
         if self.param["MODEL"] == "ZERO":
             if self.param['STORE_RAW_NOISE']:
                 print("Raw noise is identical to correlated noise in the ZERO noise "
                       "model.")
-            self._noise = 0
+            Z2_corrnoise = 0
 
         # FFTfilter case:
         elif self.param["MODEL"] == "FFT_FILTER":
             # Initialize uncorrelated noise
             # -----------------------------
-            
-            #If SEED is an array, we just calculate everything, like before (for now?)
             if(type(self.param['SEED']) is np.ndarray):
-                new_lop = list(np.arange(self.param['N_L2']))
+                list_newl2idx_abs = list(np.arange(self.param['N_L2']))
+                if self.param['ADAPTIVE']:
+                    print('Warning: ADAPTIVE is True but SEED is an array. '
+                          'Noise will be generated for all L-operators, '
+                          'bypassing adaptive subsetting.')
             
-            z_uncorrelated = self._prepare_rand(new_lop)
+            z_uncorrelated = self._prepare_rand(list_newl2idx_abs)
 
             # Initialize correlated noise
             # ---------------------------
-            alpha = np.complex64(self._corr_func_by_lop_taxis(self.param['T_AXIS'], new_lop))
-            z_correlated = self._construct_correlated_noise(alpha, z_uncorrelated)
+            alpha = np.complex64(self._corr_func_by_lop_taxis(self.param['T_AXIS'], list_newl2idx_abs))
+            Z2_corrnoise = self._construct_correlated_noise(alpha, z_uncorrelated)
 
             # Remove 'Z_UNCORRELATED' for memory savings
             if self.param['STORE_RAW_NOISE']:
                 self.param['Z_UNCORRELATED'] = z_uncorrelated
-            if self.param['INTERPOLATE']:
-                self._noise = interp1d(self.param['T_AXIS'], z_correlated, kind='cubic',axis=1)
-            elif self.param['ADAPTIVE']:
-                new_noise = np.complex64(z_correlated)
-            else:
-                self._noise = np.complex64(z_correlated)
 
         # Precalculated case
         elif self.param["MODEL"] == "PRE_CALCULATED":
             # If SEED is an iterable
-            if (type(self.param['SEED']) is list) or (type(self.param['SEED']) is
-                                                       np.ndarray):
+            if (type(self.param['SEED']) is list) or (
+                    type(self.param['SEED']) is np.ndarray):
                 print('Correlated noise initialized from input array.')
-                # This is where we need to write the code to use an array of correlated
-                # noise variables input in place of the SEED parameter.
-                if np.shape(self.param['SEED']) == (self.param['N_L2'],
+                if type(self.param['SEED']) is list:
+                    self.param['SEED'] = np.asarray(self.param['SEED'],
+                                                    dtype=np.complex64)
+                Z2_corrnoise = np.complex64(self.param['SEED'])
+                if np.shape(Z2_corrnoise) != (self.param['N_L2'],
                                                     len(self.param['T_AXIS'])):
-                    self._noise = np.complex64(self.param['SEED'])
-                    if self.param['INTERPOLATE']:
-                        self._noise = interp1d(self.param['T_AXIS'], self.param['SEED'],
-                                               kind='cubic', axis=1)
-                    else:
-                        self._noise = self.param['SEED']
-
-                else:
                     raise UnsupportedRequest(
                         'Noise.param[SEED] is an array of the wrong length',
                         'Noise.prepare_noise', True)
@@ -273,24 +256,18 @@ class HopsNoise(Dict_wDefaults):
                 print("Noise Model intialized from file: {}".format(self.param['SEED']))
                 if os.path.isfile(self.param["SEED"]):
                     if self.param["SEED"][-4:] == ".npy":
-                        corr_noise = np.complex64(np.load(self.param["SEED"]))
-                        if np.shape(corr_noise) == (self.param['N_L2'],
+                        Z2_corrnoise = np.complex64(np.load(self.param["SEED"]))
+                        if np.shape(Z2_corrnoise) != (self.param['N_L2'],
                                                     len(self.param['T_AXIS'])):
-                            if self.param['INTERPOLATE']:
-                                self._noise = interp1d(self.param['T_AXIS'], corr_noise,
-                                                       kind='cubic', axis=1)
-                            else:
-                                self._noise = corr_noise
-                        else:
                             raise UnsupportedRequest(
                                 'The file loaded at address Noise.param[SEED] is an '
                                 'array of the wrong length', 'Noise.prepare_noise',
                                 True)
-
+                    # Warning for file address + adaptivity
                     else:
                         raise UnsupportedRequest(
                             'Noise.param[SEED] of filetype {} is not supported'.format(
-                                type(self.param['SEED']))[-4:],
+                                self.param['SEED'][-4:]),
                             'Noise.prepare_noise', True)
                 else:
                     raise UnsupportedRequest(
@@ -310,33 +287,62 @@ class HopsNoise(Dict_wDefaults):
                 'Noise.param[MODEL] {}'.format(
                     self.param['MODEL']),
                 'Noise.prepare_noise')
+        # Update _list_activel2idx_abs so get_noise knows when to call prepare_noise
+        list_prevl2 = self._list_activel2idx_abs
+        self._list_activel2idx_abs = sorted(set(self._list_activel2idx_abs) | set(list_newl2idx_abs))
 
-        #Add new noise to self._noise
-        if self.param['ADAPTIVE']:
-            # Leave the noise as a 0 integer for noise model ZERO.
-            if self.param['MODEL'] == 'ZERO':
-                pass
-            else:
-                for (i,lop) in enumerate(new_lop):
-                    self._row += [lop]*n_taus
-                    self._col += list(np.arange(n_taus))
-                    self._data += list(new_noise[i,:])
-                self._noise = sp.sparse.coo_array((self._data,(self._row,self._col)),
-                                    shape=(self.param['N_L2'],len(self.param["T_AXIS"])),
-                                    dtype=np.complex64).tocsc()
+        # Add new noise to self._noise by remapping into the expanded L2 index space
+        if self.param['ADAPTIVE'] and self.param['MODEL'] != 'ZERO':
+            Z2_noise = np.zeros((len(self._list_activel2idx_abs), len(self.param["T_AXIS"])), dtype=np.complex64)
+            # Map previous and new L2 indices to their positions in the updated list
+            list_stblnoiseidx_prevrel = [list(self._list_activel2idx_abs).index(lop) for lop in list_prevl2]
+            list_stblnoiseidx_rel = [list(self._list_activel2idx_abs).index(lop) for lop in list_newl2idx_abs]
+            # Copy existing noise into its new rows, then insert newly prepared noise
+            if len(list_prevl2) > 0:
+                Z2_noise[list_stblnoiseidx_prevrel,:] = self._noise[:,:]
+            Z2_noise[list_stblnoiseidx_rel,:] = Z2_corrnoise[:,:]
+            self._noise = Z2_noise
+        else:
+            self._noise = Z2_corrnoise
 
-        # Update lop_active so get_noise knows when to call prepare_noise
-        self._lop_active = list(set(self._lop_active) | set(new_lop))
+        if self.Z2_noise_windowed is not None:
+            self.Z2_noise_windowed = np.zeros([len(self._list_activel2idx_abs), len(self.t_ax_windowed)],
+                                         dtype=np.complex64)
+            self.Z2_noise_windowed[:, :] = self._noise[:, self.list_window_mask]
+        if self.param['INTERPOLATE']:
+            self._spline_noise = CubicSpline(self.param['T_AXIS'], self._noise, axis=1)
 
-        if self.Z2_windowed is not None:
-            if self.param["ADAPTIVE"]:
-                # Update the temporary noise with new info.
-                self.Z2_windowed = self._noise[:, self.list_window_mask]
-            else:
-                self.Z2_windowed[:, :] = self._noise[:, self.list_window_mask]
+    def _evict_noise(self, list_l2keep):
+        """
+        Removes noise rows for L-operators no longer in the active basis. Because
+        the PCG64 jumped-seed scheme assigns a unique seed per L-operator, any evicted
+        L-operator can be regenerated identically if it re-enters the basis later.
 
+        Parameters
+        ----------
+        1. list_l2keep : list(int)
+                           Absolute L-operator indices to retain.
 
-    def get_noise(self, t_axis, list_lop=None):
+        Returns
+        -------
+        None
+        """
+        keep_idx = [self._list_activel2idx_abs.index(lop) for lop in list_l2keep]
+        new_noise = np.zeros([len(list_l2keep), self._noise.shape[1]], 
+                             dtype=np.complex64)
+        new_noise[:,:] = self._noise[keep_idx, :]
+        self._list_activel2idx_abs = list(list_l2keep)
+        if self.Z2_noise_windowed is not None:
+            self.Z2_noise_windowed = np.zeros([len(self._list_activel2idx_abs), len(self.t_ax_windowed)],
+                                        dtype=np.complex64)
+            self.Z2_noise_windowed[:,:] = new_noise[:, self.list_window_mask]
+        if self.param['INTERPOLATE']:
+            self._spline_noise = CubicSpline(
+                self.param['T_AXIS'], new_noise, axis=1
+            )
+        self._noise = new_noise
+
+    def get_noise(self, t_axis, list_l2idx_abs=None):
         """
         Gets the noise associated with a given time interval.
 
@@ -345,47 +351,53 @@ class HopsNoise(Dict_wDefaults):
         1. t_axis : list(float)
                     List of time points.
                     
-        2. list_lop : list(int)
+        2. list_l2idx_abs : list(int)
                       List of L-operators 
                     
         Returns
         -------
         1. Z2_noise : np.array
-                      2D array of noise values, shape (list_lop, t_axis) sampled at the given time points.
+                      2D array of noise values, shape (list_l2idx_abs, t_axis) sampled at the given time points.
         """
-        if list_lop is None:
-            list_lop = np.arange(self.param["N_L2"])
+        if list_l2idx_abs is None:
+            list_l2idx_abs = np.arange(self.param["N_L2"])
+        if self.param['ADAPTIVE']:
+            list_l2idx_abs = sorted(list_l2idx_abs)
 
         if self.param["MODEL"] == "ZERO":
-            return np.zeros([len(list_lop), len(t_axis)], dtype=np.complex64)
+            return np.zeros([len(list_l2idx_abs), len(t_axis)], dtype=np.complex64)
 
         if self._noise is None:
-            if self.param["ADAPTIVE"]:
-                self._noise = sp.sparse.coo_array( (self.param['N_L2'],
-                                                    len(self.param["T_AXIS"])),
-                                                   dtype=np.complex64).tocsc()
-            else:
-                self._noise = np.zeros([self.param["N_L2"],
-                                        len(self.param["T_AXIS"])], dtype=np.complex64)
+            self._noise = np.zeros([len(list_l2idx_abs),
+                                    len(self.param["T_AXIS"])], dtype=np.complex64)
 
-        new_lop = list(set(list_lop) - set(self._lop_active))
-        #Prepare noise for all L-operators not already prepared.
-        if len(new_lop) > 0:
-            self._prepare_noise(new_lop)
+        list_newl2idx_abs = sorted(set(list_l2idx_abs) - set(self._list_activel2idx_abs))
 
+        # Prepare noise for all L-operators not already prepared.
+        if len(list_newl2idx_abs) > 0:
+            self._prepare_noise(list_newl2idx_abs)
 
-        #No L-operator removal is implemented yet.
-        
+        if self.param['ADAPTIVE']:
+            stale_lop = set(self._list_activel2idx_abs) - set(list_l2idx_abs)
+            if stale_lop:
+                self._evict_noise(sorted(list_l2idx_abs))
+
+        n_l2 = len(self._list_activel2idx_abs)
+
         if self.param["INTERPOLATE"]:
             if self.param["NOISE_WINDOW"] is not None:
                 print("Warning: noise windowing is not supported while using "
                       "interpolated noise.")
+            if self.param['ADAPTIVE']:
+                spline_noise = self._spline_noise(t_axis)
+            else:
+                spline_noise = self._spline_noise(t_axis)[np.array(list_l2idx_abs)]
             if self.param["FLAG_REAL"]:
-                return np.real(self._noise(t_axis))
-            return self._noise(t_axis)
+                return np.real(spline_noise)
+            return spline_noise
 
         else:
-            if self.Z2_windowed is not None:
+            if self.Z2_noise_windowed is not None:
                 # If t_axis is out of range of the noise window, create new noise window
                 if (np.min(t_axis) < np.min(self.t_ax_windowed) or np.max(t_axis) > np.max(
                         self.t_ax_windowed)):
@@ -396,13 +408,9 @@ class HopsNoise(Dict_wDefaults):
                     end_index = np.where(self.param["T_AXIS"] >= end)[0][0]
                     self.list_window_mask = list(np.arange(start_index, end_index + 1))
                     self.t_ax_windowed = self.param["T_AXIS"][self.list_window_mask]
-                    if self.param["ADAPTIVE"]:
-                        self.Z2_windowed = self._noise[:, self.list_window_mask]
-                    else:
-                        self.Z2_windowed = np.zeros([self.param[
-                                                    'N_L2'], len(self.t_ax_windowed)],
-                                               dtype=np.complex64)
-                        self.Z2_windowed[:, :] = self._noise[:, self.list_window_mask]
+                    self.Z2_noise_windowed = np.zeros([n_l2, len(self.t_ax_windowed)],
+                                                 dtype=np.complex64)
+                    self.Z2_noise_windowed[:, :] = self._noise[:, self.list_window_mask]
                 # Otherwise the noise window is already created for the given time
                 # points.
             else:
@@ -412,20 +420,16 @@ class HopsNoise(Dict_wDefaults):
                         > np.max(self.param["T_AXIS"])):
                     self.list_window_mask = list(np.arange(len(self.param["T_AXIS"])))
                     self.t_ax_windowed = self.param["T_AXIS"]
-                    self.Z2_windowed = self._noise
+                    self.Z2_noise_windowed = self._noise
                 # Otherwise the noise window is initialized startin' from time 0.
                 else:
                     end = np.max([self.param["NOISE_WINDOW"],np.max(t_axis)])
                     end_index = np.where(self.param["T_AXIS"] >= end)[0][0]
                     self.list_window_mask = list(np.arange(end_index+1))
                     self.t_ax_windowed = self.param["T_AXIS"][self.list_window_mask]
-                    if self.param["ADAPTIVE"]:
-                        self.Z2_windowed = self._noise[:, self.list_window_mask]
-                    else:
-                        self.Z2_windowed = np.zeros([self.param[
-                                                   'N_L2'], len(self.t_ax_windowed)],
-                                              dtype=np.complex64)
-                        self.Z2_windowed[:, :] = self._noise[:, self.list_window_mask]
+                    self.Z2_noise_windowed = np.zeros([n_l2, len(self.t_ax_windowed)],
+                                                 dtype=np.complex64)
+                    self.Z2_noise_windowed[:, :] = self._noise[:, self.list_window_mask]
 
             if (np.min(t_axis) < np.min(self.param["T_AXIS"]) or np.max(t_axis) >
                     np.max(self.param["T_AXIS"])):
@@ -446,11 +450,11 @@ class HopsNoise(Dict_wDefaults):
                         "NoiseModel.get_noise()",
                     )
             if self.param["FLAG_REAL"]:
-                return np.real(self._noise_to_array(self.Z2_windowed, it_list,
-                                                     list_lop))
-            return self._noise_to_array(self.Z2_windowed, it_list, list_lop)
+                return np.real(self._noise_to_array(self.Z2_noise_windowed, it_list,
+                                                     list_l2idx_abs))
+            return self._noise_to_array(self.Z2_noise_windowed, it_list, list_l2idx_abs)
 
-    def _prepare_rand(self,new_lop=None):
+    def _prepare_rand(self,list_newl2idx_abs=None):
         """
         Constructs the uncorrelated complex Gaussian distributions that may be
         converted to a correlated noise trajectory via an FFT filter model. Average
@@ -462,7 +466,7 @@ class HopsNoise(Dict_wDefaults):
 
         Parameters
         ----------
-        1. new_lop : list(int)
+        1. list_newl2idx_abs : list(int)
                      List of L-operators
 
         Returns
@@ -470,20 +474,23 @@ class HopsNoise(Dict_wDefaults):
         1. z_uncorrelated : np.array(np.complex64)
                             The uncorrelated "raw" complex Gaussian random noise
                             trajectory of the proper size to be transformed.  This corresponds
-                            to L-operators in "new_lop"
+                            to L-operators in "list_newl2idx_abs"
 
         """
-        if new_lop is None:
-            new_lop = list(np.arange(self.param['N_L2']))
-            self._noise = np.zeros([len(new_lop), len(self.param['T_AXIS'])], dtype=np.complex64)
+        if list_newl2idx_abs is None:
+            list_newl2idx_abs = list(np.arange(self.param['N_L2']))
+            self._noise = np.zeros([len(list_newl2idx_abs), len(self.param['T_AXIS'])], dtype=np.complex64)
         # Get the correct size of noise trajectory
         ntaus = len(self.param['T_AXIS'])
-        n_lop = len(new_lop)
+        n_lop = len(list_newl2idx_abs)
         # Initialize un-correlated noise
         # ------------------------------
         if (type(self.param['SEED']) is list) or (
                 type(self.param['SEED']) is np.ndarray):
             print('Noise Model initialized from input array.')
+            if type(self.param['SEED']) is list:
+                self.param['SEED'] = np.asarray(self.param['SEED'],
+                                                dtype=np.complex64)
             # Import a .npy file as a noise trajectory.
             if np.shape(self.param['SEED']) == (self.param['N_L2'], 2 * (len(
                     self.param['T_AXIS']) - 1)):
@@ -503,7 +510,7 @@ class HopsNoise(Dict_wDefaults):
                 else:
                     raise UnsupportedRequest(
                         'Noise.param[SEED] of filetype {} is not supported'.format(
-                            type(self.param['SEED']))[-4:],
+                            self.param['SEED'][-4:]),
                         'Noise._prepare_rand', True)
             else:
                 raise UnsupportedRequest(
@@ -513,7 +520,7 @@ class HopsNoise(Dict_wDefaults):
 
         elif (type(self.param['SEED']) is int) or (self.param['SEED'] is None):
             
-            random_numbers = self._generate_noise_samples(new_lop, ntaus, self.param["RAND_MODEL"])         
+            random_numbers = self._generate_noise_samples(list_newl2idx_abs, ntaus, self.param["RAND_MODEL"])         
             print("Noise Model initialized with SEED = ", self.param["SEED"])
             if self.param["RAND_MODEL"] == "BOX_MULLER":
                 # Box-Muller Method: Gaussian Random Number
@@ -555,13 +562,13 @@ class HopsNoise(Dict_wDefaults):
                     type(self.param['SEED'])),
                 'Noise._prepare_rand') 
 
-    def _generate_noise_samples(self,new_lop, n_times, modeltype):
+    def _generate_noise_samples(self,list_newl2idx_abs, n_times, modeltype):
         """
         Generates random numbers for given L-operators.
         
         Parameters
         ----------
-        1. new_lop : list(int)
+        1. list_newl2idx_abs : list(int)
                      List of absolute L-operators for which noise is to be generated
         2. n_times :   list(int)
                        Number of time points 
@@ -574,8 +581,8 @@ class HopsNoise(Dict_wDefaults):
         1. random_numbers : array(complex128)
                             2D noise array of size (num_lop, 4*(n_times-1)) 
         """
-        random_numbers = np.zeros((len(new_lop), 4*(n_times-1)))
-        for (i,lop) in enumerate(new_lop):
+        random_numbers = np.zeros((len(list_newl2idx_abs), 4*(n_times-1)))
+        for (i,lop) in enumerate(list_newl2idx_abs):
             # Each L-operator is given a unique seed. This seed is generated by
             # jumping the root seed RNG lop times. This ensures that the noise 
             # generated for a given L-operator is consistent regardless of the order
@@ -740,7 +747,6 @@ class HopsNoise(Dict_wDefaults):
         """
         if type(self.param["SEED"]) == int or type(self.param["SEED"]) == type(None):
             self.randstate = np.random.RandomState(seed=self.param["SEED"])
-        self._unlock()
 
     @staticmethod
     def _prepare_default(method_defaults, method_types):
@@ -770,56 +776,44 @@ class HopsNoise(Dict_wDefaults):
         param_types.update(method_types)
         return default_params, param_types
 
-    def _unlock(self):
-        self.__locked__ = False
-
-    def _lock(self):
-        self.__locked__ = True
-
     @property
     def param(self):
         return self.__param
 
     @param.setter
     def param(self, param_usr):
-        if self.__locked__:
-            raise LockedException("NoiseModel.param.setter")
         self.__param = self._initialize_dictionary(
             param_usr, self._default_param, self._param_types, type(self).__name__
         )
 
     def update_param(self, param_usr):
-        if self.__locked__:
-            raise LockedException("NoiseModel.update_param()")
         self.__param.update(param_usr)
         
-    def _noise_to_array(self,Z2_noise_full,t_axis, list_lop=None):
+    def _noise_to_array(self, Z2_noise_full, t_axis, list_l2idx_abs=None):
         """
-        Auxiliary function which slices the noise to retreive the
-        noise for specific times and L-operators.  This is required because
-        slicing is not yet fully implemented for sparse arrays.
-        
+        Slices the noise array to retrieve noise for specific times and
+        L-operators.
+
         Parameters
         ----------
-        1. Z2_noise_full  : np.array
-                            2D noise array
-                   
-        2. t_axis         : list(int)
-                            Time slice to retrieve noise
-        3. list_lop       : list(int)
-                            L-operator indices for which to retrieve noise
-        
+        1. Z2_noise_full : np.array
+                           2D noise array.
+        2. t_axis : list(int)
+                    Time indices to retrieve noise.
+        3. list_l2idx_abs : list(int) or None
+                      L-operator indices for which to retrieve noise.
+                      Only used in non-adaptive mode. In adaptive mode,
+                      self._noise already contains only the active
+                      L-operators (managed by _prepare_noise and
+                      _evict_noise), so row slicing is unnecessary.
+
         Returns
         -------
         1. Z2_noise : np.array
-                      Sliced noise array
+                      Sliced noise array.
         """
-        if list_lop is None:
-            list_lop = self._lop_active
-        num_l2 = len(list_lop)
-        num_t = len(t_axis)
-        Z2_noise = np.zeros((num_l2,num_t),dtype=np.complex64)
-        for (i_l2,l2_ind) in enumerate(list_lop):
-            for (i_t,t) in enumerate(t_axis):
-                Z2_noise[i_l2][i_t] = Z2_noise_full[l2_ind,t]
-        return Z2_noise
+        # In adaptive mode, self._noise only stores rows for active
+        # L-operators, so all rows are returned without list_l2idx_abs slicing.
+        if self.param['ADAPTIVE']:
+            return np.complex64(Z2_noise_full[:, t_axis])
+        return np.complex64(Z2_noise_full[np.array(list_l2idx_abs)][:, t_axis])

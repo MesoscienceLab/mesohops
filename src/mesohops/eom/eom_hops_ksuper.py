@@ -179,7 +179,7 @@ def _add_crossterms(
     n_site = system.size
     list_l_sparse = [mode.list_L2_coo[i_lop] for i_lop in range(len(mode.list_L2_coo))]
     
-    for (l_mod,l_mod_abs) in enumerate(mode.list_absindex_mode):
+    for (l_mod,l_mod_abs) in enumerate(mode.list_modeidx_abs):
         try:
             num_conn = len(hierarchy.new_aux_index_conn_by_mode[l_mod_abs])
         except:
@@ -287,10 +287,10 @@ def _add_crossterms_stable_K(
     """
     n_site = system.size
     # Finds the relative indices of newly-included states.
-    list_irel_new_state = [list(system.state_list).index(i) for i in system.list_add_state]
+    list_irel_new_state = [list(system.state_list).index(i) for i in system.list_newstateidx_abs]
     if len(list_irel_new_state) > 0:
         # Finds the correlation function modes associated with newly-included states.
-        list_new_mode = list(system.list_absindex_new_state_modes)
+        list_new_mode = list(system.list_newstatemodeidx_abs)
         # If an L-operator has a row or column in the newly-added states, the
         # information that interacts with that state in the entry (data, row, col) form
         # can be used to build the necessary crossterm. For each L-operator,
@@ -317,7 +317,7 @@ def _add_crossterms_stable_K(
                 list_aux_indices_p1 = [hierarchy._aux_index(hierarchy.dict_aux_by_id[id_]) for id_ in list_ids_p1]
 
                 # Relative index of the mode of interest
-                l_mod = list(mode.list_absindex_mode).index(l_mode_abs)
+                l_mod = list(mode.list_modeidx_abs).index(l_mode_abs)
                 # Relative index of the L-operator associated with the mode of interest
                 i_lop = mode.list_index_L2_by_hmode[l_mod]
 
@@ -471,9 +471,9 @@ def update_ksuper(
     # Z Matrices
     Zp1_new = [[] for i_lop in range(n_lop)]
     for i_lop in range(n_lop):
-        if mode.list_absindex_L2[i_lop] in mode.previous_list_absindex_L2:
+        if mode.list_l2idx_abs[i_lop] in mode.list_prevl2idx_abs:
             Zp1_new[i_lop] = _permute_aux_by_matrix(
-                Zp1[list(mode.previous_list_absindex_L2).index(mode.list_absindex_L2[i_lop])], Pmat2
+                Zp1[list(mode.list_prevl2idx_abs).index(mode.list_l2idx_abs[i_lop])], Pmat2
             )
         else:
             Zp1_new[i_lop] = sparse.coo_matrix((hierarchy.size, hierarchy.size), dtype=np.complex128)

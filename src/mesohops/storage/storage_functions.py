@@ -176,8 +176,16 @@ def save_z_mem(z_mem_new, **kwargs):
     return z_mem_new
 
 
+def save_list_zmemmodeidx_abs(list_zmemmodeidx_abs, **kwargs):
+    """
+    Returns the list of absolute indices for the z_mem modes used at this time.
+    """
+    return list_zmemmodeidx_abs
+
+
 storage_default_func = {'psi_traj':save_psi_traj, 'phi_traj':save_phi_traj,
                         'phi_norm':save_phi_norm, 't_axis':save_t_axis,
                         'aux_list':save_aux_list, 'state_list':save_state_list,
                         'list_nstate':save_list_nstate, 'list_nhier':save_list_nhier,
-                        'list_aux_norm':save_list_aux_norm, 'z_mem':save_z_mem}
+                        'list_aux_norm':save_list_aux_norm, 'z_mem':save_z_mem,
+                        'list_zmemmodeidx_abs': save_list_zmemmodeidx_abs}

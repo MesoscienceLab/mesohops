@@ -91,7 +91,7 @@ def test_LTC_linear_eom():
                                       hops_ltc_modes_match_l_op.noise1,
                                       hops_ltc_modes_match_l_op.noise2,
                                       2.0, hops_ltc_modes_match_l_op.storage,
-                                      hops_ltc_modes_match_l_op.basis.mode.list_absindex_L2)
+                                      hops_ltc_modes_match_l_op.basis.mode.list_l2idx_abs)
     dsystem_dt_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.dsystem_dt(
                 integration_var_ltc_modes_match_l_op['phi'],
                 integration_var_ltc_modes_match_l_op['z_mem'],
@@ -114,7 +114,7 @@ def test_LTC_linear_eom():
                                       hops_no_ltc_modes.noise1,
                                       hops_no_ltc_modes.noise2,
                                       2.0, hops_no_ltc_modes.storage,
-                                      hops_no_ltc_modes.basis.mode.list_absindex_L2)
+                                      hops_no_ltc_modes.basis.mode.list_l2idx_abs)
     dsystem_dt_no_ltc_modes = hops_no_ltc_modes.dsystem_dt(
                 integration_var_no_ltc_modes['phi'],
                 integration_var_no_ltc_modes['z_mem'],
@@ -158,7 +158,7 @@ def test_LTC_non_adaptive_nonlinear_norm_eom():
                                       hops_ltc_modes_match_l_op.noise1,
                                       hops_ltc_modes_match_l_op.noise2,
                                       2.0, hops_ltc_modes_match_l_op.storage,
-                                      hops_ltc_modes_match_l_op.basis.mode.list_absindex_L2)
+                                      hops_ltc_modes_match_l_op.basis.mode.list_l2idx_abs)
     dsystem_dt_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.dsystem_dt(
                 integration_var_ltc_modes_match_l_op['phi'],
                 integration_var_ltc_modes_match_l_op['z_mem'],
@@ -181,7 +181,7 @@ def test_LTC_non_adaptive_nonlinear_norm_eom():
                                       hops_no_ltc_modes.noise1,
                                       hops_no_ltc_modes.noise2,
                                       2.0, hops_no_ltc_modes.storage,
-                                      hops_no_ltc_modes.basis.mode.list_absindex_L2)
+                                      hops_no_ltc_modes.basis.mode.list_l2idx_abs)
     dsystem_dt_no_ltc_modes = hops_no_ltc_modes.dsystem_dt(
                 integration_var_no_ltc_modes['phi'],
                 integration_var_no_ltc_modes['z_mem'],
@@ -238,7 +238,7 @@ def test_LTC_nonlinear_eom():
                                       hops_ltc_modes_match_l_op.noise1,
                                       hops_ltc_modes_match_l_op.noise2,
                                       2.0, hops_ltc_modes_match_l_op.storage,
-                                      hops_ltc_modes_match_l_op.basis.mode.list_absindex_L2)
+                                      hops_ltc_modes_match_l_op.basis.mode.list_l2idx_abs)
     dsystem_dt_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.dsystem_dt(
                 integration_var_ltc_modes_match_l_op['phi'],
                 integration_var_ltc_modes_match_l_op['z_mem'],
@@ -261,7 +261,7 @@ def test_LTC_nonlinear_eom():
                                       hops_no_ltc_modes.noise1,
                                       hops_no_ltc_modes.noise2,
                                       2.0, hops_no_ltc_modes.storage,
-                                      hops_no_ltc_modes.basis.mode.list_absindex_L2)
+                                      hops_no_ltc_modes.basis.mode.list_l2idx_abs)
     dsystem_dt_no_ltc_modes = hops_no_ltc_modes.dsystem_dt(
                 integration_var_no_ltc_modes['phi'],
                 integration_var_no_ltc_modes['z_mem'],
@@ -324,9 +324,9 @@ def test_LTC_adaptive_nonlinear_norm_eom():
                            hops_ltc_modes_match_l_op.auxiliary_list[3],
                            hops_ltc_modes_match_l_op.auxiliary_list[4]]
     hops_ltc_modes_match_l_op.phi = phi_0_subset
-    hops_ltc_modes_match_l_op.phi, hops_ltc_modes_match_l_op.dsystem_dt = \
+    hops_ltc_modes_match_l_op.phi, hops_ltc_modes_match_l_op.z_mem, hops_ltc_modes_match_l_op.dsystem_dt = \
         hops_ltc_modes_match_l_op.basis.update_basis(
-        phi_0_subset, adap_state_list, adap_auxiliary_list)
+        phi_0_subset, hops_ltc_modes_match_l_op.z_mem, adap_state_list, adap_auxiliary_list)
     integration_var_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.integration_var(
         hops_ltc_modes_match_l_op.phi,
         hops_ltc_modes_match_l_op.z_mem,
@@ -334,7 +334,7 @@ def test_LTC_adaptive_nonlinear_norm_eom():
         hops_ltc_modes_match_l_op.noise1,
         hops_ltc_modes_match_l_op.noise2,
         2.0, hops_ltc_modes_match_l_op.storage,
-        hops_ltc_modes_match_l_op.basis.mode.list_absindex_L2)
+        hops_ltc_modes_match_l_op.basis.mode.list_l2idx_abs)
     dsystem_dt_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.dsystem_dt(
         integration_var_ltc_modes_match_l_op['phi'],
         integration_var_ltc_modes_match_l_op['z_mem'],
@@ -356,9 +356,9 @@ def test_LTC_adaptive_nonlinear_norm_eom():
                            hops_no_ltc_modes.auxiliary_list[3],
                            hops_no_ltc_modes.auxiliary_list[4]]
     hops_no_ltc_modes.phi = phi_0_subset
-    hops_no_ltc_modes.phi, hops_no_ltc_modes.dsystem_dt = \
+    hops_no_ltc_modes.phi, hops_no_ltc_modes.z_mem, hops_no_ltc_modes.dsystem_dt = \
         hops_no_ltc_modes.basis.update_basis(
-            phi_0_subset, adap_state_list, adap_auxiliary_list)
+            phi_0_subset, hops_no_ltc_modes.z_mem, adap_state_list, adap_auxiliary_list)
     integration_var_no_ltc_modes = hops_no_ltc_modes.integration_var(
         hops_no_ltc_modes.phi,
         hops_no_ltc_modes.z_mem,
@@ -366,7 +366,7 @@ def test_LTC_adaptive_nonlinear_norm_eom():
         hops_no_ltc_modes.noise1,
         hops_no_ltc_modes.noise2,
         2.0, hops_no_ltc_modes.storage,
-        hops_no_ltc_modes.basis.mode.list_absindex_L2)
+        hops_no_ltc_modes.basis.mode.list_l2idx_abs)
     dsystem_dt_no_ltc_modes = hops_no_ltc_modes.dsystem_dt(
         integration_var_no_ltc_modes['phi'],
         integration_var_no_ltc_modes['z_mem'],
@@ -496,9 +496,9 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
                            hops_ltc_modes_match_l_op.auxiliary_list[6],
                            ]
     hops_ltc_modes_match_l_op.phi = phi_0_subset
-    hops_ltc_modes_match_l_op.phi, hops_ltc_modes_match_l_op.dsystem_dt = \
+    hops_ltc_modes_match_l_op.phi, hops_ltc_modes_match_l_op.z_mem, hops_ltc_modes_match_l_op.dsystem_dt = \
         hops_ltc_modes_match_l_op.basis.update_basis(
-        phi_0_subset, adap_state_list, adap_auxiliary_list)
+        phi_0_subset, hops_ltc_modes_match_l_op.z_mem, adap_state_list, adap_auxiliary_list)
     integration_var_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.integration_var(
         hops_ltc_modes_match_l_op.phi,
         hops_ltc_modes_match_l_op.z_mem,
@@ -506,7 +506,7 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
         hops_ltc_modes_match_l_op.noise1,
         hops_ltc_modes_match_l_op.noise2,
         2.0, hops_ltc_modes_match_l_op.storage,
-        hops_ltc_modes_match_l_op.basis.mode.list_absindex_L2)
+        hops_ltc_modes_match_l_op.basis.mode.list_l2idx_abs)
     dsystem_dt_ltc_modes_match_l_op = hops_ltc_modes_match_l_op.dsystem_dt(
         integration_var_ltc_modes_match_l_op['phi'],
         integration_var_ltc_modes_match_l_op['z_mem'],
@@ -531,9 +531,9 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
                            hops_no_ltc_modes.auxiliary_list[6],
                            ]
     hops_no_ltc_modes.phi = phi_0_subset
-    hops_no_ltc_modes.phi, hops_no_ltc_modes.dsystem_dt = \
+    hops_no_ltc_modes.phi, hops_no_ltc_modes.z_mem, hops_no_ltc_modes.dsystem_dt = \
         hops_no_ltc_modes.basis.update_basis(
-            phi_0_subset, adap_state_list, adap_auxiliary_list)
+            phi_0_subset, hops_no_ltc_modes.z_mem, adap_state_list, adap_auxiliary_list)
     integration_var_no_ltc_modes = hops_no_ltc_modes.integration_var(
         hops_no_ltc_modes.phi,
         hops_no_ltc_modes.z_mem,
@@ -541,7 +541,7 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
         hops_no_ltc_modes.noise1,
         hops_no_ltc_modes.noise2,
         2.0, hops_no_ltc_modes.storage,
-        hops_no_ltc_modes.basis.mode.list_absindex_L2)
+        hops_no_ltc_modes.basis.mode.list_l2idx_abs)
     dsystem_dt_no_ltc_modes = hops_no_ltc_modes.dsystem_dt(
         integration_var_no_ltc_modes['phi'],
         integration_var_no_ltc_modes['z_mem'],
@@ -560,7 +560,7 @@ def test_LTC_adaptive_nonlinear_norm_eom_multiparticle():
     list_l_op_exp_sq = [np.conj(psi_0_red) @ l_op @ l_op @ psi_0_red /
                         (np.conj(psi_0_red) @ psi_0_red) for l_op in list_l_op_reduced]
 
-    active_l_list = list(hops_ltc_modes_match_l_op.basis.system.list_absindex_L2_active)
+    active_l_list = list(hops_ltc_modes_match_l_op.basis.system.list_activel2idx_abs)
     phi_0_adap = hops_no_ltc_modes.phi
     list_lt_corr_coeff_adap = np.array(list_lt_corr_coeff)[active_l_list]
     list_l_op_reduced_adap = np.array(list_l_op_reduced)[active_l_list]

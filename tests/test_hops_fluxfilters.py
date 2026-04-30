@@ -128,7 +128,7 @@ def test_filter_hierarchy_stable_down():
                 AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [0]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3]
     filter_hier_stable_down = hops_ad.basis.flux_filters.construct_filter_auxiliary_stable_down()
     known_filter_hier_stable_down = np.array(
         [[0, 0, 0, 0, 0, 0, 0],
@@ -191,7 +191,7 @@ def test_filter_hierarchy_boundary_up():
                 AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = list_aux
     hops_ad.basis.system.state_list = [0]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3]
     filter_hier_boundary_up = hops_ad.basis.flux_filters.construct_filter_auxiliary_boundary_up()
 
     known_filter_hier_boundary_up = np.array(
@@ -255,7 +255,7 @@ def test_filter_hierarchy_boundary_down():
                 AuxiliaryVector([(3, 4)], 20)]
     hops_ad.basis.hierarchy.auxiliary_list = list_aux
     hops_ad.basis.system.state_list = [0]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3]
     filter_hier_boundary_down = hops_ad.basis.flux_filters.construct_filter_auxiliary_boundary_down()
     known_filter_hier_boundary_down = np.array(
         [[0, 0, 0, 0, 0, 0, 0],
@@ -320,7 +320,7 @@ def test_filter_state_stable_up():
                       AuxiliaryVector([(3, 3)], 20),
                       AuxiliaryVector([(1, 2), (2, 1)], 20)]
     hops_ad.basis.system.state_list = [0, 1]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3]
     filter_state_stable_up = hops_ad.basis.flux_filters.construct_filter_state_stable_up(
         list_aux_bound)
 
@@ -343,7 +343,7 @@ def test_filter_state_stable_up():
                       AuxiliaryVector([(3, 3)], 20),
                       AuxiliaryVector([(1, 2), (2, 1)], 20)]
     hops_ad.basis.system.state_list = [1]
-    hops_ad.basis.mode.list_absindex_mode = [1, 2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [1, 2, 3]
     n_hmodes = 3
     filter_state_stable_up = hops_ad.basis.flux_filters.construct_filter_state_stable_up(
         list_aux_bound)
@@ -411,7 +411,7 @@ def test_filter_state_stable_down():
 
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [0, 1]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3]
     filter_state_stable_down = hops_ad.basis.flux_filters.construct_filter_state_stable_down(
         list_aux_bound)
 
@@ -508,7 +508,7 @@ def test_filter_markovian_up():
 
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [0, 1, 2]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3, 4, 5]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3, 4, 5]
     filter_markovian = hops_ad.basis.flux_filters.construct_filter_markov_up()
 
     known_filter_markovian = np.array([
@@ -630,7 +630,7 @@ def test_filter_triangular_up():
 
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [0, 1, 2]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3, 4, 5]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3, 4, 5]
     filter_triangular = hops_ad.basis.flux_filters.construct_filter_triangular_up()
 
     known_filter_triangular = np.array([
@@ -758,7 +758,7 @@ def test_filter_longedge_up():
                 AuxiliaryVector([(5, 3)], 20),]             #11
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [0, 1, 2]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 2, 3, 4, 5, 6]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 2, 3, 4, 5, 6]
     filter_longedge = hops_ad.basis.flux_filters.construct_filter_longedge_up()
 
     known_filter_longedge = np.array([
@@ -796,7 +796,7 @@ def test_filter_longedge_up():
 
 def test_mode_setter():
     """
-    Tests that the setter for HopsModes.list_absindex_modes updates the relevant
+    Tests that the setter for HopsModes.list_modeidx_abss updates the relevant
     parameters correctly.
     """
     noise_param = {"SEED": None, "MODEL": "FFT_FILTER", "TLEN": 250.0,
@@ -850,16 +850,16 @@ def test_mode_setter():
     hops_ad.basis.hierarchy.auxiliary_list = aux_list
     hops_ad.basis.system.state_list = [1, 2]
 
-    # Test list_absindex_mode
-    known_list_absindex_mode = [1, 2, 3, 4, 5]
+    # Test list_modeidx_abs
+    known_list_modeidx_abs = [1, 2, 3, 4, 5]
     assert np.all(list(set(hops_ad.basis.hierarchy.list_absindex_hierarchy_modes) | set(
-        hops_ad.basis.system.list_absindex_state_modes)) == known_list_absindex_mode)
+        hops_ad.basis.system.list_statemodeidx_abs)) == known_list_modeidx_abs)
 
     # Set mode list
-    hops_ad.basis.mode.list_absindex_mode = known_list_absindex_mode
-    # Test list_absindex_L2
-    known_list_absindex_L2 = [0, 1, 2]
-    assert np.all(hops_ad.basis.mode.list_absindex_L2 == known_list_absindex_L2)
+    hops_ad.basis.mode.list_modeidx_abs = known_list_modeidx_abs
+    # Test list_l2idx_abs
+    known_list_l2idx_abs = [0, 1, 2]
+    assert np.all(hops_ad.basis.mode.list_l2idx_abs == known_list_l2idx_abs)
     # Test n_hmodes
     known_n_hmodes = 5
     assert hops_ad.basis.n_hmodes == known_n_hmodes

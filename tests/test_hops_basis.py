@@ -1,9 +1,7 @@
-import os
-
-import numpy as np
 import pytest
+import os
+import numpy as np
 import scipy as sp
-
 from mesohops.basis.hops_aux import AuxiliaryVector as AuxiliaryVector
 from mesohops.basis.hops_hierarchy import HopsHierarchy as HHier
 from mesohops.trajectory.exp_noise import bcf_exp
@@ -14,7 +12,7 @@ from mesohops.util.physical_constants import hbar
 
 __title__ = "Test of HopsBasis class"
 __author__ = "D. I. G. B. Raccah, J. K. Lynd"
-__version__ = "1.4"
+__version__ = "1.6"
 
 def map_to_auxvec(list_aux):
     """
@@ -457,7 +455,7 @@ def test_update_basis():
     hier_new = hier_stable+hier_bound
     hier_update = hier_new
 
-    phi, _ = hops_ad1.basis.update_basis(hops_ad1.phi, state_update, hier_update)
+    phi, _, _ = hops_ad1.basis.update_basis(hops_ad1.phi, hops_ad1.z_mem, state_update, hier_update)
     assert len(phi) == hops_ad1.n_state * hops_ad1.n_hier
     P2 = hops_ad2.phi.view().reshape([hops_ad2.n_state, hops_ad2.n_hier], order="F")
     P2_new = phi.view().reshape([hops_ad1.n_state, hops_ad1.n_hier], order="F")
@@ -560,21 +558,26 @@ def test_define_state_basis():
     # before propagation
     z_step = hops_ad._prepare_zstep(hops_ad.z_mem)
     list_index_aux_stable = [0, 1, 2]
-    list_stable_state, list_state_bound = hops_ad.basis._define_state_basis(
+    hops_ad.basis._Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
+    hops_ad.basis._T2_ltc_phys, hops_ad.basis._T2_ltc_hier = hops_ad.basis.get_T2_ltc()
+    
+    list_stblstateidx_abs, list_state_bound = hops_ad.basis._define_state_basis(
         hops_ad.phi, 2.0, z_step, list_index_aux_stable, []
     )
     known_states = [4, 5, 6]
-    assert np.array_equal(list_stable_state, known_states)
+    assert np.array_equal(list_stblstateidx_abs, known_states)
     assert np.array_equal(list_state_bound, [])
 
     # propagate
     phi_new = 0*hops_ad.phi
     phi_new[0:hops_ad.n_state] = 1/np.sqrt(hops_ad.n_state)
-    list_stable_state, list_state_bound = hops_ad.basis._define_state_basis(
+    hops_ad.basis._Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
+    hops_ad.basis._T2_ltc_phys, hops_ad.basis._T2_ltc_hier = hops_ad.basis.get_T2_ltc()
+    list_stblstateidx_abs, list_state_bound = hops_ad.basis._define_state_basis(
         phi_new, 2.0, z_step, list_index_aux_stable, []
     )
     known_states = [4, 5, 6]
-    assert np.array_equal(list_stable_state, known_states)
+    assert np.array_equal(list_stblstateidx_abs, known_states)
     known_boundary = [3, 7]
     assert np.array_equal(list_state_bound, known_boundary)
 
@@ -752,7 +755,7 @@ def test_determine_boundary_hier():
     hops_ad.initialize(psi_0)
     hops_ad.basis.hierarchy.auxiliary_list = [AuxiliaryVector([],4)]
     hops_ad.basis.system.state_list = [1]
-    hops_ad.basis.mode.list_absindex_mode = [2,3]
+    hops_ad.basis.mode.list_modeidx_abs = [2,3]
     # Creating flux up and flux down matrices for initial hierarchy
     flux_down = np.zeros((2, 1))
     flux_up = np.zeros((2, 1))
@@ -779,7 +782,7 @@ def test_determine_boundary_hier():
                                                AuxiliaryVector([(0, 2)],4),AuxiliaryVector([(1, 2)],4),AuxiliaryVector([(2, 1),(3, 1)],4),
                                                AuxiliaryVector([(2, 1),(3, 2)],4),AuxiliaryVector([(3, 3)],4),AuxiliaryVector([(2, 1),(3, 3)],4),AuxiliaryVector([(3, 4)],4)]
     hops_ad.basis.system.state_list = [0,1]
-    hops_ad.basis.mode.list_absindex_mode = [0,1,2,3]
+    hops_ad.basis.mode.list_modeidx_abs = [0,1,2,3]
 
     flux_up = np.zeros((4, 11))
     flux_up[0, 4] = 0.00003**2
@@ -818,7 +821,7 @@ def test_determine_boundary_hier():
                                                AuxiliaryVector([(1,1),(2,1),(3,2)],4),AuxiliaryVector([(1,3),(2,1),(3,1)],4),AuxiliaryVector([(1,2),(2,2),(3,1)],4),
                                                AuxiliaryVector([(1,2),(2,1),(3,2)],4)]
     hops_ad.basis.system.state_list = [0,1]
-    hops_ad.basis.mode.list_absindex_mode = [0,1,2,3]
+    hops_ad.basis.mode.list_modeidx_abs = [0,1,2,3]
 
     mainaux = 0
     aux_1 = 1
@@ -1063,7 +1066,7 @@ def test_fraction_discard():
                                               AuxiliaryVector([(2,1)],4),
                                               AuxiliaryVector([(3,1)],4)]
     hops_ad.basis.system.state_list = [1]
-    hops_ad.basis.mode.list_absindex_mode = [2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [2, 3]
     # Creating flux up and flux down matrices for initial hierarchy
     flux_down = np.zeros((2, 3))
     flux_up = np.zeros((2, 3))
@@ -1100,7 +1103,7 @@ def test_fraction_discard():
                                               AuxiliaryVector([(2,1)],4),
                                               AuxiliaryVector([(3,1)],4)]
     hops_ad.basis.system.state_list = [1]
-    hops_ad.basis.mode.list_absindex_mode = [2, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [2, 3]
     # Creating flux up and flux down matrices for initial hierarchy
     flux_down = np.zeros((2, 3))
     flux_up = np.zeros((2, 3))
@@ -1311,7 +1314,8 @@ def test_state_stable_error():
 
     hops_ad_dsystem_dt = hops_ad.basis.eom._prepare_derivative(hops_ad.basis.system,
                                                                hops_ad.basis.hierarchy,
-                                                               hops_ad.basis.mode)
+                                                               hops_ad.basis.mode,
+                                                               hops_ad.basis.noise_memory)
 
     # Get all error terms
     gw_10 = gw_sysbath[10]
@@ -1341,7 +1345,9 @@ def test_state_stable_error():
                           analytic_sflux_deriv +
                           np.sum(analytic_flux_up, axis=1) +
                           np.sum(analytic_flux_down, axis=1))
-
+    # Prepare Z2 and T2 matrices
+    hops_ad.basis._Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
+    hops_ad.basis._T2_ltc_phys, hops_ad.basis._T2_ltc_hier = hops_ad.basis.get_T2_ltc()
     error = hops_ad.basis.state_stable_error(
         hops_ad.phi, 2.0, z_step, list_index_aux_stable, list_aux_bound
     )
@@ -1440,7 +1446,7 @@ def test_list_M2_by_dest():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0, 3]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7, 8, 9, 12, 13]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
     phi = hops_ad.phi
     hops_ad.phi = phi.reshape([len(hops_ad.basis.hierarchy.auxiliary_list),len(hs)])[:,
                   hops_ad.basis.system.state_list].flatten()
@@ -1576,7 +1582,7 @@ def test_list_M2_by_dest():
     psi_0 = np.array([1, 0, 1, 0])/np.sqrt(2)
     hops_ad_dense_coupling.initialize(psi_0)
     hops_ad_dense_coupling.basis.system.state_list = [0, 2]
-    hops_ad_dense_coupling.basis.mode.list_absindex_mode = [0]
+    hops_ad_dense_coupling.basis.mode.list_modeidx_abs = [0]
     phi = hops_ad_dense_coupling.phi
     hops_ad_dense_coupling.phi = phi.reshape([len(
         hops_ad_dense_coupling.basis.hierarchy.auxiliary_list), len(hs)])[:,
@@ -1641,6 +1647,98 @@ def test_list_M2_by_dest():
     np.testing.assert_allclose(X2_exp_lop_mode_state.todense(),
                                X2_exp_lop_mode_state_known)
     np.testing.assert_allclose(M2_diag_known, M2_diag.toarray())
+
+def test_dict_ext_index_by_state():
+    """
+    Tests that the ext-basis index map in HopsModes correctly maps all states in
+    state_list ∪ destination_states ∪ boundary_states to contiguous indices in a
+    sorted extended basis.
+    """
+    noise_param = {
+        "SEED": basis_noise_10site[:7, :],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,
+        "TAU": 1.0,
+    }
+    nsite = 4
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    gw_sysbath = []
+    lop_list = []
+    for n in range(nsite):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n] = 1
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+    # Add Peierls coupling
+    for n in range(nsite - 1):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n + 1] = 1j
+        lop[n + 1, n] = -1j
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 10
+    hs[1, 0] = 10
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 10
+    hs[3, 2] = 10
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0 / np.sqrt(2)
+    psi_0[3] = -1.0 / np.sqrt(2)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    hops_ad.basis.system.state_list = [0, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
+
+    # Verify the ext-basis map
+    dict_extd_idx = hops_ad.basis.mode.dict_stateidx_extd
+    list_spb = hops_ad.basis.mode.list_state_extd
+    expected_states = sorted(
+        set(hops_ad.basis.system.state_list)
+        | set(hops_ad.basis.system.list_destination_state)
+        | set(hops_ad.basis.system.list_bndstateidx_abs)
+    )
+    assert list_spb == expected_states
+    assert len(dict_extd_idx) == len(expected_states)
+    for i, state in enumerate(expected_states):
+        assert dict_extd_idx[state] == i
 
 def test_get_Z2_noise_sparse():
     """
@@ -1750,7 +1848,7 @@ def test_get_Z2_noise_sparse():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0, 3]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7, 8, 9, 12, 13]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
     # determined manually - 2 modes per unique bath!
     list_lop_in_basis = [0, 3, 4, 6]
     list_lop_in_basis_off_diag = [4,6]
@@ -1761,9 +1859,11 @@ def test_get_Z2_noise_sparse():
     noise_2 = 2 * np.ones_like(noise_1)
     # Noise memory array has an entry for each BCF mode.
     noise_mem = np.arange(len(lop_list))
+    list_zmemmodeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
+    noise_mem_active = noise_mem[list_zmemmodeidx_abs]
     z_step = [noise_1[list_lop_in_basis],
               noise_2[list_lop_in_basis],
-              noise_mem]
+              noise_mem_active]
 
     Z2_noise_sparse_known = np.sum((np.array([noise_mem[m]*lop_list[m] for m in
                 list_mode_off_diag])), axis=0) + np.sum(np.array(
@@ -1772,7 +1872,6 @@ def test_get_Z2_noise_sparse():
     Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
 
     assert np.allclose(Z2_noise_sparse_known, Z2_noise_sparse.todense())
-
     # Test that if only diagonal L-operators are included in the basis, we get a an
     # empty noise matrix instead to save time.
     hops_ad = HOPS(
@@ -1785,13 +1884,531 @@ def test_get_Z2_noise_sparse():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0,3]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7]
     z_step = [noise_1[list_lop_in_basis],
               noise_2[list_lop_in_basis],
               noise_mem]
     Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
 
     assert np.allclose(Z2_noise_sparse_known*0, Z2_noise_sparse.todense())
+
+
+# ------------------------------------------------------------
+# TEST: single off-diagonal L-operator produces correct result
+# ------------------------------------------------------------
+def test_get_Z2_noise_sparse_single_off_diag():
+    """
+    Tests that get_Z2_noise_sparse correctly handles a basis with exactly one
+    off-diagonal L-operator. This exercises np.sum over a length-1 array of
+    sparse matrices.
+    """
+    noise_param = {
+        "SEED": basis_noise_10site[:7, :],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    nsite = 4
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    gw_sysbath = []
+
+    def get_holstein(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n] = 1
+        return lop
+
+    def get_peierls(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n + 1] = 1j
+        lop[n + 1, n] = -1j
+        return lop
+
+    lop_1 = get_holstein(0)
+    lop_2 = get_holstein(1)
+    lop_3 = get_holstein(2)
+    lop_4 = get_holstein(3)
+    lop_5 = get_peierls(0)
+    lop_6 = get_peierls(1)
+    lop_7 = get_peierls(2)
+
+    lop_list_base = [lop_1, lop_2, lop_3, lop_4, lop_5, lop_6, lop_7]
+    lop_list = []
+    for lop in lop_list_base:
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 10
+    hs[1, 0] = 10
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 10
+    hs[3, 2] = 10
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0 / np.sqrt(2)
+    psi_0[3] = -1.0 / np.sqrt(2)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+
+    # This case tests a single off-diagonal L-operator (lop_5) in the basis.
+    # Important: lop_5 is present because we explicitly set list_modeidx_abs,
+    # not because state_list=[0] intrinsically requires this specific L-operator.
+    # With state_list=[0], mode 0/1 are state-linked, and mode 8/9 are included
+    # by our explicit mode-basis choice.
+    # Only lop_5 is off-diagonal, so np.sum operates on a length-1 array.
+    # The ext basis is states {0, 1} (state 0 + boundary state 1 from H).
+    hops_ad.basis.system.state_list = [0]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 8, 9]
+    list_lop_in_basis = [0, 4]
+    list_lop_in_basis_off_diag = [4]
+    list_mode_off_diag = [8, 9]
+    list_state_extd = [0, 1]
+
+    noise_1 = 1j * np.arange(len(lop_list_base))
+    noise_2 = 2 * np.ones_like(noise_1)
+    noise_mem = np.arange(len(lop_list), dtype=np.complex128)
+    list_zmemmodeidx_abs = [0, 1, 8, 9]
+    noise_mem_active = noise_mem[list_zmemmodeidx_abs]
+    z_step = [noise_1[list_lop_in_basis],
+              noise_2[list_lop_in_basis],
+              noise_mem_active]
+
+    # Construct known value in the full basis, then reduce to ext states.
+    Z2_known_full = np.sum(np.array(
+        [noise_mem[m] * lop_list[m] for m in list_mode_off_diag]), axis=0
+    ) + np.sum(np.array(
+        [(np.conj(noise_1) - 1j * noise_2)[m] * lop_list_base[m]
+         for m in list_lop_in_basis_off_diag]), axis=0)
+    Z2_noise_sparse_known = Z2_known_full[
+        np.ix_(list_state_extd, list_state_extd)]
+    Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
+
+    assert np.allclose(Z2_noise_sparse_known, Z2_noise_sparse.todense())
+
+
+# ------------------------------------------------------------
+# TEST: noise_t and noise_mem contribute additively
+# ------------------------------------------------------------
+def test_get_Z2_noise_sparse_noise_additivity():
+    """
+    Tests that the stochastic noise (noise_t) and noise memory drift (noise_mem)
+    terms contribute independently and additively to the result.
+    """
+    noise_param = {
+        "SEED": basis_noise_10site[:7, :],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+    nsite = 4
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    gw_sysbath = []
+
+    def get_holstein(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n] = 1
+        return lop
+
+    def get_peierls(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n + 1] = 1j
+        lop[n + 1, n] = -1j
+        return lop
+
+    lop_1 = get_holstein(0)
+    lop_2 = get_holstein(1)
+    lop_3 = get_holstein(2)
+    lop_4 = get_holstein(3)
+    lop_5 = get_peierls(0)
+    lop_6 = get_peierls(1)
+    lop_7 = get_peierls(2)
+
+    lop_list_base = [lop_1, lop_2, lop_3, lop_4, lop_5, lop_6, lop_7]
+    lop_list = []
+    for lop in lop_list_base:
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 10
+    hs[1, 0] = 10
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 10
+    hs[3, 2] = 10
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0 / np.sqrt(2)
+    psi_0[3] = -1.0 / np.sqrt(2)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+    hops_ad.basis.system.state_list = [0, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
+    list_lop_in_basis = [0, 3, 4, 6]
+
+    noise_1 = 1j * np.arange(len(lop_list_base))
+    noise_2 = 2 * np.ones_like(noise_1)
+    noise_mem = np.arange(len(lop_list), dtype=np.complex128)
+    list_zmemmodeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
+    noise_mem_active = noise_mem[list_zmemmodeidx_abs]
+
+    # This case tests the full result as a reference for additivity.
+    z_step_full = [noise_1[list_lop_in_basis],
+                   noise_2[list_lop_in_basis],
+                   noise_mem_active]
+    Z2_full = hops_ad.basis.get_Z2_noise_sparse(z_step_full)
+
+    # This case tests that zero noise with non-zero noise_mem isolates the
+    # memory drift contribution.
+    z_step_mem_only = [np.zeros_like(noise_1[list_lop_in_basis]),
+                       np.zeros_like(noise_2[list_lop_in_basis]),
+                       noise_mem_active]
+    Z2_mem_only = hops_ad.basis.get_Z2_noise_sparse(z_step_mem_only)
+
+    # This case tests that zero noise_mem with non-zero noise isolates the
+    # stochastic noise contribution.
+    z_step_noise_only = [noise_1[list_lop_in_basis],
+                         noise_2[list_lop_in_basis],
+                         np.zeros_like(noise_mem_active)]
+    Z2_noise_only = hops_ad.basis.get_Z2_noise_sparse(z_step_noise_only)
+
+    # This case tests that the two contributions sum to the full result.
+    assert np.allclose(
+        (Z2_noise_only + Z2_mem_only).todense(), Z2_full.todense()
+    )
+    # This case tests that neither isolated contribution is trivially zero
+    # (which would make the additivity check vacuous).
+    assert not np.allclose(Z2_mem_only.todense(), 0)
+    assert not np.allclose(Z2_noise_only.todense(), 0)
+
+    # This case tests real-valued z_step[0], where np.conj is a no-op.
+    noise_1_real = np.arange(len(lop_list_base), dtype=np.complex128)
+    z_step_real = [noise_1_real[list_lop_in_basis],
+                   noise_2[list_lop_in_basis],
+                   noise_mem_active]
+    list_lop_in_basis_off_diag = [4, 6]
+    list_mode_off_diag = [8, 9, 12, 13]
+    Z2_real_known_no_conj = np.sum(np.array(
+        [noise_mem[m] * lop_list[m] for m in list_mode_off_diag]), axis=0
+    ) + np.sum(np.array(
+        [(noise_1_real - 1j * noise_2)[m] * lop_list_base[m]
+         for m in list_lop_in_basis_off_diag]), axis=0)
+    Z2_real_known_with_conj = np.sum(np.array(
+        [noise_mem[m] * lop_list[m] for m in list_mode_off_diag]), axis=0
+    ) + np.sum(np.array(
+        [(np.conj(noise_1_real) - 1j * noise_2)[m] * lop_list_base[m]
+         for m in list_lop_in_basis_off_diag]), axis=0)
+    Z2_real = hops_ad.basis.get_Z2_noise_sparse(z_step_real)
+
+    assert np.allclose(Z2_real_known_no_conj, Z2_real_known_with_conj)
+    assert np.allclose(Z2_real_known_no_conj, Z2_real.todense())
+
+
+# ------------------------------------------------------------
+# TEST: all L-operators off-diagonal spans full L2 set
+# ------------------------------------------------------------
+def test_get_Z2_noise_sparse_all_off_diag():
+    """
+    Tests that get_Z2_noise_sparse correctly handles a basis where every
+    L-operator is off-diagonal (Peierls-type), so that list_off_diag_active_mask
+    and list_rel_ind_off_diag_L2 span the full L-operator set.
+    """
+    nsite = 4
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    gw_sysbath = []
+
+    def get_peierls(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n + 1] = 1j
+        lop[n + 1, n] = -1j
+        return lop
+
+    lop_5 = get_peierls(0)
+    lop_6 = get_peierls(1)
+    lop_7 = get_peierls(2)
+
+    lop_list_base_peierls = [lop_5, lop_6, lop_7]
+    lop_list_peierls = []
+    for lop in lop_list_base_peierls:
+        gw_sysbath.append([g_0, w_0])
+        lop_list_peierls.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list_peierls.append(lop)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 10
+    hs[1, 0] = 10
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 10
+    hs[3, 2] = 10
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list_peierls,
+        "L_NOISE1": lop_list_peierls,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    noise_param = {
+        "SEED": basis_noise_10site[:3, :],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0 / np.sqrt(2)
+    psi_0[3] = -1.0 / np.sqrt(2)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+
+    # This case tests a basis with lop_5 and lop_7, both off-diagonal.
+    # Modes: lop_5 (0,1), lop_7 (4,5). All L-ops in basis are off-diagonal.
+    hops_ad.basis.system.state_list = [0, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 4, 5]
+    list_lop_in_basis = [0, 2]
+    list_lop_in_basis_off_diag = [0, 2]
+    list_mode_off_diag = [0, 1, 4, 5]
+
+    noise_1 = 1j * np.arange(len(lop_list_base_peierls))
+    noise_2 = 2 * np.ones_like(noise_1)
+    noise_mem = np.arange(len(lop_list_peierls), dtype=np.complex128)
+    noise_mem_active = noise_mem[[0, 1, 4, 5]]
+    z_step = [noise_1[list_lop_in_basis],
+              noise_2[list_lop_in_basis],
+              noise_mem_active]
+
+    Z2_noise_sparse_known = np.sum(np.array(
+        [noise_mem[m] * lop_list_peierls[m] for m in list_mode_off_diag]
+    ), axis=0) + np.sum(np.array(
+        [(np.conj(noise_1) - 1j * noise_2)[m] * lop_list_base_peierls[m]
+         for m in list_lop_in_basis_off_diag]), axis=0)
+    Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
+
+    assert np.allclose(Z2_noise_sparse_known, Z2_noise_sparse.todense())
+
+
+# ------------------------------------------------------------
+# TEST: multiple BCF modes per off-diagonal L-operator
+# ------------------------------------------------------------
+def test_get_Z2_noise_sparse_multi_mode():
+    """
+    Tests that get_Z2_noise_sparse correctly sums noise memory drift when an
+    off-diagonal L-operator has more than 2 associated BCF modes (i.e.,
+    compress_zmem sums 3+ mode contributions onto a single L-operator slot).
+    """
+    nsite = 4
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    gw_sysbath = []
+
+    def get_holstein(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n] = 1
+        return lop
+
+    def get_peierls(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n + 1] = 1j
+        lop[n + 1, n] = -1j
+        return lop
+
+    lop_1 = get_holstein(0)
+    lop_2 = get_holstein(1)
+    lop_3 = get_holstein(2)
+    lop_4 = get_holstein(3)
+    lop_5 = get_peierls(0)
+    lop_6 = get_peierls(1)
+    lop_7 = get_peierls(2)
+
+    lop_list_base = [lop_1, lop_2, lop_3, lop_4, lop_5, lop_6, lop_7]
+    lop_list = []
+    for lop in lop_list_base:
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+
+    # Add a third BCF mode associated with lop_5 (Peierls coupling 0-1).
+    # This gives lop_5 modes at indices 8, 9, and 14.
+    gw_sysbath.append([g_0 * 0.5, w_0 * 2])
+    lop_list.append(lop_5)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 10
+    hs[1, 0] = 10
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 10
+    hs[3, 2] = 10
+
+    sys_param = {
+        "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+        "GW_SYSBATH": gw_sysbath,
+        "L_HIER": lop_list,
+        "L_NOISE1": lop_list,
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": gw_sysbath,
+    }
+
+    noise_param = {
+        "SEED": basis_noise_10site[:7, :],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,  # Units: fs
+        "TAU": 1.0,  # Units: fs
+    }
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        'EARLY_ADAPTIVE_INTEGRATOR': 'INCH_WORM',
+        'EARLY_INTEGRATOR_STEPS': 5,
+        'INCHWORM_CAP': 5,
+        'STATIC_BASIS': None
+    }
+
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0 / np.sqrt(2)
+    psi_0[3] = -1.0 / np.sqrt(2)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    hops_ad = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 2},
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops_ad.make_adaptive(1e-3, 1e-3)
+    hops_ad.initialize(psi_0)
+
+    # This case tests lop_5 with 3 modes (8, 9, 14) instead of the standard 2.
+    # Active modes: lop_1 (0,1), lop_4 (6,7), lop_5 (8,9,14), lop_7 (12,13).
+    # State_list = [0, 3] requires modes for both states, including lop_7.
+    hops_ad.basis.system.state_list = [0, 3]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13, 14]
+    list_lop_in_basis = [0, 3, 4, 6]
+    list_lop_in_basis_off_diag = [4, 6]
+    # lop_5 has 3 off-diagonal modes (8, 9, 14), lop_7 has 2 (12, 13).
+    list_mode_off_diag = [8, 9, 14, 12, 13]
+
+    noise_1 = 1j * np.arange(len(lop_list_base))
+    noise_2 = 2 * np.ones_like(noise_1)
+    noise_mem = np.arange(len(lop_list), dtype=np.complex128)
+    list_zmemmodeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13, 14]
+    noise_mem_active = noise_mem[list_zmemmodeidx_abs]
+    z_step = [noise_1[list_lop_in_basis],
+              noise_2[list_lop_in_basis],
+              noise_mem_active]
+
+    # compress_zmem sums modes 8, 9, 14 onto lop_5's slot (3 modes instead of 2).
+    Z2_noise_sparse_known = np.sum(np.array(
+        [noise_mem[m] * lop_list[m] for m in list_mode_off_diag]), axis=0
+    ) + np.sum(np.array(
+        [(np.conj(noise_1) - 1j * noise_2)[m] * lop_list_base[m]
+         for m in list_lop_in_basis_off_diag]), axis=0)
+    Z2_noise_sparse = hops_ad.basis.get_Z2_noise_sparse(z_step)
+
+    assert np.allclose(Z2_noise_sparse_known, Z2_noise_sparse.todense())
 
 
 def test_get_T2_ltc():
@@ -1892,14 +2509,14 @@ def test_get_T2_ltc():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0, 3]
-    # Make sure that it is the HopsModes object's list_absindex_mode that indexes
+    # Make sure that it is the HopsModes object's list_modeidx_abs that indexes
     # everything. The auxiliary with depth in mode 10 will  cause a dimension
     # mismatch if any piece of the T2 matrix is calculated with the HopsSystem's list
     # of absolute L-operator indices, because this is a mode the state basis simply
     # does not know about.
     hops_ad.basis.hierarchy.auxiliary_list = [hops_ad.basis.hierarchy.auxiliary_list[
                                                   0], AuxiliaryVector([(10, 1)], 14)]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7, 8, 9, 10, 12, 13]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 10, 12, 13]
     # Determined manually - 2 modes per unique bath!
     list_lop_in_basis = [0, 3, 4, 5, 6]
     hops_ad.phi = psi_0[[0,3]]
@@ -1942,7 +2559,7 @@ def test_get_T2_ltc():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0, 3]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7, 8, 9, 12, 13]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
     hops_ad.basis.hierarchy.auxiliary_list = [hops_ad.basis.hierarchy.auxiliary_list[0]]
     hops_ad.phi = psi_0[[0, 3]]
 
@@ -1952,6 +2569,117 @@ def test_get_T2_ltc():
     T2_phys, T2_hier = hops_ad.basis.get_T2_ltc()
     assert T2_phys is None
     assert T2_hier is None
+
+
+def test_get_T2_ltc_ignores_holstein_ltc_only_changes():
+    """
+    Tests that changing LTC factors on diagonal Holstein operators alone does not
+    change T2 matrices.
+    """
+    noise_param = {
+        "SEED": basis_noise_10site[:7, :],
+        "MODEL": "FFT_FILTER",
+        "TLEN": 250.0,
+        "TAU": 1.0,
+    }
+    nsite = 4
+    e_lambda = 20.0
+    gamma = 50.0
+    temp = 140.0
+    (g_0, w_0) = bcf_convert_dl_to_exp(e_lambda, gamma, temp)
+
+    gw_sysbath = []
+
+    def get_holstein(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n] = 1
+        return lop
+
+    def get_peierls(n):
+        lop = np.zeros([nsite, nsite], dtype=np.complex128)
+        lop[n, n + 1] = 1j
+        lop[n + 1, n] = -1j
+        return lop
+
+    lop_1 = get_holstein(0)
+    lop_2 = get_holstein(1)
+    lop_3 = get_holstein(2)
+    lop_4 = get_holstein(3)
+    lop_5 = get_peierls(0)
+    lop_6 = get_peierls(1)
+    lop_7 = get_peierls(2)
+    lop_list_base = [lop_1, lop_2, lop_3, lop_4, lop_5, lop_6, lop_7]
+    lop_list = []
+    for lop in lop_list_base:
+        gw_sysbath.append([g_0, w_0])
+        lop_list.append(lop)
+        gw_sysbath.append([-1j * np.imag(g_0), 500.0])
+        lop_list.append(lop)
+
+    hs = np.zeros([nsite, nsite])
+    hs[0, 1] = 10
+    hs[1, 0] = 10
+    hs[1, 2] = 10
+    hs[2, 1] = 10
+    hs[2, 3] = 10
+    hs[3, 2] = 10
+
+    def _build_t2(param_ltc):
+        sys_param = {
+            "HAMILTONIAN": np.array(hs, dtype=np.complex128),
+            "GW_SYSBATH": gw_sysbath,
+            "L_HIER": lop_list,
+            "L_NOISE1": lop_list,
+            "ALPHA_NOISE1": bcf_exp,
+            "PARAM_NOISE1": gw_sysbath,
+            "L_LT_CORR": lop_list_base,
+            "PARAM_LT_CORR": param_ltc,
+        }
+        eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+        integrator_param = {
+            "INTEGRATOR": "RUNGE_KUTTA",
+            "EARLY_ADAPTIVE_INTEGRATOR": "INCH_WORM",
+            "EARLY_INTEGRATOR_STEPS": 5,
+            "INCHWORM_CAP": 5,
+            "STATIC_BASIS": None,
+        }
+        psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+        psi_0[0] = 1.0 / np.sqrt(2)
+        psi_0[3] = -1.0 / np.sqrt(2)
+        psi_0 = psi_0 / np.linalg.norm(psi_0)
+        hops_ad = HOPS(
+            sys_param,
+            noise_param=noise_param,
+            hierarchy_param={"MAXHIER": 2},
+            eom_param=eom_param,
+            integration_param=integrator_param,
+        )
+        hops_ad.make_adaptive(1e-3, 1e-3)
+        hops_ad.initialize(psi_0)
+        hops_ad.basis.system.state_list = [0, 3]
+        hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7, 8, 9, 12, 13]
+        hops_ad.basis.psi = psi_0[[0, 3]]
+        return hops_ad.basis.get_T2_ltc()
+
+    # Off-diagonal factors identical; only Holstein (indices 0..3) changed.
+    T2_phys_a, T2_hier_a = _build_t2([1e5, 2e5, 3e5, 4e5, 1 + 2j, 3 + 4j, 5 + 6j])
+    T2_phys_b, T2_hier_b = _build_t2([0.0, 0.0, 0.0, 0.0, 1 + 2j, 3 + 4j, 5 + 6j])
+
+    np.testing.assert_allclose(T2_phys_a.toarray(), T2_phys_b.toarray())
+    np.testing.assert_allclose(T2_hier_a.toarray(), T2_hier_b.toarray())
+
+    eom_param = {"EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"}
+    integrator_param = {
+        "INTEGRATOR": "RUNGE_KUTTA",
+        "EARLY_ADAPTIVE_INTEGRATOR": "INCH_WORM",
+        "EARLY_INTEGRATOR_STEPS": 5,
+        "INCHWORM_CAP": 5,
+        "STATIC_BASIS": None,
+    }
+    psi_0 = np.array([0.0] * nsite, dtype=np.complex128)
+    psi_0[0] = 1.0 / np.sqrt(2)
+    psi_0[3] = -1.0 / np.sqrt(2)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
 
     sys_param_holstein = {
         "HAMILTONIAN": np.array(hs, dtype=np.complex128),
@@ -1980,7 +2708,7 @@ def test_get_T2_ltc():
     hops_ad.make_adaptive(1e-3, 1e-3)
     hops_ad.initialize(psi_0)
     hops_ad.basis.system.state_list = [0, 3]
-    hops_ad.basis.mode.list_absindex_mode = [0, 1, 6, 7]
+    hops_ad.basis.mode.list_modeidx_abs = [0, 1, 6, 7]
 
     T2_phys, T2_hier = hops_ad.basis.get_T2_ltc()
     assert T2_phys is None

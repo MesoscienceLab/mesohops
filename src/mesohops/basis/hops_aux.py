@@ -6,8 +6,8 @@ from numba import njit
 from mesohops.util.exceptions import AuxError
 
 __title__ = "AuxiliaryVector Class"
-__author__ = "D. I. G. Bennett"
-__version__ = "1.2"
+__author__ = "D. I. G. Bennett, B. Z. Citty"
+__version__ = "1.6"
 
 
 class AuxiliaryVector(Mapping):

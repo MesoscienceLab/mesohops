@@ -1,8 +1,10 @@
 import numpy as np
 from scipy import sparse
 import time as timer
+import copy
 from mesohops.trajectory.hops_dyadic import DyadicTrajectory
 from mesohops.trajectory.exp_noise import bcf_exp
+import warnings
 
 __title__ = "dyadic_spectra"
 __author__ = "D. I. G. B. Raccah, A. Hartzell, T. Gera, J. K. Lynd"
@@ -16,47 +18,51 @@ class DyadicSpectra(DyadicTrajectory):
 
     __slots__ = (
         # --- Initialization and tracking ---
-        '__initialized',  # Initialization status flag
+        '__initialized', # Initialization status flag
 
         # --- Spectroscopy parameters ---
-        'spectrum_type',  # Type of spectrum to calculate
-        't_1',  # First propagation time
-        't_2',  # Second propagation time
-        't_3',  # Third propagation time
-        'list_t',  # List of propagation times
-        'E_1',  # First field definition
-        'E_2',  # Second field definition
-        'E_3',  # Third field definition
-        'E_sig',  # Signal field definition
-        'list_ket_sites',  # Ket sites excited by field
-        'list_bra_sites',  # Bra sites excited by field
+        'spectrum_type', # Type of spectrum to calculate
+        't_1',           # First propagation time
+        't_2',           # Second propagation time
+        't_3',           # Third propagation time
+        'list_t',        # List of propagation times
+        'E_1',           # First field definition
+        'E_2',           # Second field definition
+        'E_3',           # Third field definition
+        'E_sig',         # Signal field definition
+        'list_interaction_cluster_1', # Chromophores excited/de-excited by first operator
+        'list_interaction_cluster_2', # Chromophores excited/de-excited by second operator
+        'list_interaction_cluster_3', # Chromophores excited/de-excited by third operator
 
         # --- Chromophore parameters ---
-        'M2_mu_ge',  # Transition dipole matrix
-        'n_chromophore',  # Number of chromophores
-        'H2_sys_hamiltonian',  # System Hamiltonian
-        'lop_list_hier',  # L-operators associated with hierarchy modes
-        'gw_sysbath_hier',  # Hierarchy mode parameters
-        'lop_list_noise',  # L-operators associated with noise
-        'gw_sysbath_noise',  # Noise mode parameters
-        'lop_list_ltc',  # L-operators associated with LTC
-        'ltc_param',  # Low-temperature correction parameters
+
+        'M2_mu_ge',      # Transition dipole matrix
+        'n_chromophore', # Number of chromophores
+        'H2_sys_hamiltonian', # System Hamiltonian
+        'lop_list_hier', # L-operators associated with hierarchy modes
+        'gw_sysbath_hier', # Hierarchy mode parameters
+        'lop_list_noise', # L-operators associated with noise
+        'gw_sysbath_noise', # Noise mode parameters
+        'lop_list_ltc', # L-operators associated with LTC
+        'ltc_param', # Low-temperature correction parameters
+        'n_ee_states', # Number of doubly-excited states
+        'list_ee_states',# List of doubly-excited states
 
         # --- Convergence parameters ---
-        't_step',  # Time step
-        'max_hier',  # Maximum hierarchy depth
-        'delta_a',  # Auxiliary derivative error bound
-        'delta_s',  # State derivative error bound
-        'set_update_step',  # Update step
-        'set_f_discard',  # Discard fraction
-        'static_filter_list',  # Static hierarchy filters
+        't_step', # Time step
+        'max_hier',# Maximum hierarchy depth
+        'delta_a',# Auxiliary derivative error bound
+        'delta_s',# State derivative error bound
+        'set_update_step', # Update step
+        'set_f_discard', # Discard fraction
+        'static_filter_list', # Static hierarchy filters
 
         # --- State dimensions ---
-        'n_state_hilb',  # Hilbert space dimension
-        'n_state_dyad',  # Dyadic space dimension
+        'n_state_hilb', # Full Hilbert-space dimension
+        'n_state_dyad', # Dyadic space dimension
 
         # --- Noise configuration ---
-        'noise_param'  # Noise parameters
+        'noise_param' # Noise parameters
     )
 
     def __init__(self, spectroscopy_dict, chromophore_dict, convergence_dict, seed):
@@ -93,8 +99,9 @@ class DyadicSpectra(DyadicTrajectory):
         self.E_2 = spectroscopy_dict.get("E_2")
         self.E_3 = spectroscopy_dict.get("E_3")
         self.E_sig = spectroscopy_dict["E_sig"]
-        self.list_ket_sites = spectroscopy_dict["list_ket_sites"]
-        self.list_bra_sites = spectroscopy_dict.get("list_bra_sites", None)
+        self.list_interaction_cluster_1 = spectroscopy_dict["list_interaction_cluster_1"]
+        self.list_interaction_cluster_2 = spectroscopy_dict.get("list_interaction_cluster_2", None)
+        self.list_interaction_cluster_3 = spectroscopy_dict.get("list_interaction_cluster_3", None)
 
         # Extracting chromophore parameters from chromophore_dict
         self.M2_mu_ge = chromophore_dict["M2_mu_ge"]
@@ -116,15 +123,37 @@ class DyadicSpectra(DyadicTrajectory):
         self.set_update_step = convergence_dict["set_update_step"]
         self.set_f_discard = convergence_dict["set_f_discard"]
 
-        # Defining number of states in Hilbert and Dyadic spaces
-        self.n_state_hilb = self.n_chromophore + 1
-        self.n_state_dyad = 2 * self.n_state_hilb
+        if self.spectrum_type in ['ESA-R', 'ESA-NR']:
+            i_idx, j_idx = np.triu_indices(self.n_chromophore, k=1)
+            self.list_ee_states = list(zip(i_idx + 1, j_idx + 1))
+            self.n_ee_states = len(self.list_ee_states)
+        else:
+            self.list_ee_states = []
+            self.n_ee_states = 0
 
+        # Full Hilbert-space and dyadic-space dimensions.
+        self.n_state_hilb = self.n_chromophore + 1 + self.n_ee_states
+        self.n_state_dyad = 2 * self.n_state_hilb
         # Checking the shape of the system Hamiltonian
-        if np.shape(self.H2_sys_hamiltonian) != (self.n_state_hilb, self.n_state_hilb):
-            raise ValueError("H2_sys_hamiltonian must be ((n_chrom + 1) x (n_chrom + "
-                             "1)) to account for each chromophore and the ground "
-                             "state.")
+
+        expected_hilbert_shape = (
+            self.n_state_hilb,
+            self.n_state_hilb,
+        )
+        if np.shape(self.H2_sys_hamiltonian) != expected_hilbert_shape:
+            raise ValueError(f"H2_sys_hamiltonian must be {expected_hilbert_shape}")
+        for list_name in ("lop_list_hier", "lop_list_noise", "lop_list_ltc"):
+            for lop in getattr(self, list_name):
+                if np.shape(lop) != expected_hilbert_shape:
+                    raise ValueError(
+                        f"All operators in {list_name} must have shape "
+                        f"{expected_hilbert_shape}."
+                    )
+        for cluster in ("list_interaction_cluster_1", "list_interaction_cluster_2",
+                     "list_interaction_cluster_3"):
+            cluster_val = getattr(self, cluster)
+            if isinstance(cluster_val, str) and cluster_val == "ALL":
+                setattr(self, cluster, np.arange(1, self.n_chromophore + 1))
 
         # Preparing system parameter dictionary
         system_param = {"HAMILTONIAN": self.H2_sys_hamiltonian,
@@ -150,7 +179,6 @@ class DyadicSpectra(DyadicTrajectory):
         hierarchy_param = {"MAXHIER": self.max_hier}
         if self.static_filter_list:
             hierarchy_param["STATIC_FILTERS"] = self.static_filter_list
-
         # Preparing storage parameter dictionary
         storage_param = {}
 
@@ -182,9 +210,12 @@ class DyadicSpectra(DyadicTrajectory):
 
             # Making the trajectory adaptive if delta_a or delta_s is greater than 0
             if self.delta_a > 0 or self.delta_s > 0:
-                self.make_adaptive(self.delta_a, self.delta_s, self.set_update_step,
-                                   self.set_f_discard)
 
+                # list_permanent_sites preserves the ground state in the adaptive calc
+                list_permanent_sites = [0, self.n_state_hilb]
+
+                self.make_adaptive(self.delta_a, self.delta_s, self.set_update_step,
+                                   self.set_f_discard, list_permanent_sites)
             # Initializing trajectory
             super().initialize(psi_k, psi_b, timer_checkpoint=timer_checkpoint)
 
@@ -195,14 +226,15 @@ class DyadicSpectra(DyadicTrajectory):
         else:
             print("WARNING: DyadicTrajectory has already been initialized.")
 
-    def _hilb_operator(self, action_type, field, list_sites):
+    def _hilb_operator(self, transition_type, field, list_sites):
         """
-        Constructs the Hilbert space raising or lowering operator.
+        Constructs the Hilbert-space transition operator.
 
         Parameters
         ----------
-        1. action_type: str
-                        Type of action to be performed. (Options: "raise" or "lower".)
+        1. transition_type: str
+                            Type of transition to perform.
+                            Options: "g_to_e", "e_to_g", "e_to_ee".
 
         2. field: np.array(complex)
                   Field vector definition.
@@ -213,34 +245,83 @@ class DyadicSpectra(DyadicTrajectory):
 
         Returns
         -------
-        1. R2_raise_hilb_op/L2_lower_hilb_op: np.array(complex)
-                                              Hilbert space raising/lowering operator.
+        1. transition_operator: np.array(complex)
+                                Hilbert-space operator implementing the requested
+                                transition.
+
+        Notes
+        -----
+        The Hilbert basis ordering is
+        ``[|g>, |e_1>, ..., |e_N>, |e_1 e_2>, ..., |e_{N-1} e_N>]``.
+        State index 0 is the ground state, indices 1..N are single-excitation
+        states, and remaining indices are doubly-excited states (when present).
         """
         # Calculating μ•E for the given sites
         interactions = np.dot(self.M2_mu_ge[list_sites - 1], field)
 
         # Constructing sparse raising operator
-        if action_type == "raise":
+        if transition_type == "g_to_e":
             return sparse.coo_matrix((interactions,
                                       (list_sites, np.zeros_like(list_sites))),
-                                     shape=(self.n_state_hilb, self.n_state_hilb),
+                                     shape=(self.n_state_hilb,
+                                            self.n_state_hilb),
                                      dtype=np.float64)
 
         # Constructing sparse lowering operator
-        elif action_type == "lower":
+        elif transition_type == "e_to_g":
             return sparse.coo_matrix((interactions,
                                       (np.zeros_like(list_sites), list_sites)),
-                                     shape=(self.n_state_hilb, self.n_state_hilb),
+                                     shape=(self.n_state_hilb,
+                                            self.n_state_hilb),
                                      dtype=np.float64)
+        elif transition_type == "e_to_ee":
+            interactions = np.dot(self.M2_mu_ge, field)
+            dim_hilbert = self.n_state_hilb
 
-        # Throwing error for invalid action types
+            list_row = []
+            list_col = []
+            list_data = []
+
+            # This operator includes only single -> double transitions (e -> ee).
+            # Basis layout note: doubly-excited states are indexed after all
+            # single-excitation states in the Hilbert vector.
+            # For each pair (e_n, e_m), we add matrix elements:
+            #   |e_m> -> |e_n,e_m> with weight (mu_n · E), when site e_n is in list_sites
+            #   |e_n> -> |e_n,e_m> with weight (mu_m · E), when site e_m is in list_sites
+            # Example: for pair (1, 2), exciting site 2 contributes
+            #          <e_1,e_2|Op|e_1> = mu_2 · E.
+            for ee_idx, (e_n, e_m) in enumerate(self.list_ee_states):
+                ee_state_idx = self.n_chromophore + 1 + ee_idx
+                if e_n in list_sites:
+                    list_row.append(ee_state_idx)
+                    list_col.append(e_m)
+                    list_data.append(interactions[e_n - 1])
+
+                if e_m in list_sites:
+                    list_row.append(ee_state_idx)
+                    list_col.append(e_n)
+                    list_data.append(interactions[e_m - 1])
+            return sparse.coo_matrix(
+                (list_data, (list_row, list_col)),
+                shape=(dim_hilbert, dim_hilbert),
+            )
+             
+        # Throwing error for invalid transition types
         else:
-            raise ValueError("action_type must be either 'raise' or 'lower'.")
+            raise ValueError(
+                "transition_type must be 'g_to_e', 'e_to_g', or 'e_to_ee', "
+                f"got '{transition_type}'."
+            )
 
     def _final_dyad_operator(self):
         """
         Constructs the final dyadic operator for calculating the response function
         and records the time index when the operator begins its action.
+
+        Notes
+        -----
+        For ESA pathways, this operator maps doubly-excited ket amplitudes to
+        singly-excited bra amplitudes.
 
         Returns
         -------
@@ -255,21 +336,150 @@ class DyadicSpectra(DyadicTrajectory):
         interactions = np.dot(self.M2_mu_ge, self.E_sig)
 
         # Defining start index for the final response operation
-        final_op_index = int(self.t_2 / self.t_step)
+        if self.spectrum_type == "ABSORPTION":
+            final_op_index = 0
+        else:
+            final_op_index = int((self.t_1 + self.t_2) / self.t_step)
 
         # Constructing sparse final dyadic operator
-        F2_final_op = sparse.coo_matrix((interactions,
+        if self.spectrum_type in ["ESA-R","ESA-NR"]:
+
+            dim_hilbert = self.n_state_hilb
+            dim_dyad = 2 * dim_hilbert
+
+            list_row = []
+            list_col = []
+            list_data = []
+
+            # The bra block starts at index `dim_hilbert` in dyadic space.
+            # For each pair (e_n, e_m), this adds matrix elements:
+            #   |e_n,e_m>_ket -> |e_n>_bra with weight (mu_m · E_sig)
+            #   |e_n,e_m>_ket -> |e_m>_bra with weight (mu_n · E_sig)
+            # Example: for pair (1, 2),
+            #          <e_1|_bra F |e_1,e_2>_ket = mu_2 · E_sig
+            #          <e_2|_bra F |e_1,e_2>_ket = mu_1 · E_sig.
+            for ee_idx, (e_n, e_m) in enumerate(self.list_ee_states):
+                ee_state_idx = self.n_chromophore + 1 + ee_idx
+
+                list_row.append(e_n + dim_hilbert)
+                list_col.append(ee_state_idx)
+                list_data.append(interactions[e_m - 1])
+
+                list_row.append(e_m + dim_hilbert)
+                list_col.append(ee_state_idx)
+                list_data.append(interactions[e_n - 1])
+
+            F2_final_op = sparse.coo_matrix(
+                (list_data, (list_row, list_col)),
+                shape=(dim_dyad, dim_dyad),
+            )
+
+        else:
+            F2_final_op = sparse.coo_matrix((interactions,
                                          ([self.n_state_hilb] * self.n_chromophore,
                                           np.arange(1, self.n_state_hilb))),
                                         shape=(self.n_state_dyad, self.n_state_dyad),
                                         dtype=np.float64)
+
+
         return F2_final_op, final_op_index
+
+    def _get_pathway(self):
+        """
+        Return a pathway dictionary for the selected spectrum type.
+
+        Returns
+        -------
+        1. pathway: dict
+                    Pathway definition with sequential transition types, sequential
+                    ket/bra operation sides, sequential interaction clusters, and a
+                    pathway scaling factor from degeneracy/conjugate-pathway counting.
+        """
+        if self.spectrum_type == "ABSORPTION":
+            return dict(
+                list_transition=["g_to_e"],
+                list_sides=["ket"],
+                scaling_factor=2,
+                list_clusters=[self.list_interaction_cluster_1],
+            )
+        if self.spectrum_type == "FLUORESCENCE":
+            return dict(
+                list_transition=["g_to_e", "g_to_e", "e_to_g"],
+                list_sides=["bra", "ket", "bra"],
+                scaling_factor=4,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        if self.spectrum_type == "GSB-R":
+            return dict(
+                list_transition=["g_to_e", "e_to_g", "g_to_e"],
+                list_sides=["bra", "bra", "ket"],
+                scaling_factor=1,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        if self.spectrum_type == "SE-R":
+            return dict(
+                list_transition=["g_to_e", "g_to_e", "e_to_g"],
+                list_sides=["bra", "ket", "bra"],
+                scaling_factor=1,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        if self.spectrum_type == "ESA-R":
+            return dict(
+                list_transition=["g_to_e", "g_to_e", "e_to_ee"],
+                list_sides=["bra", "ket", "ket"],
+                scaling_factor=-1,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        if self.spectrum_type == "GSB-NR":
+            return dict(
+                list_transition=["g_to_e", "e_to_g", "g_to_e"],
+                list_sides=["ket", "ket", "ket"],
+                scaling_factor=1,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        if self.spectrum_type == "SE-NR":
+            return dict(
+                list_transition=["g_to_e", "g_to_e", "e_to_g"],
+                list_sides=["ket", "bra", "bra"],
+                scaling_factor=1,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        if self.spectrum_type == "ESA-NR":
+            return dict(
+                list_transition=["g_to_e", "g_to_e", "e_to_ee"],
+                list_sides=["ket", "bra", "ket"],
+                scaling_factor=-1,
+                list_clusters=[self.list_interaction_cluster_1,
+                               self.list_interaction_cluster_2,
+                               self.list_interaction_cluster_3],
+            )
+        raise ValueError(f"Unknown spectrum_type: {self.spectrum_type}")
 
     def calculate_spectrum(self):
         """
-        Constructs the DyadicTrajectory object, propagates the excitation dynamics
-        according to the given optical response pathway, and calculates the time-domain
-        response function for the single trajectory defined by the DyadicSpectra seed.
+        Construct and propagate one dyadic trajectory for the selected pathway,
+        then evaluate the corresponding time-domain response.
+
+        Workflow
+        --------
+        1. Initialize the dyadic trajectory in the ground-state density matrix.
+        2. Apply the pathway interaction operators sequentially (ket/bra side and
+           transition type from ``_get_pathway``), propagating through each delay
+           interval in ``list_t`` between interactions.
+        3. Evaluate the response using the final detection operator returned by
+           ``_final_dyad_operator`` and scale by the pathway prefactor.
 
         Returns
         -------
@@ -277,82 +487,30 @@ class DyadicSpectra(DyadicTrajectory):
                        Calculated time-domain response function scaled to account for
                        the degenerate and conjugate pathways.
         """
-        # Initializing trajectory
+        # Build the initial dyadic trajectory state once.
         self.initialize()
-
-        # Defaulting scaling factor to 1
-        scaling_factor = 1
-
-        # Defining final operator and time index for final response operation
+        # Build the final detection operator and the starting time index for response evaluation.
         final_op, final_op_index = self._final_dyad_operator()
+        # Keep only the explicitly defined interaction fields in interaction order.
+        list_E_field = [E for E in (self.E_1, self.E_2, self.E_3, self.E_sig) if
+                        E is not None]
+        # Select transition sequence, ket/bra sides, pathway scaling, and site clusters.
+        pathway = self._get_pathway()
 
-        # Absorption case:
-        # =============================
-        # Double-sided Feynman diagram:
-        #            ||g><g||
-        # μ•Esig <-- |------|
-        #            ||e><g||
-        #   μ•E1 --> |------|
-        #            ||g><g||
-        # =============================
-
-        if self.spectrum_type == "ABSORPTION":
-            # Set timer checkpoint
-            timer_checkpoint = timer.time()
-
-            # Raising ket sites
-            self._dyad_operator(self._hilb_operator("raise", self.E_1,
-                                                    self.list_ket_sites), 'ket')
-
-            # Propagating through t_1 time
-            self.propagate(self.t_1, self.t_step, timer_checkpoint)
-
-            # Scaling factor accounting for the sum of two complex conjugate pathways
-            scaling_factor = 2
-
-        # Fluorescence case:
-        # ==============================
-        # Double-sided Feynman diagram:
-        #            ||g><g||
-        # μ•Esig <-- |------|
-        #            ||g><e||
-        #            |------| --> μ•Esig
-        #            ||e><e||
-        #   μ•E1 --> |------| <-- μ•E1
-        #            ||g><g||
-        # ==============================
-
-        elif self.spectrum_type == "FLUORESCENCE":
-            # Set timer checkpoint
-            timer_checkpoint = timer.time()
-
-            # Raising ket sites
+        # Apply each interaction operator and propagate through the following delay interval.
+        for index_E_field in range(len(list_E_field)-1):
+            # Construct the Hilbert-space interaction operator and apply it to ket/bra side.
             self._dyad_operator(
-                self._hilb_operator("raise", self.E_1, self.list_ket_sites), 'ket')
+                self._hilb_operator(pathway["list_transition"][index_E_field], list_E_field[index_E_field],
+                                    pathway["list_clusters"][index_E_field]), pathway["list_sides"][index_E_field])
+            # Propagate for the corresponding delay if nonzero.
+            if self.list_t[index_E_field] > 0:
+                timer_checkpoint = timer.time()
+                self.propagate(self.list_t[index_E_field], self.t_step, timer_checkpoint)
 
-            # Raising bra sites
-            self._dyad_operator(
-                self._hilb_operator("raise", self.E_2, self.list_bra_sites), 'bra')
 
-            # Propagating through t_2 time
-            self.propagate(self.t_2, self.t_step, timer_checkpoint)
-
-            # New timer checkpoint
-            timer_checkpoint = timer.time()
-
-            # Lowering bra sites
-            self._dyad_operator(self._hilb_operator(
-                "lower", self.E_3, np.arange(1, self.n_state_hilb)), 'bra')
-
-            # Propagating through t_3 time
-            self.propagate(self.t_3, self.t_step, timer_checkpoint)
-
-            # Scaling factor accounting for the two equivalent pathways under the
-            # impulsive limit and their complex conjugates.
-            scaling_factor = 4
-
-        # Calculating response function
-        return scaling_factor * self._response_function_comp(final_op, final_op_index)
+        # Evaluate and scale the response component for this pathway.
+        return pathway["scaling_factor"] * self._response_function_comp(final_op, final_op_index)
 
     @property
     def initialized(self):
@@ -360,15 +518,16 @@ class DyadicSpectra(DyadicTrajectory):
 
 
 def prepare_spectroscopy_input_dict(spectrum_type, propagation_time_dict, field_dict,
-                                    site_dict):
+                                    cluster_dict):
     """
     Prepares the spectroscopy_dict input dictionary for DyadicSpectra.
 
     Parameters
     ----------
     1. spectrum_type: str
-                      Type of spectrum to be calculated. (Options: "ABSORPTION" or
-                      "FLUORESCENCE".)
+                      Type of spectrum to be calculated.
+                      Options: "ABSORPTION", "FLUORESCENCE", "GSB-R", "SE-R",
+                      "ESA-R", "GSB-NR", "SE-NR", "ESA-NR".
 
     2. propagation_time_dict: dict
                               Dictionary of propagation times between field
@@ -379,10 +538,11 @@ def prepare_spectroscopy_input_dict(spectrum_type, propagation_time_dict, field_
                    numpy arrays with exactly 3 entries.
                    (Key Options: "E_1", "E_2", "E_3", "E_sig".)
 
-    4. site_dict: dict
-                  The set of initially-excited sites on the ket and bra sides,
+    4. cluster_dict: dict
+                  The set of initially-excited clusters on the ket and bra sides,
                   defined by numpy integer arrays with indexing starting at 1, not 0.
-                  (Key Options: "list_ket_sites", "list_bra_sites".)
+                  (Key Options: "list_interaction_cluster_1",
+                  "list_interaction_cluster_2", "list_interaction_cluster_3".)
 
     Returns
     -------
@@ -390,20 +550,30 @@ def prepare_spectroscopy_input_dict(spectrum_type, propagation_time_dict, field_
                                 Dictionary of spectroscopy parameters needed for
                                 DyadicSpectra class.
     """
+    propagation_time_dict = copy.deepcopy(propagation_time_dict)
+    field_dict = copy.deepcopy(field_dict)
+    cluster_dict = copy.deepcopy(cluster_dict)
+
     # Defining allowed spectrum types
-    list_allowed_spectrum_types = ["ABSORPTION", "FLUORESCENCE"]
+    list_allowed_spectrum_types = ["ABSORPTION", "FLUORESCENCE","GSB-R","ESA-R","SE-R",
+                                   "GSB-NR","ESA-NR","SE-NR"]
 
-    # Checking list_ket_site input structure
-    if "list_ket_sites" not in site_dict.keys():
-        raise ValueError("list_ket_sites must be defined.")
+    # Checking list_interaction_cluster_1 input structure
+    if "list_interaction_cluster_1" not in cluster_dict.keys():
+        cluster_dict["list_interaction_cluster_1"] = "ALL"
+        warnings.warn(
+            "list_interaction_cluster_1 not defined; setting it to ALL.")
+    else:
+        if not isinstance(cluster_dict["list_interaction_cluster_1"], np.ndarray):
+            cluster_dict["list_interaction_cluster_1"] = (
+                np.array(cluster_dict["list_interaction_cluster_1"]))
 
-    if not isinstance(site_dict["list_ket_sites"], np.ndarray):
-        site_dict["list_ket_sites"] = np.array(site_dict["list_ket_sites"])
-
-    # Checking site indexing structure
-    for key, value in site_dict.items():
+    # Checking cluster indexing structure
+    for key, value in cluster_dict.items():
+        if isinstance(value, str):
+            continue
         if 0 in value:
-            raise ValueError("Ket and Bra sites must be indexed starting from 1.")
+            raise ValueError("Clusters' indices should not include 0.")
 
     # Checking field_dict input structure
     for key, value in field_dict.items():
@@ -413,76 +583,101 @@ def prepare_spectroscopy_input_dict(spectrum_type, propagation_time_dict, field_
         elif value.shape != (3,):
             raise ValueError("All field entries should be numpy arrays with exactly "
                              "3 entries.")
+    if "E_1" not in field_dict.keys():
+        warnings.warn("E_1 is not defined. Setting E_1 to default, [0, 0, 1].")
 
-    # Removing keys with None/0 values from propagation_time_dict
+    # Removing keys with None values from propagation_time_dict
     for key, value in list(propagation_time_dict.items()):
-        if value is None or value <= 0:
+        if value is None:
             del propagation_time_dict[key]
 
-    # Absorption case (see DyadicSpectra.calculate_spectrum() for diagram):
+    # First-order response case.
     if spectrum_type == "ABSORPTION":
         # Checking necessary parameters are defined
         if "t_1" not in propagation_time_dict.keys():
             raise ValueError("Propagation time after first field interaction (t_1) "
                              "must be defined as > 0 for absorption.")
 
-        if "E_1" not in field_dict.keys():
-            raise ValueError("E_1 must be defined for absorption.")
-
         # Warning user if unused parameters are defined
         if len(propagation_time_dict) > 1:
-            print("WARNING: Only t_1 is necessary for absorption. Setting all other "
-                  "propagation times to zero.")
+            warnings.warn("Only t_1 is necessary for absorption. "
+                          "Setting all other propagation times to zero.")
 
         if len(field_dict) > 1:
-            print("WARNING: Only E_1 is necessary for absorption. E_sig is set to E_1. "
-                  "All other field definitions will be discarded")
+            warnings.warn("Only E_1 is necessary for absorption. E_sig is set "
+                          "to E_1. All other field definitions will be discarded.")
 
         # Returning dictionary for absorption
         return {"spectrum_type": spectrum_type, "E_1": field_dict["E_1"],
                 "E_sig": field_dict["E_1"], "t_1": propagation_time_dict["t_1"],
-                "t_2": 0, "t_3": 0, "list_ket_sites": site_dict["list_ket_sites"]}
+                "t_2": 0, "t_3": 0, "list_interaction_cluster_1":
+                    cluster_dict["list_interaction_cluster_1"]}
 
-    # Fluorescence case (see DyadicSpectra.calculate_spectrum() for diagram):
-    elif spectrum_type == "FLUORESCENCE":
+    # Third-order response cases.
+
+    elif spectrum_type in ["FLUORESCENCE","GSB-R","ESA-R","SE-R",
+                           "GSB-NR","ESA-NR","SE-NR"]:
         # Checking necessary parameters are properly defined
-        if "list_bra_sites" not in site_dict.keys():
-            raise ValueError("list_bra_sites must be defined for fluorescence.")
+        for i in ("list_interaction_cluster_2", "list_interaction_cluster_3"):
+            if i not in cluster_dict.keys():
+                cluster_dict[i] = "ALL"
+                warnings.warn(f"{i} not defined; setting it to ALL.")
+            elif not isinstance(cluster_dict[i], np.ndarray):
+                cluster_dict[i] = np.array(cluster_dict[i])
+        if "t_2" not in propagation_time_dict.keys():
+            raise ValueError("Propagation time after second field "
+                             "interactions (t_2) must be defined for "
+                             f"{spectrum_type}.")
 
-        if not isinstance(site_dict["list_bra_sites"], np.ndarray):
-            site_dict["list_bra_sites"] = np.array(site_dict["list_bra_sites"])
+        if  "t_3" not in propagation_time_dict.keys():
+            raise ValueError("Propagation time after third field "
+                             "interactions (t_3) must be defined for "
+                             f"{spectrum_type}.")
 
-        if ("t_2" not in propagation_time_dict.keys() or "t_3" not in
-                propagation_time_dict.keys()):
-            raise ValueError("Propagation times after second and third field "
-                             "interactions (t_2, t_3) must be defined as > 0 for "
-                             "fluorescence.")
+        if spectrum_type == "FLUORESCENCE":
 
-        if "E_1" not in field_dict.keys():
-            raise ValueError("E_1 must be defined for fluorescence.")
+            # Warning user if unused parameters are defined
+            if len(propagation_time_dict) > 2:
+                warnings.warn(
+                    "Only t_2 and t_3 are necessary for fluorescence. Setting "
+                    "all other propagation times to zero.")
 
-        # Warning user if the signal field is not defined
+            if len(field_dict) > 2:
+                warnings.warn("Only E_1 and E_sig are necessary for fluorescence. All "
+                      "other field definitions will be discarded.")
+        else:
+            if "t_1" not in propagation_time_dict.keys():
+                raise ValueError(
+                    "Propagation time after first field "
+                             "interactions (t_1) must be defined for "
+                             f"{spectrum_type}.")
+            for E_field in ["E_2","E_3"]:
+                if E_field not in field_dict.keys():
+                    warnings.warn(
+                        f"{E_field} is not defined. Setting "
+                      "them to default, [0, 0, 1].")
         if "E_sig" not in field_dict.keys():
-            print("WARNING: E_sig is not defined. Setting E_sig to default, [0, 0, 1].")
+            warnings.warn("E_sig is not defined. Setting E_sig to default, [0, 0, 1].")
 
-        # Warning user if unused parameters are defined
-        if len(propagation_time_dict) > 2:
-            print("WARNING: Only t_2 and t_3 are necessary for fluorescence. Setting "
-                  "all other propagation times to zero.")
+        # Build the base dictionary (used directly for fluorescence)
+        spec_dict={"spectrum_type": spectrum_type,
+                   "E_1": field_dict.get("E_1", np.array([0, 0, 1])),
+                   "E_2": field_dict.get("E_1", np.array([0, 0, 1])),
+                   "E_3": field_dict.get("E_sig", np.array([0, 0, 1])),
+                   "E_sig": field_dict.get("E_sig", np.array([0, 0, 1])),
+                   "t_1": 0,"t_2": propagation_time_dict["t_2"],
+                   "t_3": propagation_time_dict["t_3"],
+                   "list_interaction_cluster_1": cluster_dict["list_interaction_cluster_1"],
+                   "list_interaction_cluster_2": cluster_dict["list_interaction_cluster_2"],
+                   "list_interaction_cluster_3": cluster_dict["list_interaction_cluster_3"]}
 
-        if len(field_dict) > 2:
-            print("WARNING: Only E_1 and E_sig are necessary for fluorescence. All "
-                  "other field definitions will be discarded.")
+        # Extend the base dictionary to handle generic third-order pathways.
+        if spectrum_type in ["GSB-R","SE-R","GSB-NR","SE-NR", "ESA-R", "ESA-NR"]:
+            spec_dict["E_2"]= field_dict.get("E_2", np.array([0, 0, 1]))
+            spec_dict["E_3"] = field_dict.get("E_3", np.array([0, 0, 1]))
+            spec_dict["t_1"]= propagation_time_dict["t_1"]
 
-        # Returning dictionary for fluorescence
-        return {"spectrum_type": spectrum_type, "E_1": field_dict["E_1"],
-                "E_2": field_dict["E_1"],
-                "E_3": field_dict.get("E_sig", np.array([0, 0, 1])),
-                "E_sig": field_dict.get("E_sig", np.array([0, 0, 1])), "t_1": 0,
-                "t_2": propagation_time_dict["t_2"],
-                "t_3": propagation_time_dict["t_3"],
-                "list_ket_sites": site_dict["list_ket_sites"],
-                "list_bra_sites": site_dict["list_bra_sites"]}
+        return spec_dict
 
     # Throwing error for invalid spectrum types
     else:
@@ -502,8 +697,9 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
 
     2. H2_sys_hamiltonian: np.array(complex)
                            System Hamiltonian in Hilbert space. The array should have
-                           shape (n_chromophore + 1, n_chromophore + 1) to account for
-                           the ground state.
+                           shape (n_state_hilb, n_state_hilb), where
+                           n_state_hilb = n_chromophore + 1 for ground+single manifolds,
+                           and includes additional doubly-excited states when present.
 
     3. bath_dict: dict
                   Dictionary of bath parameters. (Key Options: "list_lop", "list_modes",
@@ -516,7 +712,8 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
                      a. list_lop: list(np.array(complex)), optional
                                   List of unique system-bath coupling operators for each
                                   independent bath. If omitted, they default to site
-                                  projection operators.
+                                  projection operators in the Hilbert space dimension
+                                  set by H2_sys_hamiltonian.
 
                      b. list_modes: list(complex), optional
                                     List of exponential modes making up the time
@@ -629,12 +826,24 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
                          Dictionary of chromophore parameters needed for DyadicSpectra
                          class.
     """
+
     # Define number of chromophores and validate M2_mu_ge structure
     n_chromophore = len(M2_mu_ge)
     M2_mu_ge = np.array(M2_mu_ge)
     if M2_mu_ge.shape[1] != 3:
         raise ValueError(
             "M2_mu_ge must be a numpy array with shape (n_chromophore, 3).")
+    if (len(np.shape(H2_sys_hamiltonian)) != 2 or
+            np.shape(H2_sys_hamiltonian)[0] != np.shape(H2_sys_hamiltonian)[1]):
+        raise ValueError("H2_sys_hamiltonian must be a square 2D array.")
+
+    n_state_single = n_chromophore + 1
+    n_state_hilb = np.shape(H2_sys_hamiltonian)[0]
+    if n_state_hilb < n_state_single:
+        raise ValueError(
+            "H2_sys_hamiltonian has fewer states than n_chromophore + 1."
+        )
+    n_ee_states = n_state_hilb - n_state_single
 
     # Clean up bath_dict: convert arrays to lists and remove None/0 values
     for key, value in list(bath_dict.items()):
@@ -664,12 +873,58 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
         raise ValueError(
             "list_modes_by_bath and list_modes should not both be defined.")
 
-    # Set default list_lop if not defined (site-projection operators)
+    # Set default list_lop if not defined (site-occupation operators)
     if "list_lop" not in bath_dict.keys():
-        bath_dict["list_lop"] = [sparse.coo_matrix(([1], ([chrom + 1], [chrom + 1])),
-                                                   shape=(n_chromophore + 1,
-                                                          n_chromophore + 1)) for
-                                 chrom in range(n_chromophore)]
+        expected_n_ee_states = n_chromophore * (n_chromophore - 1) // 2
+        if n_ee_states > 0 and n_ee_states != expected_n_ee_states:
+            raise ValueError(
+                f"Cannot infer default L-operators: H2_sys_hamiltonian implies "
+                f"n_ee_states={n_ee_states}, but for n_chromophore={n_chromophore} "
+                f"the canonical doubles count is {expected_n_ee_states}. "
+                f"Either fix the Hamiltonian shape or provide list_lop explicitly."
+            )
+
+        site_to_double_state_indices = [[] for _ in range(n_chromophore)]
+        if n_ee_states > 0:
+            # Build doubly-excited-state pairs in canonical lexicographic order:
+            # (0,1), (0,2), ..., (N-2,N-1). This matches the basis ordering used
+            # in the Hilbert-space construction for default operators.
+            i_idx, j_idx = np.triu_indices(n_chromophore, k=1)
+
+            # Precompute a mapping from each site to the canonical-pair positions
+            # (0..N(N-1)/2 - 1) of doubly-excited states containing that site.
+            # The full Hilbert basis index of each double is n_state_single + position.
+            # This avoids repeated O(N^2) scans for each site.
+            for idx, (i_site, j_site) in enumerate(zip(i_idx, j_idx)):
+                site_to_double_state_indices[i_site].append(idx)
+                site_to_double_state_indices[j_site].append(idx)
+
+        list_lop_default = []
+        for site in range(n_chromophore):
+            double_state_indices_for_site = site_to_double_state_indices[site]
+
+            # Single-excitation state at Hilbert basis index (1 + site), followed by
+            # every doubly-excited state containing this site.
+            diag_indices = np.asarray(
+                [1 + site] + [n_state_single + idx for idx in double_state_indices_for_site],
+                dtype=np.int32,
+            )
+
+            vals = np.ones(diag_indices.shape[0], dtype=np.float64)
+            list_lop_default.append(
+                sparse.coo_matrix(
+                    (vals, (diag_indices, diag_indices)),
+                    shape=(n_state_hilb, n_state_hilb),
+                )
+            )
+        bath_dict["list_lop"] = list_lop_default
+    else:
+        for lop in bath_dict["list_lop"]:
+            if np.shape(lop) != (n_state_hilb, n_state_hilb):
+                raise ValueError(
+                    "Each list_lop operator must have shape "
+                    f"({n_state_hilb}, {n_state_hilb}) to match H2_sys_hamiltonian."
+                )
 
     # Process list_modes if provided
     if "list_modes" in bath_dict:
@@ -838,14 +1093,13 @@ def prepare_chromophore_input_dict(M2_mu_ge, H2_sys_hamiltonian, bath_dict):
 
         # Add LTC parameter for this bath
         list_ltc_param.append(ltc_param)
-
+    # Returning chromophore dictionary
     return {"M2_mu_ge": M2_mu_ge, "n_chromophore": n_chromophore,
             "H2_sys_hamiltonian": H2_sys_hamiltonian,
             "lop_list_hier": list_lop_sysbath_by_mode, "gw_sysbath_hier": gw_sysbath,
             "lop_list_noise": list_lop_noise_by_mode, "gw_sysbath_noise": gw_noise,
             "lop_list_ltc": list_lop_ltc, "ltc_param": list_ltc_param,
-            "static_filter_list": bath_dict.get("static_filter_list", None),
-            }
+            "static_filter_list": bath_dict.get("static_filter_list", None)}
 
 
 def prepare_convergence_parameter_dict(t_step, max_hier, delta_a=0, delta_s=0,

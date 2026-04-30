@@ -190,13 +190,14 @@ def test_list_aux_norm_save():
     proper function.
     """
     HS = HopsStorage(False, {})
-    AHS = HopsStorage(True, {})
+    AHS = HopsStorage(True, {"list_aux_norm": True})
 
     def fake_save_func():
         return
 
     broken_HS = HopsStorage(False, {"list_aux_norm": fake_save_func})
-    false_AHS = HopsStorage(True, {"list_aux_norm": False})
+    # The list_aux_norm key should default to False, even in an adaptive HopsStorage.
+    false_AHS = HopsStorage(True, {})
 
     assert not "list_aux_norm" in HS.dic_save.keys()
     assert AHS.dic_save["list_aux_norm"] == sf.save_list_aux_norm
@@ -241,6 +242,36 @@ def test_z_mem_save():
     # Note that you implicitly have two states here
     np.testing.assert_allclose(sf.save_z_mem(z_mem_new=fake_zmem_list,
                                              phi_new=test_phi), fake_zmem_list)
+
+
+def test_list_zmemmodeidx_abs_save():
+    """
+    Tests that list_zmemmodeidx_abs is saved properly via HopsStorage.
+    """
+    # Non-adaptive and adaptive should both allow saving this list when requested
+    HS = HopsStorage(False, {"list_zmemmodeidx_abs": True})
+    AHS = HopsStorage(True, {"list_zmemmodeidx_abs": True})
+
+    def fake_save_func():
+        return
+
+    broken_HS = HopsStorage(False, {"list_zmemmodeidx_abs": fake_save_func})
+    false_AHS = HopsStorage(True, {"list_zmemmodeidx_abs": False})
+
+    # Default function mapping
+    assert HS.dic_save["list_zmemmodeidx_abs"] == sf.save_list_zmemmodeidx_abs
+    assert AHS.dic_save["list_zmemmodeidx_abs"] == sf.save_list_zmemmodeidx_abs
+
+    # Overridden mapping
+    assert broken_HS.dic_save["list_zmemmodeidx_abs"] == fake_save_func
+    # Disabled mapping
+    assert "list_zmemmodeidx_abs" not in false_AHS.dic_save
+
+    # Verify store_step pipes through the provided value
+    modes = [0, 2, 5, 7]
+    HS.store_step(phi_new=np.array([1, 2]), aux_list=[], state_list=[0, 1], t_new=0.0,
+                  z_mem_new=np.array([0.0+0.0j]), list_zmemmodeidx_abs=modes)
+    assert HS.data["list_zmemmodeidx_abs"] == [modes]
 
 
 def test_arbitrary_saving_function():
