@@ -152,8 +152,8 @@ def test_adap_hier():
             hops2.dsystem_dt(
                 hops2.phi,
                 hops2.z_mem,  #hops2.storage.z_mem,
-                hops2.noise1.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
-                hops2.noise2.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
+                hops2.noise1.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
+                hops2.noise2.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
             )[0]
             / hbar
         )
@@ -168,8 +168,8 @@ def test_adap_hier():
             hops.dsystem_dt(
                 phi_adap_comp,
                 hops2.z_mem,  # hops2.storage.z_mem,
-                hops2.noise1.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
-                hops2.noise2.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
+                hops2.noise1.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
+                hops2.noise2.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
             )[0]
             / hbar
         )
@@ -233,8 +233,8 @@ def test_adap_state():
             hops2.dsystem_dt(
                 hops2.phi,
                 hops2.z_mem, #hops2.storage.z_mem,
-                hops2.noise1.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
-                hops2.noise2.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
+                hops2.noise1.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
+                hops2.noise2.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
             )[0]
             / hbar
         )
@@ -249,8 +249,8 @@ def test_adap_state():
             hops.dsystem_dt(
                 phi_adap_comp,
                 hops2.z_mem, #hops2.storage.z_mem,
-                hops2.noise1.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
-                hops2.noise2.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
+                hops2.noise1.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
+                hops2.noise2.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
             )[0]
             / hbar
         )
@@ -306,6 +306,7 @@ def test_adap_hier_state():
     hops2.initialize(psi_0)
     error_dnorm_comp = []
 
+    # For each time step, check that adaptive and nonadaptive dPhi/dt match
     for t in np.arange(0, t_max, t_step):
         hops2.propagate(t_step, t_step)
         # Match Aux Indices
@@ -321,11 +322,14 @@ def test_adap_hier_state():
             hops2.dsystem_dt(
                 hops2.phi,
                 hops2.z_mem, #hops2.storage.z_mem,
-                hops2.noise1.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
-                hops2.noise2.get_noise([t],hops2.basis.mode.list_absindex_L2)[:, 0],
+                hops2.noise1.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
+                hops2.noise2.get_noise([t],hops2.basis.mode.list_l2idx_abs)[:, 0],
             )[0]
             / hbar
         )
+
+        # Map the entries of Phi from adaptive space to full space
+        # --------------------------------------------------------
         phi_adap_comp = np.zeros(hops.n_state * hops.n_hier, dtype=np.complex128)
         P2_adap_comp = phi_adap_comp.view().reshape(
             [hops.n_state, hops.n_hier], order="F"
@@ -335,12 +339,18 @@ def test_adap_hier_state():
         ] = hops2.phi.view().reshape([hops2.n_state, hops2.n_hier], order="F")[
             np.ix_(range(hops2.n_state), range(hops2.n_hier))
         ]
+        # Map the adaptive z_mem entries into the full z_mem space
+        # --------------------------------------------------------
+        z_mem_nonadap = np.zeros((len(hops.basis.mode.list_modeidx_abs)),dtype=np.complex128)
+        for i in range(len(hops2.z_mem)):
+            z_mem_nonadap[hops2.basis.noise_memory.list_zmemmodeidx_abs[i]] += hops2.z_mem[i]
+
         D1_comp = (
             hops.dsystem_dt(
                 phi_adap_comp,
-                hops2.z_mem, #hops2.storage.z_mem,
-                hops2.noise1.get_noise([t],hops.basis.mode.list_absindex_L2)[:, 0],
-                hops2.noise2.get_noise([t],hops.basis.mode.list_absindex_L2)[:, 0],
+                z_mem_nonadap,
+                hops2.noise1.get_noise([t],hops.basis.mode.list_l2idx_abs)[:, 0],
+                hops2.noise2.get_noise([t],hops.basis.mode.list_l2idx_abs)[:, 0],
             )[0]
             / hbar
         )
@@ -354,8 +364,6 @@ def test_adap_hier_state():
         D2_full_adap[np.ix_(list_state_index, list_aux_index)] = D2_adap[
             np.ix_(range(hops2.n_state), range(hops2.n_hier))
         ]
-        # Map Psi to the same space
-        # -------------------------
         # Calculate Error
         # ---------------
         error_dnorm_comp.append(np.linalg.norm(D1_comp - D1_full_adap))

@@ -6,13 +6,15 @@ from mesohops.basis.basis_functions_adaptive import *
 from mesohops.basis.basis_functions import determine_error_thresh, calculate_delta_bound
 from mesohops.basis.hops_fluxfilters import HopsFluxFilters
 from mesohops.basis.hops_modes import HopsModes
+from mesohops.basis.hops_noise_memory import HopsNoiseMemory
 from mesohops.eom.eom_functions import compress_zmem, operator_expectation
 from mesohops.util.exceptions import UnsupportedRequest
 from scipy import sparse
 
 __title__ = "Basis Class"
-__author__ = "D. I. G. Bennett, Brian Citty, J. K. Lynd"
-__version__ = "1.4"
+__author__ = "D. I. G. Bennett, B. Z. Citty, J. K. Lynd"
+__version__ = "1.6"
+
 
 class HopsBasis:
     """
@@ -28,6 +30,7 @@ class HopsBasis:
         'hierarchy',     # Hierarchy management (HopsHierarchy)
         'mode',          # Mode management (HopsModes)
         'eom',           # Equation of motion (HopsEOM)
+        'noise_memory',          # Noise memory manager (HopsNoiseMemory)
 
         # --- Filters ---
         'flux_filters',  # Flux filtering object (HopsFluxFilters)
@@ -79,11 +82,8 @@ class HopsBasis:
         self.system = system
         self.hierarchy = hierarchy
         self.mode = HopsModes(system, hierarchy)
+        self.noise_memory = HopsNoiseMemory(self.system, self.mode)
         self.eom = eom
-        self._Z2_noise_sparse = sparse.csr_array((self.system.param[
-                                                    "SPARSE_HAMILTONIAN"].shape[0],
-                          self.system.param["SPARSE_HAMILTONIAN"].shape[1]),
-                         dtype=np.complex64)
         self._T2_ltc_phys, self._T2_ltc_hier = None, None
         self.flux_filters = HopsFluxFilters(self.system, self.hierarchy, self.mode)
 
@@ -106,12 +106,13 @@ class HopsBasis:
         """
         self.hierarchy.initialize(self.adaptive_h)
         self.system.initialize(self.adaptive_s, psi_0)
-        self.mode.list_absindex_mode = list(set(self.hierarchy.list_absindex_hierarchy_modes)
-                                       | set(self.system.list_absindex_state_modes))
-
+        self.mode.list_modeidx_abs = sorted(set(self.hierarchy.list_absindex_hierarchy_modes)
+                                       | set(self.system.list_statemodeidx_abs))
+        self.noise_memory.initialize()
         dsystem_dt = self.eom._prepare_derivative(self.system,
                                                   self.hierarchy,
-                                                  self.mode)
+                                                  self.mode,
+                                                  self.noise_memory)
         return dsystem_dt
 
     def define_basis(self, Φ, delta_t, z_step):
@@ -132,14 +133,14 @@ class HopsBasis:
 
         Returns
         -------
-        1. list_state_new : list
+        1. list_newstate : list
                             List of states in the new basis (S_1).
 
         2. list_aux_new : list
                           List of auxiliaries in new basis (H_1).
 
         """
-        # Manages generation of the L-operator expecation values.
+        # Manages generation of the L-operator expectation values.
         self.psi = Φ[:self.n_state]
 
         # Get the off-diagonal contributions to the system Hamiltonian from the noise
@@ -156,7 +157,7 @@ class HopsBasis:
             list_aux_stable, list_aux_bound = self._define_hierarchy_basis(
                 Φ/np.linalg.norm(Φ[:self.n_state]), delta_t, z_step
             )
-            list_aux_new = list(set(list_aux_stable) | set(list_aux_bound))
+            list_aux_new = sorted(set(list_aux_stable) | set(list_aux_bound))
             list_index_stable_aux = [
                 self.hierarchy._aux_index(aux) for aux in list_aux_stable
             ]
@@ -174,14 +175,14 @@ class HopsBasis:
                 Φ/np.linalg.norm(Φ[:self.n_state]), delta_t, z_step,
                 list_index_stable_aux, list_aux_bound, list_aux_new=list_aux_new
             )
-            list_state_new = list(set(list_state_stable) | set(list_state_bound))
-            list_state_new.sort()
+            list_newstate = sorted(set(list_state_stable) | set(list_state_bound))
+            list_newstate.sort()
         else:
-            list_state_new = list(self.system.state_list)
+            list_newstate = list(self.system.state_list)
 
-        return [list_state_new, list_aux_new]
+        return [list_newstate, list_aux_new]
 
-    def update_basis(self, Φ, list_state_new, list_aux_new):
+    def update_basis(self, Φ, z_mem, list_newstate, list_aux_new):
         """
         Updates the derivative function and full hierarchy vector (Φ) for the
         new basis (hierarchy and/or system).
@@ -191,10 +192,13 @@ class HopsBasis:
         1. Φ : np.array
                Current full hierarchy.
 
-        2. list_state_new: list
+        2. z_mem : np.array
+                   Current memory drift terms.
+
+        3. list_newstate : list
                            List of states in the new basis (S_1).
 
-        3. list_aux_new : list
+        4. list_aux_new : list
                           List of auxiliaries in new basis (H_1).
 
         Returns
@@ -202,15 +206,18 @@ class HopsBasis:
         1. Φ_new : np.array
                    Updated full hierarchy.
 
-        2. dsystem_dt : function
+        2. Z1_newzmem : np.array
+                        Updated noise-memory vector in the current z_mem basis.
+
+        3. dsystem_dt : function
                         Updated derivative function.
         """
         # Update State List
         # =================
         flag_update_state = False
-        if set(list_state_new) != set(self.system.state_list): flag_update_state = True
+        if set(list_newstate) != set(self.system.state_list): flag_update_state = True
         # Setter manages many other updates
-        self.system.state_list = np.array(list_state_new, dtype=int)
+        self.system.state_list = np.array(list_newstate, dtype=int)
 
         # Update Hierarchy List
         # =====================
@@ -219,16 +226,18 @@ class HopsBasis:
         # Setter manages many other updates
         self.hierarchy.auxiliary_list = list_aux_new
 
-        # Update Mode List
-        # ================
+
         if flag_update_state or flag_update_hierarchy:
+            # Update mode list and z_mem mapping
+            # ==================================
+
             # Setter manages many other updates
-            self.mode.list_absindex_mode = list(set(self.hierarchy.list_absindex_hierarchy_modes)
-                                           | set(self.system.list_absindex_state_modes))
-        
-        # Update state of calculation for new basis
-        # =========================================
-        if (flag_update_state or flag_update_hierarchy):
+            self.mode.list_modeidx_abs = sorted(set(self.hierarchy.list_absindex_hierarchy_modes)
+                                           | set(self.system.list_statemodeidx_abs))
+            map_zmem = self.noise_memory.update_zmem_indexing(z_mem)
+
+            # Update state of calculation for new basis
+            # =========================================
 
             # Define permutation matrix from old basis --> new basis
             # ------------------------------------------------------
@@ -239,14 +248,14 @@ class HopsBasis:
                 [
                     i_rel
                     for (i_rel, i_abs) in enumerate(self.system.previous_state_list)
-                    if i_abs in self.system.list_stable_state
+                    if i_abs in self.system.list_stblstateidx_abs
                 ]
             )
             list_index_new_stable_state = np.array(
                 [
                     i_rel
                     for (i_rel, i_abs) in enumerate(self.system.state_list)
-                    if i_abs in self.system.list_stable_state
+                    if i_abs in self.system.list_stblstateidx_abs
                 ]
             )
 
@@ -273,12 +282,19 @@ class HopsBasis:
             Φ_new[permute_aux_row] = Φ[permute_aux_col]
             Φ_new = norm_old * Φ_new / np.linalg.norm(Φ_new[:self.n_state])
 
+            # Update zmem: remap old z_mem values into the new mode index space
+            # -----------
+            Z1_newzmem = np.zeros(len(self.noise_memory.list_zmemmodeidx_abs),dtype=np.complex128)
+            # map_zmem[0] = old indices, map_zmem[1] = corresponding new indices
+            Z1_newzmem[map_zmem[1]] = z_mem[map_zmem[0]]
+
             # Update dsystem_dt
             # -----------------
             dsystem_dt = self.eom._prepare_derivative(
                 self.system,
                 self.hierarchy,
                 self.mode,
+                self.noise_memory,
                 [permute_aux_row,
                  permute_aux_col,
                  list_stable_aux_old_index,
@@ -287,9 +303,9 @@ class HopsBasis:
                 update=True,
             )
 
-            return (Φ_new, dsystem_dt)
+            return (Φ_new, Z1_newzmem, dsystem_dt)
         else:
-            return (Φ, self.eom.dsystem_dt)
+            return (Φ, z_mem, self.eom.dsystem_dt)
 
     def _define_state_basis(self, Φ, delta_t, z_step, list_index_aux_stable,
                             list_aux_bound, list_aux_new=None):
@@ -370,17 +386,23 @@ class HopsBasis:
         
         # Construct Error for Excluding Member of S_t^C
         # ---------------------------------------------
-        list_sc = self.system.list_sc
+        
+        # Calculate the stable state indices in the extended (state + boundary) basis.
+        # "list_relindex_state_stable" contains the relative indices of stable states in the state basis.
+        # These are mapped to the extended basis via "list_stateidx_extd"
+        list_stblstateidx_extd = np.array(self.system.list_stateidx_extd)[list_relindex_state_stable]
+        list_fullbndidx_abs = self.system.list_fullbndidx_abs
         if not self.off_diagonal_couplings:
             # Fluxes to states not in the current basis stem purely from the system
             # Hamiltonian in this case.
-            list_index_nonzero, list_error_nonzero = (
+            list_state_nonzero, list_error_nonzero = (
                 error_sflux_boundary_state(Φ,
-                                           list_state_stable,
-                                           list_sc,
+                                           list_stblstateidx_extd,
+                                           list_fullbndidx_abs,
+                                           self.system.list_bndstateidx_extd,
                                            self.n_state,
                                            self.n_hier,
-                                           -1j * self.system.param["SPARSE_HAMILTONIAN"]
+                                           -1j * self.system.H2_hamiltonian_extd
                                            + self.Z2_noise_sparse,
                                            list_relindex_state_stable,
                                            list_index_aux_stable,
@@ -392,17 +414,17 @@ class HopsBasis:
 
         else:
             # Generate the list of the indices of the states not in the basis (in
-            # list_sc) that are also destination states for flux, and a list of the
+            # list_fullbndidx_abs) that are also destination states for flux, and a list of the
             # associated off-diagonal mode-from-state matrices for those destination
             # states.
 
-            list_sc_dest = []
+            list_fullbnddestidx_rel = []
             list_M2_sc_dest = []
             list_M2_mode_from_state_off = self.list_M2_by_dest_off_diag
             for d_ind in range(len(self.system.list_destination_state)):
                 d = self.system.list_destination_state[d_ind]
-                if d in list_sc:
-                    list_sc_dest.append(np.where(list_sc == d)[0][0])
+                if d in list_fullbndidx_abs:
+                    list_fullbnddestidx_rel.append(np.where(list_fullbndidx_abs == d)[0][0])
                     list_M2_sc_dest.append(list_M2_mode_from_state_off[d_ind])
 
             # Generate the flux down into each destination state not in the current
@@ -444,17 +466,18 @@ class HopsBasis:
             # Calculate the total state flux into all boundary states, including any
             # fluxes up or down calculated above.
             list_flux_updown = list_E_up + list_E_down
-            list_index_nonzero, list_error_nonzero = (
+            list_state_nonzero, list_error_nonzero = (
                 error_sflux_boundary_state(Φ,
-                                           list_state_stable,
-                                           list_sc,
+                                           list_stblstateidx_extd,
+                                           list_fullbndidx_abs,
+                                           self.system.list_bndstateidx_extd,
                                            self.n_state,
                                            self.n_hier,
-                                           -1j*self.system.param["SPARSE_HAMILTONIAN"]
+                                           -1j*self.system.H2_hamiltonian_extd
                                            + self.Z2_noise_sparse,
                                            list_relindex_state_stable,
                                            list_index_aux_stable,
-                                           list_sc_dest,
+                                           list_fullbnddestidx_rel,
                                            list_flux_updown,
                                            self.T2_ltc_phys,
                                            self.T2_ltc_hier)
@@ -464,7 +487,7 @@ class HopsBasis:
         # -------------------------
         if len(list_error_nonzero) > 0:
             _, list_state_boundary = self._determine_basis_from_list(
-                list_error_nonzero, delta_bound_sq, list_index_nonzero
+                list_error_nonzero, delta_bound_sq, list_state_nonzero
             )
         else:
             list_state_boundary = []
@@ -475,6 +498,10 @@ class HopsBasis:
             set(list_state_boundary) - set(self.system.state_list)
         )
         list_state_boundary.sort()
+        if self.system.param["list_permanent_sites"] is not None:
+            list_state_stable = list(set(list_state_stable) |
+                                     set(self.system.param["list_permanent_sites"]))
+            list_state_stable.sort()
 
         return (
             np.array(list_state_stable, dtype=int),
@@ -577,16 +604,15 @@ class HopsBasis:
 
         Returns
         -------
-        1. error : np.array
-                   List of error associated with removing each auxiliary in A_t.
+        1. E1_error : np.array
+                      List of error associated with removing each auxiliary in
+                      A_t.
 
-        2. E2_flux_up : np.array
-                        Error induced by neglecting flux from A_t
-                        to auxiliaries with lower summed index in A_t^C.
-
-        3. E2_flux_down : np.array
-                          Error induced by neglecting flux from A_t
-                          to auxiliaries with higher summed index in A_t^C.
+        2. list_E2_flux_nofilter : list(np.array)
+                                   List containing [E2_flux_up_nofilter,
+                                   E2_flux_down_nofilter]: the unfiltered flux
+                                   errors from neglecting connections to
+                                   auxiliaries outside A_t.
         """
         # Ensure L-operator expectation values are current.
         if not np.allclose(self.psi, Φ[:self.n_state]):
@@ -613,11 +639,11 @@ class HopsBasis:
         # State flux
         # ----------
         E1_error += error_sflux_hier(Φ,
-                                     self.system.state_list,
-                                     self.system.list_sc,
+                                     self.system.list_stateidx_extd,
+                                     self.system.list_bndstateidx_extd,
                                      self.n_state,
                                      self.n_hier,
-                                     -1j*self.system.param["SPARSE_HAMILTONIAN"] +
+                                     -1j*self.system.H2_hamiltonian_extd +
                                      self.Z2_noise_sparse,
                                      self.T2_ltc_phys,
                                      self.T2_ltc_hier)
@@ -753,7 +779,7 @@ class HopsBasis:
                 # Get the id values for boundary auxiliaries up along modes with
                 # nonzero flux.
                 list_id_up, list_value_connect,list_mode_connect = (
-                     aux.get_list_id_up(self.list_absindex_mode[nonzero_modes_up]))
+                     aux.get_list_id_up(self.list_modeidx_abs[nonzero_modes_up]))
 
                 #For each id up, add the flux error to its entry in the
                 # boundary_aux_dict dictionary. We assume that the filter is
@@ -769,15 +795,15 @@ class HopsBasis:
                         boundary_connect_dict[my_id] = [aux, list_mode_connect[id_ind], 1]
 
             # Flux down error
-            nonzero_modes_down = self.list_absindex_mode[list_e2_kflux_up_down[1][:,i_aux].nonzero()[0]]
+            nonzero_modes_down = self.list_modeidx_abs[list_e2_kflux_up_down[1][:,i_aux].nonzero()[0]]
             if(len(nonzero_modes_down) > 0):
                 list_id_down, list_value_connects, list_mode_connects = aux.get_list_id_down()
                 for (id_ind,my_id) in enumerate(list_id_down):
                     if(list_mode_connects[id_ind] in nonzero_modes_down):
                         try:
-                            boundary_aux_dict[my_id] += list_e2_kflux_up_down[1][list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux]
+                            boundary_aux_dict[my_id] += list_e2_kflux_up_down[1][list(self.list_modeidx_abs).index(list_mode_connects[id_ind]),i_aux]
                         except:
-                            boundary_aux_dict[my_id] = list_e2_kflux_up_down[1][list(self.list_absindex_mode).index(list_mode_connects[id_ind]),i_aux]
+                            boundary_aux_dict[my_id] = list_e2_kflux_up_down[1][list(self.list_modeidx_abs).index(list_mode_connects[id_ind]),i_aux]
                             boundary_connect_dict[my_id] = [aux,list_mode_connects[id_ind],-1]
 
         # Sort the errors and find the error threshold
@@ -856,11 +882,10 @@ class HopsBasis:
         E1_error += error_sflux_stable_state(Φ,
                                              self.n_state,
                                              self.n_hier,
-                                            -1j * self.system.param[
-                                                 "SPARSE_HAMILTONIAN"]
+                                            -1j * self.system.H2_hamiltonian_extd
                                              + self.Z2_noise_sparse,
                                              list_index_aux_stable,
-                                             self.system.state_list,
+                                             self.system.list_stateidx_extd,
                                              self.T2_ltc_phys,
                                              self.T2_ltc_hier)
 
@@ -936,22 +961,20 @@ class HopsBasis:
             # Get the noise associated with system-bath projection operators that
             # couple states in the current basis to a different state.
             noise_t = (np.conj(z_step[0]) - 1j * z_step[1])[
-                self.mode.list_rel_ind_off_diag_L2]
+                self.mode.list_offdiagl2idx_rel]
             # Get the noise memory drift associated with system-bath projection
             # operators that couple states in the current basis to a different state.
             noise_mem = np.array(
                 compress_zmem(z_step[2], self.mode.list_index_L2_by_hmode,
-                              self.mode.list_absindex_mode)
-            )[self.mode.list_rel_ind_off_diag_L2]
+                              self.noise_memory.list_zmemactivemodeidx_rel)
+            )[self.mode.list_offdiagl2idx_rel]
             # Broadcast noise and noise memory drift onto the appropriate system-bath
             # projection operator.
-            return np.sum((noise_t + noise_mem) * self.list_L2_csr[
+            return np.sum((noise_t + noise_mem) * self.list_l2_extd_csr[
                 self.mode.list_off_diag_active_mask])
         else:
-            return sparse.csr_array((self.system.param["SPARSE_HAMILTONIAN"].shape[0],
-                                     self.system.param["SPARSE_HAMILTONIAN"].shape[1]),
-                                    dtype=np.complex64)
-
+            return sparse.csr_array(self.system.H2_hamiltonian_extd.shape,
+                                     dtype=np.complex64)
     def get_T2_ltc(self):
         """
         Get the matrix form of the low-temperature correction at the current time
@@ -984,7 +1007,7 @@ class HopsBasis:
             return None, None
         X1 = self.list_avg_L2[self.mode.list_off_diag_active_mask]
         G1 = self.lt_corr_param[self.mode.list_off_diag_active_mask]
-        list_L2 = self.list_L2_csr[self.mode.list_off_diag_active_mask]
+        list_L2 = self.list_l2_extd_csr[self.mode.list_off_diag_active_mask]
         list_L2_sq = np.array([L2@L2 for L2 in list_L2])
         # For each bath n, L_n is the Hermitian system-bath projection operator,
         # and G_n is the LTC parameter. ^H indicates a Hermitian conjugate.
@@ -1057,15 +1080,19 @@ class HopsBasis:
         if not self.off_diagonal_couplings:
             return []
         list_M2 = []
-        list_L2_csr = self.list_L2_csr
+        list_l2_extd_csr = self.list_l2_extd_csr
+        dict_destidx_extd = self.mode.dict_stateidx_extd
         for dest in self.system.list_destination_state:
             Row = []
             Col = []
             Data = []
+            # Translate destination and off-diagonal states to ext-space indices.
+            idx_dest_extd = dict_destidx_extd[dest]
             state_list_off_diag = [s for s in self.system.state_list if s != dest]
-            for m, mode in enumerate(self.mode.list_absindex_mode):
+            list_offdiagidx_extd = [dict_destidx_extd[s] for s in state_list_off_diag]
+            for m, mode in enumerate(self.mode.list_modeidx_abs):
                 # Gets the index of the unique L-operator associated with the mode in
-                # list_L2_csr.
+                # list_l2_extd_csr.
                 lind = self.mode.list_index_L2_by_hmode[m]
 
                 # Gets the indices of the sparse data points in the mode's L-operator
@@ -1075,8 +1102,9 @@ class HopsBasis:
                 # as there can be no flux to destination states from unoccupied
                 # states. We also exclude the diagonal portion of each L-operator,
                 # L[d,d].
-                L_reduced = sparse.coo_array((list_L2_csr[lind])[[dest],
-                state_list_off_diag])
+                L_reduced = sparse.coo_array(
+                    (list_l2_extd_csr[lind])[[idx_dest_extd], list_offdiagidx_extd]
+                )
 
                 # Row is given by the relative index of the mode in question.
                 Row += [self.mode.dict_relative_index_by_mode[mode]] * len(L_reduced.col)
@@ -1141,18 +1169,18 @@ class HopsBasis:
         # Construct the array values of k[n] in the space of [mode, aux]
         K2_aux_by_mode = np.zeros([self.n_hmodes, self.n_hier], dtype=np.uint8)
         for aux in self.hierarchy.auxiliary_list:
-            array_index = np.array([list(self.list_absindex_mode).index(mode)
+            array_index = np.array([list(self.list_modeidx_abs).index(mode)
                                     for (mode, value) in aux.tuple_aux_vec
-                                    if mode in self.list_absindex_mode],
+                                    if mode in self.list_modeidx_abs],
                                    dtype=int)
             array_values = [np.uint8(value) for (mode, value) in aux.tuple_aux_vec
-                            if mode in self.list_absindex_mode]
+                            if mode in self.list_modeidx_abs]
             K2_aux_by_mode[array_index, aux._index] = array_values
         return K2_aux_by_mode
 
     @property
     def n_hmodes(self):
-        return np.size(self.mode.list_absindex_mode)
+        return np.size(self.mode.list_modeidx_abs)
 
     @property
     def n_state(self):
@@ -1191,8 +1219,8 @@ class HopsBasis:
         return self.eom.param["F_DISCARD"]
 
     @property
-    def list_absindex_mode(self):
-        return self.mode.list_absindex_mode
+    def list_modeidx_abs(self):
+        return self.mode.list_modeidx_abs
 
     @property
     def list_w(self):
@@ -1203,12 +1231,9 @@ class HopsBasis:
         return self.mode.list_g
 
     @property
-    def list_L2_csr(self):
-        # Unlike the version in HopsModes, these are not reduced to the current state
-        # basis.
-        return np.array([sparse.csr_array(self.system.param["LIST_L2_COO"][l]) for
-                         l in self.mode.list_absindex_L2])
-
+    def list_l2_extd_csr(self):
+        return self.mode.list_l2_extd_csr
+        
     @property
     def Z2_noise_sparse(self):
         return self._Z2_noise_sparse

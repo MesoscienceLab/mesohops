@@ -1,0 +1,30 @@
+[run]
+source = mesohops
+relative_files = true
+omit =
+    */tests/*
+    */test_*
+    setup.py
+    */venv/*
+    */virtualenv/*
+    */site-packages/*
+    */timing/timing_analysis.py
+    */timing/helper_functions/*
+    */timing/timing_models/*
+    */timing/__init__.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+[html]
+directory = htmlcov

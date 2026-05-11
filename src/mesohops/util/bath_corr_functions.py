@@ -1,9 +1,11 @@
+import warnings
+
 import numpy as np
 from mesohops.util.physical_constants import kB
 
 __title__ = "bath_corr_functions"
 __author__ = "D. I. G. Bennett, J. K. Lynd"
-__version__ = "1.2"
+__version__ = "1.6"
 
 # Bath Correlation Functions
 # --------------------------
@@ -13,58 +15,113 @@ __version__ = "1.2"
 
 
 
-def bcf_convert_dl_ud_to_exp(lambda_dl, gamma_dl, omega_dl, temp):
+def bcf_convert_bo_to_exp(lambda_bo, gamma_bo, omega_bo, temp,
+                          k_matsubara=0):
     """
-    Converts underdamped Drude-Lorentz spectral density parameters to the exponential
-    equivalent. Assumes that omega_dl (the underdamped frequency) is larger than
-    gamma_dl (the reorganization timescale). Does not account for Matsubara modes.
+    Converts Brownian oscillator spectral density parameters to an exponential
+    bath correlation function via contour integration over the upper half-plane.
+
+    Handles both underdamped (gamma < omega) and overdamped (gamma > omega)
+    regimes using the general residue result. Raises an error for the critically
+    damped case (gamma = omega) where the spectral density poles are degenerate.
 
     Parameters
     ----------
-    1. lambda_sdl : float
-                    Reorganization energy [units: cm^-1].
+    1. lambda_bo: float
+                  Reorganization energy [units: cm^-1].
 
-    2. gamma_sdl : float
-                   Reorganization time scale [units: cm^-1].
+    2. gamma_bo: float
+                 Damping rate [units: cm^-1].
 
-    3. omega_sdl : float
-                   Vibrational frequency [units: cm^-1].
+    3. omega_bo: float
+                 Characteristic vibrational frequency [units: cm^-1].
 
-    4. temp : float
-              Temperature [units: K].
+    4. temp: float
+             Temperature [units: K].
+
+    5. k_matsubara: int
+               Number of Matsubara frequency corrections.
 
     Returns
     -------
     1. list_modes: list(complex)
-                   List of the exponential modes that comprise the correlation
-                   function, alternating gs and ws (complex, [cm^-2] and [cm^-1],
-                   representing the constant prefactor and exponential decay rate,
-                   respectively)
+                   Exponential modes that comprise the correlation function,
+                   alternating gs and ws ([units: cm^-2] and [units: cm^-1],
+                   representing the constant prefactor and exponential decay
+                   rate, respectively).
     """
-    beta = 1 / (kB * temp)
-    xi = np.sqrt(omega_dl**2 - gamma_dl**2)
-    prefactor_base = (lambda_dl * omega_dl**2)/(2 * xi)
-    w_1 = xi + 1j*gamma_dl
-    w_2 = -1*xi + 1j*gamma_dl
-    g_1 = prefactor_base
-    g_2 = -prefactor_base
-    coth_w_1 = 1 / np.tanh(w_1*beta/2)
-    coth_w_2 = 1 / np.tanh(w_2*beta/2)
-    g_1 += (coth_w_1 - np.conj(coth_w_2)) * prefactor_base
-    g_2 += (-coth_w_2 + np.conj(coth_w_1)) * prefactor_base
+    if np.isclose(gamma_bo, omega_bo, rtol=1e-10):
+        raise ValueError(
+            'Critical damping (gamma = omega) produces degenerate poles and '
+            f'is not supported. Got: gamma={gamma_bo}, omega={omega_bo}.'
+        )
 
-    # # Test to prove that this expression is the same as the high-temperature
-    # # approximation of equation S52 from Bennet et al., Supplementary Information:
-    # # Mechanistic regimes of vibronic transport in a heterodimer and the design
-    # # principle of incoherent vibronic transport in phycobiliproteins, J. Phys. Chem.
-    # # Lett., 2018, https://doi.org/10.1021/acs.jpclett.8b00844:
-    # t_axis = np.arange(0, 0.21, 0.01)
-    # exp_form = g_1*np.exp(1j*w_1*t_axis) + g_2*np.exp(1j*w_2*t_axis)
-    # analytic_form = (lambda_dl*(gamma_dl**2 + xi**2)/xi) * np.exp(-1*gamma_dl*t_axis)\
-    #                 * (2*(np.sin(beta*gamma_dl)*np.sin(xi*t_axis) + np.sinh(
-    #     beta*xi)*np.cos(xi*t_axis))/(np.cosh(beta*xi)-np.cos(beta*gamma_dl)) +
-    #                    1j*np.sin(xi*t_axis))
-    return [g_1, -1j*w_1, g_2, -1j*w_2]
+    if temp <= 0:
+        raise ValueError(
+            f'Temperature must be positive. Got: temp={temp}.'
+        )
+
+    if abs(gamma_bo - omega_bo) < 1.0:
+        warnings.warn(
+            f'Near-critical damping (|gamma - omega| = '
+            f'{abs(gamma_bo - omega_bo):.2e} cm^-1) may cause large, '
+            f'poorly converged prefactors.',
+            stacklevel=2,
+        )
+
+    beta = 1 / (kB * temp)
+
+    # Upper half-plane poles of J(w): w_+/- = i*gamma +/- sqrt(Omega^2 - gamma^2)
+    # The complex square root unifies the underdamped regime (real sqrt gives
+    # oscillatory poles) and overdamped regime (imaginary sqrt gives purely
+    # decaying poles) without branching logic.
+    omega_d = np.sqrt(omega_bo**2 - gamma_bo**2 + 0j)
+    omega_plus = omega_d + 1j * gamma_bo
+    omega_minus = -omega_d + 1j * gamma_bo
+    # Mode ordering after HOPS conversion w = -i*pole:
+    #   Underdamped: w_+ = gamma - i*omega_d, w_- = gamma + i*omega_d
+    #               (conjugate pair, both decay at rate gamma)
+    #   Overdamped:  w_+ = gamma + kappa,     w_- = gamma - kappa
+    #               (w_+ is the fast-decaying mode, w_- is the slow mode)
+
+    # Spectral density contribution to C(t).
+    # J(w) = N(w)/D(w) has simple poles where D(w) = 0. For a simple pole at
+    # w_k, the residue is N(w_k) / D'(w_k) where D' is the derivative of D.
+    # Here N(w) = 4*lambda*gamma*Omega^2*w and D'(w) = -4w*(Omega^2 - w^2)
+    # + 8*gamma^2*w share a common factor of 4*w, leaving the simplified
+    # denominator below: -(Omega^2 - w_k^2) + 2*gamma^2.
+    list_modes = []
+    for pole in [omega_plus, omega_minus]:
+        denom = -(omega_bo**2 - pole**2) + 2 * gamma_bo**2
+        coth_val = 1 / np.tanh(beta * pole / 2)
+        g = (1j * lambda_bo * gamma_bo * omega_bo**2
+             * (coth_val - 1) / denom)
+        # Convert contour convention e^{i*w*t} to HOPS convention e^{-w*t}
+        w = -1j * pole
+        list_modes.extend([g, w])
+
+    # Matsubara poles: coth(beta*w/2) has simple poles on the imaginary axis
+    # at w_k = i*nu_k where nu_k = 2*pi*k/beta. The k=0 pole is cancelled
+    # because J(w) vanishes linearly at w=0. Each remaining pole contributes
+    # a purely real, decaying exponential with prefactor proportional to
+    # J(i*nu_k) evaluated at the imaginary Matsubara frequency.
+    for k in range(1, k_matsubara + 1):
+        nu_k = 2 * np.pi * k / beta
+        denom_mats = ((omega_bo**2 + nu_k**2)**2
+                      - 4 * gamma_bo**2 * nu_k**2)
+        # Warn when denom_mats is near zero: g_mats ~ 1/denom_mats diverges.
+        if abs(denom_mats) < 1e-3 * (omega_bo**2 + nu_k**2)**2:
+            warnings.warn(
+                f'Matsubara mode k={k} has a near-zero denominator '
+                f'(nu_k={nu_k:.2f} cm^-1 is close to a spectral density '
+                f'pole). The prefactor may be unreliable.',
+                stacklevel=2,
+            )
+        g_mats = (-8 * lambda_bo * gamma_bo * omega_bo**2 * nu_k
+                  / (beta * denom_mats))
+        list_modes.extend([g_mats, nu_k])
+
+    return list_modes
 
 
 def bcf_convert_dl_to_exp(lambda_dl, gamma_dl, temp, k_matsubara=0):

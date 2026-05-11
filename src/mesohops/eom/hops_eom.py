@@ -12,6 +12,7 @@ from mesohops.eom.eom_functions import (
 from mesohops.eom.eom_hops_ksuper import calculate_ksuper, update_ksuper
 from mesohops.util.dynamic_dict import Dict_wDefaults
 from mesohops.util.exceptions import UnsupportedRequest
+from mesohops.util.physical_constants import hbar
 
 __title__ = "Equations of Motion"
 __author__ = "D. I. G. B. Raccah, B. Citty"
@@ -60,7 +61,8 @@ class HopsEOM(Dict_wDefaults):
         'K2_kp1',             # K+1 super-operator (upward coupling)
         'Z2_kp1',             # Z+1 super-operator (noise coupling)
         'K2_km1',             # K-1 super-operator (downward coupling)
-        'list_hier_mask_Zp1'  # Hierarchy mask for Z+1 operator
+        'list_hier_mask_Zp1', # Hierarchy mask for Z+1 operator
+        '_hier_timescale'     # The estimated fastest timescale of the hierarchy
     )
 
     def __init__(self, eom_params):
@@ -120,8 +122,10 @@ class HopsEOM(Dict_wDefaults):
         system,
         hierarchy,
         mode,
+        zmem,
         permute_index=None,
         update=False,
+        skip_ksuper=False,
     ):
         """
         Prepares a new derivative function that performs an update
@@ -134,14 +138,19 @@ class HopsEOM(Dict_wDefaults):
         2. hierarchy : instance(HopsHierarchy)
 
         3. mode : instance(HopsMode)
+        
+        4. zmem : instance(HopsZmem)
 
-        4. permute_index : list(int)
+        5. permute_index : list(int)
                            List of rows and columns of non-zero entries that define a
                            permutation matrix.
 
-        5. update : bool
+        6. update : bool
                     True indicates an adaptive calculation while False indicates a
                     non-adaptive calculation.
+
+        7. skip_ksuper : bool
+                         If True, skip recalculating the Krylov super-operators.
 
         Returns
         -------
@@ -151,9 +160,11 @@ class HopsEOM(Dict_wDefaults):
         """
         # Prepares super-operators
         # -----------------------
-        if not update:
+        if skip_ksuper:
+            pass
+        elif not update:
             self.K2_k, self.K2_kp1, self.Z2_kp1, self.K2_km1, self.list_hier_mask_Zp1 = calculate_ksuper(
-                system, 
+                system,
                 hierarchy,
                 mode
             )
@@ -172,9 +183,15 @@ class HopsEOM(Dict_wDefaults):
         # Combines sparse matrices
         # -----------------------
         K2_stable = self.K2_kp1 + self.K2_km1
-        list_L2 = mode.list_L2_coo  # list_L2
-        list_index_L2_active = [list(mode.list_absindex_L2).index(absindex)
-                                      for absindex in system.list_absindex_L2_active]
+        min_K2_k = np.min(self.K2_k)
+        if min_K2_k == 0:
+            self._hier_timescale = np.inf
+        else:
+            self._hier_timescale = hbar / np.abs(min_K2_k)
+        list_L2 = mode.list_L2_coo
+        # Map absolute L2 indices to relative indices in the current mode basis
+        list_activel2idx_rel = [list(mode.list_l2idx_abs).index(absindex)
+                                      for absindex in system.list_activel2idx_abs]
         if (self.param["EQUATION_OF_MOTION"] == "NORMALIZED NONLINEAR"
                 or self.param["EQUATION_OF_MOTION"] == "NONLINEAR"):
             nmode = len(hierarchy.auxiliary_list[0])
@@ -187,10 +204,10 @@ class HopsEOM(Dict_wDefaults):
             aux0 = hierarchy.auxiliary_list[0]
             for absmode in aux0.dict_aux_p1.keys():
                 index_aux = aux0.dict_aux_p1[absmode]._index
-                relmode = list(mode.list_absindex_mode).index(absmode)
+                relmode = list(mode.list_modeidx_abs).index(absmode)
                 index_l2 = mode.list_index_L2_by_hmode[relmode]
-                if index_l2 in list_index_L2_active:
-                    actindex_l2 = list_index_L2_active.index(index_l2)
+                if index_l2 in list_activel2idx_rel:
+                    actindex_l2 = list_activel2idx_rel.index(index_l2)
                     list_tuple_index_phi1_L2_mode.append([index_aux, actindex_l2, relmode])
 
             def dsystem_dt(
@@ -204,15 +221,19 @@ class HopsEOM(Dict_wDefaults):
                 list_L2=list_L2,
                 list_L2_masks = mode.list_L2_masks,
                 list_index_L2_by_hmode=mode.list_index_L2_by_hmode,
-                list_mode_absindex_L2=system.param["LIST_INDEX_L2_BY_HMODE"],
                 nsys=system.size,
-                list_absindex_L2=mode.list_absindex_L2,
-                list_absindex_mode=mode.list_absindex_mode,
-                list_index_L2_active=list_index_L2_active,
-                list_g=system.param["G"],
-                list_w=system.param["W"],
+                list_l2idx_abs=mode.list_l2idx_abs,
+                list_modeidx_abs=mode.list_modeidx_abs,
+                list_zmemmodeidx_abs=zmem.list_zmemmodeidx_abs,
+                list_zmemactivemodeidx_rel=zmem.list_zmemactivemodeidx_rel,
+                list_activel2idx_rel=list_activel2idx_rel,
+                list_g=mode.list_g,
+                list_w=mode.list_w,
+                list_zmemg_abs =zmem.list_zmemg_abs,
+                list_zmemw_abs = zmem.list_zmemw_abs,
                 list_lt_corr_param=system.list_lt_corr_param,
                 list_L2_csr = mode.list_L2_csr,
+                list_l2_nz_csr = mode.list_l2_nz_csr,
                 list_L2_sq_csr = mode.list_L2_sq_csr,
                 list_tuple_index_phi1_L2_mode=list_tuple_index_phi1_L2_mode,
             ):
@@ -263,59 +284,88 @@ class HopsEOM(Dict_wDefaults):
                             Component of the super operator that is multiplied by
                             noise z and maps the (K+1) hierarchy to the kth hierarchy.
 
-                7. list_L2 : np.array(sparse matrix)
+                7. list_hier_mask_Zp1 : list(tuple(np.array, np.array, np.array))
+                                        Precomputed masks and indices used to apply
+                                        Z2_kp1 on the (k+1) hierarchy for each active
+                                        L-operator.
+
+                8. list_L2 : np.array(sparse matrix)
                              List of L operators.
 
-                8. list_index_L2_by_hmode : list(int)
-                                            List of length equal to the number of modes
-                                            in the current hierarchy basis and each
-                                            entry is an index for the relative list_L2.
-                9. list_mode_absindex_L2 : list(int)
-                                           List of length equal to the number of
-                                           'modes' in the current hierarchy basis and
-                                           each entry is an index for the absolute
-                                           list_L2.
-                10. nsys : int
-                           Current dimension (size) of the system basis.
+                9. list_L2_masks : list(tuple(np.array, np.array))
+                                   Precomputed masks used to apply each sparse
+                                   L-operator to the flattened hierarchy.
 
-                11. list_absindex_L2 : list(int)
-                                       List of length equal to the number of L-operators
-                                       in the current system basis where each element
-                                       is the index for the absolute list_L2.
+                10. list_index_L2_by_hmode : list(int)
+                                             List of length equal to the number of modes
+                                             in the current hierarchy basis and each
+                                             entry is an index for the relative list_L2.
 
-                12. list_absindex_mode : list(int)
-                                         List of length equal to the number of modes in
-                                         the current system basis that corresponds to
-                                         the absolute index of the modes.
+                11. nsys : int
+                            Current dimension (size) of the system basis.
 
-                13. list_index_L2_active : list(int)
-                                           List of relative indices of L-operators that have any
-                                           non-zero values.
+                12. list_l2idx_abs : list(int)
+                                      List of length equal to the number of L-operators
+                                      in the current system basis where each element
+                                      is the index for the absolute list_L2.
 
-                14. list_g : list(complex)
+                13. list_modeidx_abs : list(int)
+                                        List of length equal to the number of modes in
+                                        the current mode basis that corresponds to
+                                        the absolute index of the modes.
+
+                14. list_zmemmodeidx_abs : list(int)
+                                            List of length equal to the number of modes in
+                                            z_mem that corresponds to the absolute index of
+                                            the modes.
+
+                15. list_zmemactivemodeidx_rel : list(int)
+                                                 List of length equal to the number of modes in the
+                                                 current mode basis corresponding to relative index
+                                                 in z_mem.
+
+                16. list_activel2idx_rel : list(int)
+                                            List of relative indices of L-operators that have any
+                                            non-zero values.
+
+                17. list_g : list(complex)
                              List of pre exponential factors for bath correlation
                              functions.
 
-                15. list_w : list(complex)
+                18. list_w : list(complex)
                              List of exponents for bath correlation functions (w =
                              γ+iΩ).
 
-                16. list_lt_corr_param : list(complex)
+                19. list_zmemg_abs : list(complex)
+                                      List of pre exponential factors for bath
+                                      correlation functions used in z_mem.
+                                      Indexed over list_zmemmodeidx_abs.
+
+                20. list_zmemw_abs : list(complex)
+                                      List of exponents for bath correlation
+                                      functions used in z_mem.
+                                      Indexed over list_zmemmodeidx_abs.
+
+                21. list_lt_corr_param : list(complex)
                                          List of low-temperature correction factors.
 
-                17. list_L2_csr : np.array(sparse matrix)
+                22. list_L2_csr : np.array(sparse matrix)
                                   L-operators in csr format in the current basis.
 
-                18. list_L2_sq_csr : np.array(sparse matrix)
-                                     Squared L-operators in csr format in the current
-                                     basis.
+                23. list_l2_nz_csr : np.array(sparse matrix)
+                                      L-operators in csr format, truncated to only nonzero
+                                      entries.
 
-                19. list_tuple_index_phi1_index_L2 : list(int)
-                                                     List of tuples with each tuple
-                                                     containing the index of the first
-                                                     auxiliary mode (phi1) in the
-                                                     hierarchy and the index of the
-                                                     corresponding L operator.
+                24. list_L2_sq_csr : np.array(sparse matrix)
+                                      Squared L-operators in csr format in the current
+                                      basis.
+
+                25. list_tuple_index_phi1_L2_mode : list(tuple)
+                                                    List of tuples with each tuple
+                                                    containing the index of the first
+                                                    auxiliary mode (phi1) in the
+                                                    hierarchy and the index of the
+                                                    corresponding L operator.
 
                 Returns
                 -------
@@ -329,14 +379,14 @@ class HopsEOM(Dict_wDefaults):
                 # Construct noise terms
                 # ---------------------
                 z_hat1_tmp = (np.conj(z_rnd1_tmp) + compress_zmem(
-                    z_mem1_tmp, list_index_L2_by_hmode, list_absindex_mode
-                ))[list_index_L2_active]
-                z_tmp2 = z_rnd2_tmp[list_index_L2_active]
+                    z_mem1_tmp, list_index_L2_by_hmode, list_zmemactivemodeidx_rel
+                ))[list_activel2idx_rel]
+                z_tmp2 = z_rnd2_tmp[list_activel2idx_rel]
 
                 # Construct other fluctuating terms
                 # ---------------------------------
                 list_avg_L2 = [operator_expectation(list_L2[index], Φ[:nsys])
-                               for index in list_index_L2_active] # <L>
+                               for index in list_activel2idx_rel] # <L>
 
                 norm_corr = 0
                 if self.normalized:
@@ -344,11 +394,11 @@ class HopsEOM(Dict_wDefaults):
                         Φ,
                         z_hat1_tmp,
                         list_avg_L2,
-                        list_L2[list_index_L2_active],
+                        list_L2[list_activel2idx_rel],
                         nsys,
                         list_tuple_index_phi1_L2_mode,
-                        np.array([list_g[m] for m in list_absindex_mode]),
-                        np.array([list_w[m] for m in list_absindex_mode]),
+                        list_g,
+                        list_w,
                     )
                     
                 # Check for a low-temperature correction stemming from flux from
@@ -358,7 +408,7 @@ class HopsEOM(Dict_wDefaults):
                     # Find <L^2>
                     list_avg_L2_sq = [operator_expectation(list_L2_sq_csr[index],
                                                            Φ[:nsys])
-                                      for index in list_index_L2_active]  # <L^2>
+                                      for index in list_activel2idx_rel]  # <L^2>
                     
                     # Gets LT correction to the physical wavefunction stemming from
                     # the terminator approximation to the Markovian auxiliaries and
@@ -366,9 +416,9 @@ class HopsEOM(Dict_wDefaults):
                     # approximation of noise memory drift
                     C2_LT_corr_physical, C2_LT_corr_hier = calc_LT_corr(
                         np.array(list_lt_corr_param),
-                        list_L2_csr[list_index_L2_active],
+                        list_L2_csr[list_activel2idx_rel],
                         list_avg_L2,
-                        list_L2_sq_csr[list_index_L2_active]
+                        list_L2_sq_csr[list_activel2idx_rel]
                     )
 
                     if self.normalized:
@@ -393,8 +443,6 @@ class HopsEOM(Dict_wDefaults):
                 Φ_deriv_view_F = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
                 Φ_deriv_view_C = np.asarray(Φ_deriv).reshape([hierarchy.size,system.size],order="C")
                 
-                
-                
                 # Implement the low-temperature correction
                 if any(np.array(list_lt_corr_param)):
                     Φ_deriv += (C2_LT_corr_hier @ Φ_view_F).reshape([system.size * hierarchy.size],order="F")
@@ -408,15 +456,13 @@ class HopsEOM(Dict_wDefaults):
                 
                 
                 for j in range(len(list_avg_L2)):
-                    rel_index = list_index_L2_active[j]
+                    rel_index = list_activel2idx_rel[j]
                     # ASSUMING: L = L^*
                     
                     Φ_view_red = Φ_view_F[list_L2_masks[rel_index][1],:]
-                    list_L2_csr_red = list_L2_csr[rel_index][list_L2_masks[rel_index][2]]
-                    
                     Φ_deriv_view_F[list_L2_masks[rel_index][0],:] += (
                             (z_hat1_tmp[j] - 1.0j * z_tmp2[j]) *
-                            (list_L2_csr_red @ Φ_view_red)
+                            (list_l2_nz_csr[rel_index] @ Φ_view_red)
                     )
                     
                     Φ_view_red = Φ_view_C[list_hier_mask_Zp1[rel_index][1],:]
@@ -431,11 +477,13 @@ class HopsEOM(Dict_wDefaults):
                 z_mem1_deriv = calc_delta_zmem(
                     z_mem1_tmp,
                     list_avg_L2,
-                    list_g,
-                    list_w,
-                    list_mode_absindex_L2,
-                    list_absindex_mode,
-                    system.list_absindex_L2_active
+                    list_zmemg_abs,
+                    list_zmemw_abs,
+                    list_index_L2_by_hmode,
+                    list_modeidx_abs,
+                    list_zmemmodeidx_abs,
+                    list_l2idx_abs,
+                    system.list_activel2idx_abs
                 )
 
                 return Φ_deriv, z_mem1_deriv
@@ -509,7 +557,7 @@ class HopsEOM(Dict_wDefaults):
                              Derivative of phi with respect to time.
 
                 2. z_mem1_deriv : np.array(complex)
-                                  Derivative of z_men with respect to time.
+                                  Derivative of z_mem with respect to time.
                 """
 
                 Φ_view_F = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
@@ -550,3 +598,7 @@ class HopsEOM(Dict_wDefaults):
         self.dsystem_dt = dsystem_dt
 
         return dsystem_dt
+
+    @property
+    def hier_timescale(self) -> float:
+        return self._hier_timescale

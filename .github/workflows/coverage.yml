@@ -1,0 +1,106 @@
+name: Code Coverage
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write  # Needed for test reporting
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies (editable)
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Run tests with coverage
+      continue-on-error: true
+      run: |
+        # Run tests and generate both coverage and test report
+        pytest --cov=mesohops --cov-report=xml --cov-report=term --junitxml=test-results.xml -v || true
+
+        # Show test results summary
+        echo "=== Test Results Summary ==="
+        if [ -f test-results.xml ]; then
+          echo "Test results file generated"
+          # Count total tests
+          total_tests=$(grep -c "<testcase" test-results.xml)
+          # Count failed tests
+          failed_tests=$(grep -c "<failure" test-results.xml)
+          echo "Total tests: $total_tests"
+          echo "Failed tests: $failed_tests"
+          echo "Passed tests: $((total_tests - failed_tests))"
+        else
+          echo "No test results file generated"
+        fi
+
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests
+        name: Python Coverage
+        fail_ci_if_error: false
+        verbose: true
+
+    - name: Publish Test Results
+      if: always()
+      uses: mikepenz/action-junit-report@v4
+      with:
+        report_paths: 'test-results.xml'
+        check_name: 'Python Unit Tests (${{ matrix.python-version }})'
+        fail_on_failure: false
+        require_tests: false
+
+  smoke-install:
+    # Validates that `pip install .` (non-editable) succeeds and that the
+    # installed package can run the test suite. Catches packaging bugs the
+    # editable-install coverage job hides — missing files in the wheel,
+    # broken pyproject.toml metadata, dependency-resolution failures.
+    # Gating: a failed clean install must block the PR.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Clean install (non-editable)
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+
+    - name: Run level-1 tests against installed package
+      run: |
+        # Override pytest.ini's addopts to disable coverage measurement here.
+        # Coverage is the editable-install job's responsibility; in the smoke
+        # job, the installed-package paths can't be reconciled with the
+        # `source = mesohops` setting in .coveragerc, so --cov-fail-under=70
+        # would always trip on a 0% reading.
+        pytest tests/ --level 1 -v -o addopts=""

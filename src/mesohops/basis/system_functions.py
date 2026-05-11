@@ -108,7 +108,12 @@ def initialize_system_dict(system_param: Dict[str, Any]) -> Dict[str, Any]:
 
     param_dict["list_L2_off_diag"] = np.array([not np.allclose(L2.col, L2.row)
                                                for L2 in param_dict["LIST_L2_COO"]])
-
+    param_dict["list_dict_L2_nnz"] = [{} for _ in param_dict["LIST_L2_COO"]]
+    for l2_idx, l2_sparse in enumerate(param_dict["LIST_L2_COO"]):
+        dict_nzl2_abs = param_dict["list_dict_L2_nnz"][l2_idx]
+        for row, col, data in zip(l2_sparse.row, l2_sparse.col, l2_sparse.data):
+            key = (row, col)
+            dict_nzl2_abs[key] = dict_nzl2_abs.get(key, 0) + data
     param_dict["LIST_INDEX_L2_BY_STATE_INDICES"] = [[] for i in range(param_dict["NSTATES"])]
     for (index_L2 ,state_indices) in enumerate(param_dict["LIST_STATE_INDICES_BY_INDEX_L2"]):
         for state in state_indices:

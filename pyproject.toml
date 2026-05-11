@@ -1,15 +1,20 @@
 [project]
 name = "mesohops"
-version = "1.6.0"
+version = "1.7.0"
+# numba and numpy are pinned to a single minor version. numba minor
+# releases have introduced stochastic test failures and memory issues,
+# and numba binds against a specific numpy ABI. Upper-bound bumps for
+# either dependency require running the level-2 test suite against the
+# candidate version.
 dependencies = [
-  "numpy",
-  "scipy",
-  "numba",
-  "pytest",
-  "pytest-level",
-  "pytest-cov"
+  "numpy>=2.3,<2.4",
+  "scipy>=1.15,<2.0",
+  "numba>=0.63,<0.64",
+  "pytest>=8.3,<9.0",
+  "pytest-level>=0.1,<0.2",
+  "pytest-cov>=6.0,<7.0",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 authors = [
   {name = "Leonel Varvelo", email = "leonel_varvelo@yahoo.com"},
   {name = "Jacob Lynd", email = "jacobklynd@gmail.com"},
@@ -29,11 +34,15 @@ readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["open quantum systems", "mesoscale", "spectroscopy", "excited-state dynamics", "non-Markovian"]
 classifiers = [
-  "Development Status :: full release 1.6.0",
+  "Development Status :: 5 - Production/Stable",
   "Programming Language :: Python"
 ]
-
 
 [project.urls]
 Homepage = "https://captainexasperated.github.io/Readthedocs-Tutorial/"
 Repository = "https://github.com/MesoscienceLab/mesohops"
+
+[tool.pytest.ini_options]
+markers = [
+  "order: mark test to run in a specific order"
+]

@@ -1,0 +1,25 @@
+comment:
+  layout: "diff, flags, files"  # Shows coverage diff, flags, and file list
+  behavior: default
+  require_changes: false  # Always post comment, even if no coverage changes
+  require_base: false    # Don't require base report
+  require_head: true     # Require head report
+  hide_project_coverage: false  # Show project coverage
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto  # Compare to previous base commit
+        threshold: 0%  # No threshold requirement
+        informational: true  # Don't block PRs
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+        informational: true  # Don't block PRs
+
+codecov:
+  require_ci_to_pass: false  # Show coverage even if CI fails
+  notify:
+    wait_for_ci: false  # Send notifications immediately 

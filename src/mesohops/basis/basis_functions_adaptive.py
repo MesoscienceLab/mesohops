@@ -1,11 +1,12 @@
 import numpy as np
 import scipy.sparse as sparse
-from mesohops.util.exceptions import UnsupportedRequest
 from mesohops.util.physical_constants import hbar
 
 __title__ = "Adaptive Basis Functions"
-__author__ = "J. K. Lynd, D. I. G. B. Raccah, B. Citty"
-__version__ = "1.4"
+__author__ = "J. K. Lynd, D. I. G. B. Raccah, B. Z. Citty"
+__version__ = "1.6"
+
+
 
 def error_deriv(dsystem_dt, Φ, z_step, n_state, n_hier, dt, list_index_aux_stable=None):
     """
@@ -73,7 +74,7 @@ def error_deriv(dsystem_dt, Φ, z_step, n_state, n_hier, dt, list_index_aux_stab
 
     return np.abs(dΦ_dt) ** 2
 
-def error_sflux_hier(Φ, list_s0, list_sc, n_state, n_hier, H2_sparse_hamiltonian,
+def error_sflux_hier(Φ, list_stateidx_extd, list_bndstateidx_extd, n_state, n_hier, H2_hamiltonian_extd,
                                  T2_phys=None, T2_hier=None):
     """
     The error associated with losing all flux out of the kth auxiliary to states not in
@@ -87,24 +88,27 @@ def error_sflux_hier(Φ, list_s0, list_sc, n_state, n_hier, H2_sparse_hamiltonia
     1. Φ : np.array(complex)
            Current full hierarchy vector.
 
-    2. list_s0 : list(int)
-                 List of the current states (absolute index).
+    2. list_stateidx_extd : list(int)
+                            List of relative indices of basis states in H2_hamiltonian_extd
+    
+    3. list_bndstateidx_extd : list(int)
+                               List of relative indices of boundary states in H2_hamiltonian_extd
 
-    3. n_state : int(int)
+    4. n_state : int
                  Number of states in the current state basis.
 
-    4. n_hier : int
+    5. n_hier : int
                 Number of auxiliary wave functions in the current auxiliary basis.
 
-    5. H2_sparse_hamiltonian : sparse array(complex)
-                               self.system.param["SPARSE_HAMILTONIAN"], augmented by
-                               the noise and noise memory drift.
+    6. H2_hamiltonian_extd : np.array(complex)
+                             The local Hamiltonian extended to include boundary states, 
+                             augmented by the noise and noise memory drift
 
-    6. T2_phys : sparse array(complex)
+    7. T2_phys : sparse array(complex)
                  The low-temperature correction operator applied to the physical
                  wave function.
 
-    7. T2_hier : sparse array(complex)
+    8. T2_hier : sparse array(complex)
                  The low-temperature correction operator applied to all auxiliary
                  wave functions, save for the physical.
 
@@ -116,7 +120,8 @@ def error_sflux_hier(Φ, list_s0, list_sc, n_state, n_hier, H2_sparse_hamiltonia
     """
     # Construct the 2D phi and sparse Hamiltonian
     # -------------------------------------------
-    list_s0 = np.array(list_s0)
+    list_stateidx_extd = np.array(list_stateidx_extd)
+    list_bndstateidx_extd = np.array(list_bndstateidx_extd)
     C2_phi = np.asarray(Φ).reshape([n_state, n_hier], order="F")
 
     # Find elements not in the current state basis
@@ -128,8 +133,8 @@ def error_sflux_hier(Φ, list_s0, list_sc, n_state, n_hier, H2_sparse_hamiltonia
 
         # Construct Hamiltonian S_t^c<--S_t
         # ---------------------------------
-        H2_sparse_phys = (H2_sparse_hamiltonian+T2_phys)[np.ix_(list_sc, list_s0)]
-        H2_sparse_hier = (H2_sparse_hamiltonian+T2_hier)[np.ix_(list_sc, list_s0)]
+        H2_sparse_phys = (H2_hamiltonian_extd+T2_phys)[np.ix_(list_bndstateidx_extd, list_stateidx_extd)]
+        H2_sparse_hier = (H2_hamiltonian_extd+T2_hier)[np.ix_(list_bndstateidx_extd, list_stateidx_extd)]
 
         # 1. E[k] is the squared flux error term associated with flux inside of
         # auxiliary k out of the state basis.
@@ -155,9 +160,9 @@ def error_sflux_hier(Φ, list_s0, list_sc, n_state, n_hier, H2_sparse_hamiltonia
         return D1_deriv_abs_sq
 
     else:
-        H2_sparse_hamiltonian = H2_sparse_hamiltonian[np.ix_(list_sc, list_s0)]
+        H2_hamiltonian_extd = H2_hamiltonian_extd[np.ix_(list_bndstateidx_extd, list_stateidx_extd)]
 
-        D2_derivative_abs_sq = np.abs(H2_sparse_hamiltonian @ sparse.csc_array(
+        D2_derivative_abs_sq = np.abs(H2_hamiltonian_extd @ sparse.csc_array(
              C2_phi) / hbar).power(2)
 
         return np.array(np.sum(D2_derivative_abs_sq, axis=0))
@@ -557,10 +562,10 @@ def error_flux_down_hier_stable(Φ, n_state, n_hier, n_hmodes, list_g, list_w,
                              value (when s != d) in the space of [mode,s].
 
     9. X2_exp_lop_mode_state : list(sparse matrix(complex))
-                                 A list indexed by destination states d of the
-                                 expectation values of each L-operator, multiplied by
-                                 identity, with value <L_m> * I[d,s] reshaped into the
-                                 space of [mode, s].
+                               A list indexed by destination states d of the
+                               expectation values of each L-operator, multiplied by
+                               identity, with value <L_m> * I[d,s] reshaped into the
+                               space of [mode, s].
 
     10. F2_filter_aux : np.array(int or bool)
                         Filters out unwanted auxiliary connections in the space of
@@ -667,10 +672,10 @@ def error_flux_down_state_stable(Φ, n_state, n_hier, n_hmodes, list_g, list_w,
                              value (when s != d) in the space of [mode,s].
 
     9. X2_exp_lop_mode_state : list(sparse matrix(complex))
-                                 A list indexed by destination states d of the
-                                 expectation values of each L-operator, multiplied by
-                                 identity, with value <L_m> * I[d,s] reshaped into the
-                                 space of [mode, s].
+                               A list indexed by destination states d of the
+                               expectation values of each L-operator, multiplied by
+                               identity, with value <L_m> * I[d,s] reshaped into the
+                               space of [mode, s].
 
     10. F2_filter_diag : np.array(int or bool)
                          Filters out unwanted auxiliary connections in the space of
@@ -684,9 +689,9 @@ def error_flux_down_state_stable(Φ, n_state, n_hier, n_hmodes, list_g, list_w,
 
     Returns
     -------
-    1. E2_flux_up_error : np.array(float)
-                          Error induced by neglecting flux from higher-lying to
-                          lower-lying auxiliaries. Expressed in the space of [s,k].
+    1. E2_flux_down_error : np.array(float)
+                            Error induced by neglecting flux from higher-lying to
+                            lower-lying auxiliaries. Expressed in the space of [s,k].
     """
     # Get flux factors
     # ----------------
@@ -890,7 +895,7 @@ def error_flux_down_by_dest_state(Φ, n_state, n_hier, n_hmodes, list_g, list_w,
 
     return np.array(list_E_by_dest)
 
-def error_sflux_stable_state(Φ, n_state, n_hier, H2_sparse_hamiltonian,
+def error_sflux_stable_state(Φ, n_state, n_hier, H2_hamiltonian_extd,
                                          list_index_aux_stable, list_states,
                                          T2_phys=None, T2_hier=None):
     """
@@ -911,15 +916,15 @@ def error_sflux_stable_state(Φ, n_state, n_hier, H2_sparse_hamiltonian,
     3. n_hier : int
                 Number of auxiliary wave functions needed.
 
-    4. H2_sparse_hamiltonian : sparse array(complex)
-                               self.system.param["SPARSE_HAMILTONIAN"], augmented by
-                               the noise and noise memory drift.
+    4. H2_hamiltonian_extd : np.array(complex)
+                             The local Hamiltonian extended to include boundary states, 
+                             augmented by the noise and noise memory drift
 
     5. list_index_aux_stable : list(int)
                                List of relative indices for the stable auxiliaries.
 
     6. list_states : list(int)
-                     List of current states (absolute index).
+                     List of current basis state indices  (relative index).
 
     7. T2_phys : sparse array(complex)
                  The low-temperature correction operator applied to the physical
@@ -943,10 +948,10 @@ def error_sflux_stable_state(Φ, n_state, n_hier, H2_sparse_hamiltonian,
         C2_phi_aux = np.zeros_like(C2_phi)
         C2_phi_aux[:, 1:] = C2_phi[:, 1:]
 
-        H2_sparse_couplings = sparse.csc_array(H2_sparse_hamiltonian) - sparse.diags(
-            H2_sparse_hamiltonian.diagonal(0),
+        H2_sparse_couplings = sparse.csc_array(H2_hamiltonian_extd) - sparse.diags(
+            H2_hamiltonian_extd.diagonal(0),
             format="csc",
-            shape=H2_sparse_hamiltonian.shape,
+            shape=H2_hamiltonian_extd.shape,
         )
         T2_phys_couplings = T2_phys - sparse.diags(T2_phys.diagonal(0), format="csc",
                                          shape=T2_phys.shape)
@@ -983,23 +988,22 @@ def error_sflux_stable_state(Φ, n_state, n_hier, H2_sparse_hamiltonian,
                 + (V1_norm_squared_hier * C1_norm_squared_hier)) / hbar ** 2
 
     else:
-        H2_sparse_couplings = sparse.csc_array(H2_sparse_hamiltonian) - sparse.diags(
-            H2_sparse_hamiltonian.diagonal(0),
+        H2_sparse_couplings = sparse.csc_array(H2_hamiltonian_extd) - sparse.diags(
+            H2_hamiltonian_extd.diagonal(0),
             format="csc",
-            shape=H2_sparse_hamiltonian.shape,
+            shape=H2_hamiltonian_extd.shape,
         )
-        H2_sparse_hamiltonian = H2_sparse_couplings[:, list_states]
+        H2_hamiltonian_extd = H2_sparse_couplings[:, list_states]
 
-        V1_norm_squared = np.array(np.sum(np.abs(H2_sparse_hamiltonian).power(2), axis=0))
+        V1_norm_squared = np.array(np.sum(np.abs(H2_hamiltonian_extd).power(2), axis=0))
         C1_norm_squared_by_state = np.sum(np.abs(C2_phi) ** 2, axis=1)
         return V1_norm_squared * C1_norm_squared_by_state / hbar**2
 
-def error_sflux_boundary_state(Φ, list_s0, list_sc, n_state, n_hier,
-                                           H2_sparse_hamiltonian,
-                                           list_index_state_stable,
-                                           list_index_aux_stable, list_sc_dest,
-                                           list_flux_updown, T2_phys=None,
-                                           T2_hier=None):
+def error_sflux_boundary_state(Φ, list_stblstateidx_extd, list_fullbndidx_abs,
+                               list_bndstateidx_extd, n_state, n_hier, H2_hamiltonian_extd,
+                               list_stblstateidx_rel, list_index_aux_stable,
+                               list_fullbnddestidx_rel, list_flux_updown, T2_phys=None,
+                               T2_hier=None):
     """
     Determines the error associated with neglecting flux into d, not a member of S_t.
     Includes the previously-calculated upper bound on fluxes up and down to destination
@@ -1013,40 +1017,45 @@ def error_sflux_boundary_state(Φ, list_s0, list_sc, n_state, n_hier,
     1. Φ : np.array(complex)
            Current full hierarchy vector.
 
-    2. list_s0 : list(int)
-                 Current stable states in absolute index.
+    2. list_stblstateidx_extd : list(int)
+                                Relative indices of stable states in the extended
+                                Hamiltonian basis.
 
-    3. list_sc : list(int)
-                 States not in the current basis in absolute index.
+    3. list_fullbndidx_abs : list(int)
+                          List of states in the boundary in absolute index.
 
-    3. n_state : int
+    4. list_bndstateidx_extd : list(int)
+                               Relative indices of boundary states in the extended
+                               Hamiltonian basis.
+
+    5. n_state : int
                  Number of states in the current state basis.
 
-    4. n_hier : int
+    6. n_hier : int
                 Number of auxiliary wave functions in the current auxiliary basis.
 
-    5. H2_sparse_hamiltonian : sparse array(complex)
-                               self.system.param["SPARSE_HAMILTONIAN"], augmented by
-                               the noise and noise memory drift.
+    7. H2_hamiltonian_extd : np.array(complex)
+                             The local Hamiltonian extended to include boundary states,
+                             augmented by the noise and noise memory drift.
 
-    6. list_index_state_stable : list(int)
-                                 List of stable states in relative index.
+    8. list_stblstateidx_rel : list(int)
+                               Relative indices of stable states in Φ (0..n_state-1).
 
-    7. list_index_aux_stable : list(int)
-                               List of stable auxiliaries in relative index.
+    9. list_index_aux_stable : list(int)
+                               List of relative indices of stable auxiliaries in Φ.
 
-    8. list_sc_dest : list(int)
-                             List of states not in the current basis that receive
-                             flux up or down in the index of list_sc.
+    10. list_fullbnddestidx_rel : list(int)
+                               List of states not in the current basis that receive
+                               flux up or down in the index of list_fullbndidx_abs.
 
-    9. list_flux_updown : list(float)
-                          The squared total flux up and down into each state in
-                          list_sc_dest.
+    11. list_flux_updown : list(float)
+                           The squared total flux up and down into each state in
+                           list_fullbnddestidx_rel.
 
-    10. T2_phys : sparse array(complex)
+    12. T2_phys : sparse array(complex)
                   The low-temperature correction operator applied to the physical
                   wave function.
-    11. T2_hier : sparse array(complex)
+    13. T2_hier : sparse array(complex)
                   The low-temperature correction operator applied to all auxiliary
                   wave functions, save for the physical.
 
@@ -1058,24 +1067,23 @@ def error_sflux_boundary_state(Φ, list_s0, list_sc, n_state, n_hier,
     2. E1_sum_error : list(float)
                       Error associated with flux into state in S_t^c.
     """
-    if not len(list_index_state_stable) < H2_sparse_hamiltonian.shape[0]:
+    if not len(list_stblstateidx_rel) < H2_hamiltonian_extd.shape[0]:
         return [], []
     else:
         # Remove aux components from H0\H1
         # -------------------------------------
         C2_phi = np.array(Φ).reshape([n_state, n_hier], order="F")[
-            np.ix_(list_index_state_stable, list_index_aux_stable)
+            np.ix_(list_stblstateidx_rel, list_index_aux_stable)
         ]
-
         if T2_phys is not None:
-            C1_phi_phys = C2_phi[:,0].reshape([1,len(list_index_state_stable)]).T
+            C1_phi_phys = C2_phi[:,0].reshape([1,len(list_stblstateidx_rel)]).T
             C2_phi_aux = C2_phi[:,1:]
 
             # Construct Hamiltonian
             # =====================
             # Construct Hamiltonian S_t^c<--S_s
             # ---------------------------------
-            H2_sparse_phys = (H2_sparse_hamiltonian+T2_phys)[np.ix_(list_sc, list_s0)]
+            H2_sparse_phys = (H2_hamiltonian_extd+T2_phys)[np.ix_(list_bndstateidx_extd, list_stblstateidx_extd)]
 
             # Determine Boundary States
             # -------------------------
@@ -1109,8 +1117,8 @@ def error_sflux_boundary_state(Φ, list_s0, list_sc, n_state, n_hier,
             ).power(2)
             E1_sum_error = C1_phi_deriv_phys.toarray().flatten()
             if len(C2_phi_aux) > 0:
-                H2_sparse_aux = (H2_sparse_hamiltonian + T2_hier)[np.ix_(list_sc,
-                                                                               list_s0)]
+                H2_sparse_aux = (H2_hamiltonian_extd + T2_hier)[np.ix_(list_bndstateidx_extd,
+                                                                               list_stblstateidx_extd)]
                 C2_phi_deriv = np.abs(
                     H2_sparse_aux @ sparse.csc_array(C2_phi_aux / hbar)
                 ).power(2)
@@ -1118,7 +1126,7 @@ def error_sflux_boundary_state(Φ, list_s0, list_sc, n_state, n_hier,
 
 
         else:
-            H2_sparse_couplings = H2_sparse_hamiltonian[np.ix_(list_sc, list_s0)]
+            H2_sparse_couplings = H2_hamiltonian_extd[np.ix_(list_bndstateidx_extd, list_stblstateidx_extd)]
             C2_phi_deriv = np.abs(
                 H2_sparse_couplings @ sparse.csc_array(C2_phi / hbar)
             ).power(2)
@@ -1126,7 +1134,7 @@ def error_sflux_boundary_state(Φ, list_s0, list_sc, n_state, n_hier,
 
         # Add the error associated with fluxes up and down to the appropriate states
         # outside the basis.
-        E1_sum_error[list_sc_dest] += list_flux_updown
-        return (np.array(list_sc)[E1_sum_error.nonzero()[0]],
+        E1_sum_error[list_fullbnddestidx_rel] += list_flux_updown
+        return (np.array(list_fullbndidx_abs)[E1_sum_error.nonzero()[0]],
                 np.array(E1_sum_error[E1_sum_error.nonzero()[0]])
         )

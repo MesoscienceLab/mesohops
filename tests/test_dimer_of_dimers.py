@@ -198,11 +198,11 @@ def test_integration_variables():
     # You must select an initial time and time step that will match the t-axis of the
     # hopstrajectory object.
     var_list_lap = hops.integration_var([1, 1, 1, 1], 2873, 0, hops.noise1,
-                                          hops.noise2, 4.0, {},hops.basis.mode.list_absindex_L2)  #this storage input should be something else probably
+                                          hops.noise2, 4.0, {},hops.basis.mode.list_l2idx_abs)  #this storage input should be something else probably
     var_list_desk["phi"] = [1,1,1,1]
     var_list_desk["z_mem"] = 2873
-    var_list_desk["z_rnd"] = hops.noise1.get_noise([0, 2, 4],hops.basis.mode.list_absindex_L2)
-    var_list_desk["z_rnd2"] = hops.noise2.get_noise([0, 2, 4],hops.basis.mode.list_absindex_L2)
+    var_list_desk["z_rnd"] = hops.noise1.get_noise([0, 2, 4],hops.basis.mode.list_l2idx_abs)
+    var_list_desk["z_rnd2"] = hops.noise2.get_noise([0, 2, 4],hops.basis.mode.list_l2idx_abs)
     var_list_desk["tau"] = 4.0
 
     flag_pass = True
@@ -227,16 +227,16 @@ def test_eta():
     # To re-save hard-coded dynamics if noise generation changes
     '''
     alpha_lap = hops.noise1._corr_func_by_lop_taxis(hops.noise1.param["T_AXIS"],list(np.arange(n_lop)))
-    z_correlated = hops.noise1._construct_correlated_noise(alpha_lap,
+    Z2_corrnoise = hops.noise1._construct_correlated_noise(alpha_lap,
                                            hops.noise1.param["Z_UNCORRELATED"])[0, :]
-    np.save(path_data + "/eta.npy",z_correlated)
+    np.save(path_data + "/eta.npy",Z2_corrnoise)
     '''
 
     eta_desk = np.load(path_data + "/eta.npy")
     alpha_lap = hops.noise1._corr_func_by_lop_taxis(hops.noise1.param["T_AXIS"],list(np.arange(n_lop)))
-    z_correlated = hops.noise1._construct_correlated_noise(alpha_lap,
+    Z2_corrnoise = hops.noise1._construct_correlated_noise(alpha_lap,
                                             hops.noise1.param["Z_UNCORRELATED"])[0, :]
-    np.testing.assert_allclose(z_correlated, eta_desk, rtol=1E-10)
+    np.testing.assert_allclose(Z2_corrnoise, eta_desk, rtol=1E-10)
 
 
 def test_hops_dynamics():
@@ -335,7 +335,7 @@ def test_hops_adaptive_dynamics_partial():
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
         _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
-        for index_l2 in hops_ah.basis.mode.list_absindex_L2
+        for index_l2 in hops_ah.basis.mode.list_l2idx_abs
     ]
 
     # Compare reduced hops to adhops super operators
@@ -375,7 +375,7 @@ def test_hops_adaptive_dynamics_partial():
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
         _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
-        for index_l2 in hops_ah.basis.mode.list_absindex_L2
+        for index_l2 in hops_ah.basis.mode.list_l2idx_abs
     ]
 
     # Compare reduced hops to adhops super operators
@@ -415,7 +415,7 @@ def test_hops_adaptive_dynamics_partial():
     Km1 = _permute_aux_by_matrix(hops.basis.eom.K2_km1, P2_permute)
     Zp1 = [
         _permute_aux_by_matrix(hops.basis.eom.Z2_kp1[index_l2], P2_permute2)
-        for index_l2 in hops_ah.basis.mode.list_absindex_L2
+        for index_l2 in hops_ah.basis.mode.list_l2idx_abs
     ]
 
     # Compare reduced hops to adhops super operators

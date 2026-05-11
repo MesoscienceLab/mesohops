@@ -182,6 +182,7 @@ class HopsTrajectory:
         # -----------------------
         eom = HopsEOM(eom_param)
         system = HopsSystem(system_param)
+        system.param.setdefault("list_permanent_sites", None)
         hierarchy = HopsHierarchy(hierarchy_param, system.param)
 
         self.noise_param = noise_param
@@ -231,6 +232,14 @@ class HopsTrajectory:
             INTEGRATION_DICT_TYPES,
             "integration_param in the HopsTrajectory initialization",
         )
+        if self.early_steps <= 0:
+            self.integration_param['EARLY_INTEGRATOR_STEPS'] \
+                = INTEGRATION_DICT_DEFAULT['EARLY_INTEGRATOR_STEPS']
+            warnings.warn(f'Early integrator steps was set to 0 in the integration '
+                          f'parameter dictionary, potentially causing '
+                          f'difficult-to-diagnose convergence issues in adaptive '
+                          f'calculations. The number of early integrator steps has '
+                          f'been reset to the default of {self.early_steps}.')
         self._early_step_counter = 0
         if self.integrator == "RUNGE_KUTTA":
             from mesohops.integrator.integrator_rk import (
@@ -282,48 +291,47 @@ class HopsTrajectory:
             # Prepares the derivative
             # ----------------------
             self.dsystem_dt = self.basis.initialize(psi_0)
+            self.z_mem = np.zeros(len(self.basis.noise_memory.list_zmemmodeidx_abs),dtype=np.complex128)
             # Initializes System State
             # -----------------------
             self.storage.n_dim = self.basis.system.param["NSTATES"]
             phi_tmp = np.zeros(self.n_hier * self.n_state, dtype=np.complex128)
             phi_tmp[: self.n_state] = np.array(psi_0)[self.state_list]
-            self.z_mem = sp.sparse.coo_array(
-                                (len(self.basis.system.param["L_NOISE1"]),1)
-                                ,dtype=np.complex128).tocsr()
             if self.basis.adaptive:
                 if self.static_basis is None:
                     # Update Basis
                     z_step = self._prepare_zstep(self.z_mem)
                     (state_update, aux_update) = self.basis.define_basis(phi_tmp, 1,
                                                                          z_step)
-                    (phi_tmp, dsystem_dt) = self.basis.update_basis(
-                        phi_tmp, state_update, aux_update
+                    (phi_tmp, self.z_mem, dsystem_dt) = self.basis.update_basis(
+                        phi_tmp, self.z_mem, state_update, aux_update
                     )
                     self.dsystem_dt = dsystem_dt
                 else:
                     # Construct initial basis
-                    list_stable_state = self.state_list
                     list_state_new = list(
                         set(self.state_list).union(set(self.static_basis[0])))
-
-                    list_stable_aux = self.auxiliary_list
                     list_aux_new = list(
                         set(self.auxiliary_list).union(set(self.static_basis[1])))
 
-                    (phi_tmp, dsystem_dt) = self.basis.update_basis(
-                        phi_tmp, list_state_new, list_aux_new
+                    (phi_tmp, self.z_mem, dsystem_dt) = self.basis.update_basis(
+                        phi_tmp, self.z_mem, list_state_new, list_aux_new
                     )
-
                     self.dsystem_dt = dsystem_dt
+
+            self.t = 0
+            self.phi = phi_tmp
 
             # Stores System State
             # ------------------
             self.storage.store_step(
-                phi_new=phi_tmp, aux_list=self.auxiliary_list, state_list=self.state_list,
-                t_new=0, z_mem_new=self.z_mem
+                phi_new=phi_tmp,
+                aux_list=self.auxiliary_list,
+                state_list=self.state_list,
+                t_new=0,
+                z_mem_new=self.z_mem,
+                list_zmemmodeidx_abs=self.basis.noise_memory.list_zmemmodeidx_abs,
             )
-            self.t = 0
-            self.phi = phi_tmp
 
             # Stores initialization time
             # --------------------------
@@ -335,14 +343,13 @@ class HopsTrajectory:
         else:
             raise LockedException("HopsTrajectory.initialize()")
 
-    def make_adaptive(
-        self,
-        delta_a: float = 1e-4,
-        delta_s: float = 1e-4,
-        update_step: int = 1,
-        f_discard: float = 0.01,
-        adaptive_noise: bool = True,
-    ) -> None:
+    def make_adaptive(self,
+                      delta_a: float = 1e-4,
+                      delta_s: float = 1e-4,
+                      update_step: int = 1,
+                      f_discard: float = 0.01,
+                      list_permanent_sites: list[int] | None = None,
+                      adaptive_noise: bool = True) -> None:
         """
         Transforms a not-yet-initialized HOPS trajectory from a standard HOPS to an
         adaptive HOPS approach.
@@ -364,6 +371,14 @@ class HopsTrajectory:
                        Fraction of the boundary error devoted to removing error
                        terms from list_e2_kflux for memory conservation (recommended
                        value: 0.2).
+
+        5. list_permanent_sites : list(int) or None
+                                  System state indices that should always be retained
+                                  in the adaptive system basis.
+
+        6. adaptive_noise : bool
+                            If True, uses adaptive noise treatment; if False, disables
+                            adaptive noise updates.
 
         Returns
         -------
@@ -394,6 +409,7 @@ class HopsTrajectory:
                 self.noise1.param["ADAPTIVE"] = True
                 self.noise2.param["ADAPTIVE"] = True
 
+            self.basis.system.param["list_permanent_sites"] = list_permanent_sites
 
         else:
             raise TrajectoryError("Calling make_adaptive on an initialized trajectory")
@@ -438,25 +454,38 @@ class HopsTrajectory:
 
             else:
                 raise TrajectoryError(
-                    "Timesteps("
+                    "Timesteps ("
                     + str(tau * self.integrator_step)
                     + ") that do not match noise.param['TAU'] ("
                     + str(self.noise1.param["TAU"])
                     + ")"
                 )
 
-        if (t0 + t_advance + tau) > self.noise1.param["TLEN"]:
+        if np.max(t_axis) > self.noise1.param["TLEN"]:
             raise TrajectoryError(
-                "Trajectory times longer than noise.param['TLEN'] ="
-                + str(self.noise1.param["TLEN"])
+                "Trajectory times longer than noise.param['TLEN'] ("
+                + str(self.noise1.param["TLEN"]) + ")"
             )
+
+        # Set up timestep resolution warnings
+        tau_sys = None
+        tau_hier = None
 
         # Performs integration
         # -------------------
         for (index_t, t) in enumerate(t_axis):
+            # Check that timestep is resolved
+            if (tau > self.basis.system.system_timescale and
+                    (tau_sys is None or tau_sys > self.basis.system.system_timescale)):
+                tau_sys = self.basis.system.system_timescale
+
+            if (tau > self.basis.eom.hier_timescale and
+                    (tau_hier is None or tau_hier > self.basis.eom.hier_timescale)):
+                tau_hier = self.basis.eom.hier_timescale
+
             var_list = self.integration_var(self.phi, self.z_mem, self.t, self.noise1,
                                             self.noise2, tau, self.storage,
-                                            self.basis.mode.list_absindex_L2,
+                                            self.basis.mode.list_l2idx_abs,
                                             self.effective_noise_integration)
             phi, z_mem = self.step(self.dsystem_dt, **var_list)
             phi = self.normalize(phi)
@@ -493,8 +522,8 @@ class HopsTrajectory:
                                 break
 
                         # Update basis
-                        (phi, self.dsystem_dt) = self.basis.update_basis(
-                            phi, state_update, aux_update
+                        (phi, z_mem, self.dsystem_dt) = self.basis.update_basis(
+                            phi, z_mem, state_update, aux_update
                         )
 
                     # Early Integrator: Static Basis
@@ -520,22 +549,40 @@ class HopsTrajectory:
 
                     # Updates Basis
                     # ------------
-                    (phi, self.dsystem_dt) = self.basis.update_basis(
-                        phi, state_update, aux_update
+                    (phi, z_mem, self.dsystem_dt) = self.basis.update_basis(
+                        phi, z_mem, state_update, aux_update
                     )
+            self.z_mem = z_mem
+            self.phi = phi
+            self.t = t
+
             if self.storage.check_storage_time(t):
                 self.storage.store_step(
-                    phi_new=phi, aux_list=self.auxiliary_list, state_list=self.state_list, t_new=t,
-                    z_mem_new=self.z_mem
+                    phi_new=phi,
+                    aux_list=self.auxiliary_list,
+                    state_list=self.state_list,
+                    t_new=t,
+                    z_mem_new=self.z_mem,
+                    list_zmemmodeidx_abs=self.basis.noise_memory.list_zmemmodeidx_abs,
                 )
-            self.phi = phi
-            self.z_mem = z_mem
-            self.t = t
+
 
         # Stores propagation time
         # --------------------------
         self.storage.metadata["LIST_PROPAGATION_TIME"].append(timer.time() -
                                                               timer_checkpoint)
+
+        # Warn the user if overly aggressive time steps were detected.
+        if tau_sys is not None:
+            warnings.warn(f"At some point during propagation, the time step ({tau} fs)"
+                          f" was larger than the estimated timescale associated with "
+                          f"the system Hamiltonian ({tau_sys} fs). A smaller time step "
+                          f"may be necessary to correctly resolve dynamics.")
+        if tau_hier is not None:
+            warnings.warn(f"At some point during propagation, the time step ({tau} fs)"
+                          f" was larger than the timescale associated with the "
+                          f"auxiliary self-decay terms ({tau_hier} fs). A smaller time "
+                          f"step may be necessary to correctly resolve dynamics.")
 
     def _operator(self, op: np.ndarray | sparse.spmatrix) -> None:
         """
@@ -561,8 +608,8 @@ class HopsTrajectory:
             updated_state_list = list(self.state_list)
             updated_state_list += list(np.nonzero(op[:, self.state_list])[0])
             updated_state_list = list(set(updated_state_list))
-            (self.phi, self.dsystem_dt) = self.basis.update_basis(
-                self.phi,updated_state_list, self.auxiliary_list)
+            (self.phi, self.z_mem, self.dsystem_dt) = self.basis.update_basis(
+                self.phi, self.z_mem, updated_state_list, self.auxiliary_list)
         # Trim the operator based on the state_list and perform the operation.
         op = op[np.ix_(self.state_list, self.state_list)]
         phi_mat = np.reshape(self.phi, [self.n_state, self.n_hier], order="F")
@@ -573,7 +620,7 @@ class HopsTrajectory:
         if self.basis.eom.param["DELTA_S"] > 0:
             delta_t=np.min(np.abs(self.phi[np.nonzero(self.phi)]))
             self.basis.define_basis(self.phi, delta_t, self._prepare_zstep(self.z_mem))
-            self.basis.update_basis(self.phi, self.state_list, self.auxiliary_list)
+            self.basis.update_basis(self.phi, self.z_mem, self.state_list, self.auxiliary_list)
             self.reset_early_time_integrator()
 
     def _check_tau_step(self, tau: float, precision: float) -> bool:
@@ -675,13 +722,15 @@ class HopsTrajectory:
         aux_update = list(set(list_aux_new) | set(self.auxiliary_list))
 
         # Update phi and derivative for new basis
-        (phi, self.dsystem_dt) = self.basis.update_basis(
-            self.phi, state_update, aux_update
+        (phi, z_mem, self.dsystem_dt) = self.basis.update_basis(
+            self.phi, self.z_mem, state_update, aux_update
         )
         self.phi = phi
+        self.z_mem = z_mem
 
         # Perform integration step with extended basis
-        var_list = self.integration_var(self.phi, self.z_mem, self.t, self.noise1, self.noise2, tau, self.storage, self.basis.mode.list_absindex_L2)
+        var_list = self.integration_var(self.phi, self.z_mem, self.t, self.noise1,
+                                        self.noise2, tau, self.storage, self.basis.mode.list_l2idx_abs)
         phi, z_mem = self.step(self.dsystem_dt, **var_list)
         phi = self.normalize(phi)
 
@@ -708,9 +757,9 @@ class HopsTrajectory:
                     Noise terms (compressed) for the next timestep [units: cm^-1].
         """
         t = self.t
-        list_absindex_L2 = self.basis.mode.list_absindex_L2
-        z_rnd1 = self.noise1.get_noise([t], list_absindex_L2)[:, 0]
-        z_rnd2 = self.noise2.get_noise([t], list_absindex_L2)[:, 0]
+        list_l2idx_abs = self.basis.mode.list_l2idx_abs
+        z_rnd1 = self.noise1.get_noise([t], list_l2idx_abs)[:, 0]
+        z_rnd2 = self.noise2.get_noise([t], list_l2idx_abs)[:, 0]
         return [z_rnd1, z_rnd2, z_mem]
 
     def construct_noise_correlation_function(
@@ -865,6 +914,7 @@ class HopsTrajectory:
         g. the early integration counter
         h. all data in hops_storage.data
         i. all metadata in hops_storage.metadata
+        j. all dyadic-specific storage data in hops_storage.dyadic_data
 
         Parameters
         ----------
@@ -890,7 +940,8 @@ class HopsTrajectory:
 
         # HopsSystem Parameter Dictionary:
         list_hops_sys_param = ['HAMILTONIAN', 'GW_SYSBATH', 'L_HIER', 'L_NOISE1', 'ALPHA_NOISE1', 'PARAM_NOISE1',
-                               'L_NOISE2', 'ALPHA_NOISE2', 'PARAM_NOISE2', 'L_LT_CORR', 'PARAM_LT_CORR']
+                               'L_NOISE2', 'ALPHA_NOISE2', 'PARAM_NOISE2', 'L_LT_CORR', 'PARAM_LT_CORR',
+                               'list_permanent_sites']
 
         # Create a dictionary of HopsTrajectory parameters
         params = {
@@ -915,12 +966,14 @@ class HopsTrajectory:
         checkpoint = {
             'phi': self.phi,
             'z_mem': self.z_mem,
+            'list_zmemmodeidx_abs': np.array(self.basis.noise_memory.list_zmemmodeidx_abs, dtype=int),
             't': self.t,
             'state_list': np.array(self.state_list, dtype=int),
             'aux_list': np.array([aux.array_aux_vec for aux in self.auxiliary_list], dtype=object),
             'early_counter': self._early_step_counter,
             'storage_data': self.storage.data,
             'storage_meta': self.storage.metadata,
+            'storage_dyadic_data': self.storage.dyadic_data,
             'params': params,
         }
         if (not drop_seed) and (self.noise1.param['SEED'] is None):
@@ -934,6 +987,79 @@ class HopsTrajectory:
             np.savez_compressed(filepath, **checkpoint, allow_pickle=True)
         else:
             np.savez(filepath, **checkpoint, allow_pickle=True)
+
+    @classmethod
+    def _instantiate_from_checkpoint(
+        cls,
+        params: dict,
+        add_seed1: int | str | os.PathLike | np.ndarray | None,
+        add_seed2: int | str | os.PathLike | np.ndarray | None,
+        add_system_param: str | os.PathLike | None,
+    ) -> HopsTrajectory:
+        """
+        Construct a trajectory instance from checkpoint parameter dictionaries.
+
+        Parameters
+        ----------
+        1. params : dict
+                    Serialized constructor parameter dictionary loaded from a checkpoint.
+
+        2. add_seed1 : int, str, os.PathLike, np.ndarray, or None
+                       Optional override for the Noise1 seed.
+
+        3. add_seed2 : int, str, os.PathLike, np.ndarray, or None
+                       Optional override for the Noise2 seed.
+
+        4. add_system_param : str, os.PathLike, or None
+                               Optional override source for system parameters.
+
+        Returns
+        -------
+        1. traj : HopsTrajectory
+                  Instantiated trajectory object using checkpoint parameters and
+                  optional overrides.
+        """
+        params = copy.deepcopy(params)
+        if add_seed1 is not None:
+            params['noise1_param']['SEED'] = add_seed1
+
+        if add_seed2 is not None:
+            params['noise2_param']['SEED'] = add_seed2
+
+        if add_system_param is not None:
+            params['system_param'] = add_system_param
+
+        return cls(
+            params['system_param'],
+            eom_param=params['eom_param'],
+            noise_param=params['noise1_param'],
+            noise2_param=params['noise2_param'],
+            hierarchy_param=params['hierarchy_param'],
+            storage_param=params['storage_param'],
+            integration_param=params['integration_param'],
+        )
+
+    def _initialize_from_checkpoint(self,
+                                    state_list: np.ndarray,
+                                    phi: np.ndarray) -> None:
+        """
+        Initialize trajectory state from checkpoint wavefunction arrays.
+
+        Parameters
+        ----------
+        1. state_list : np.ndarray
+                        Absolute system-state indices active in the checkpoint basis.
+
+        2. phi : np.ndarray
+                 Full hierarchy vector saved in the checkpoint.
+
+        Returns
+        -------
+        None
+        """
+        psi_0 = np.zeros(self.basis.system.param['NSTATES'], dtype=np.complex128)
+        psi_0[state_list] = phi[:state_list.size]
+        self.initialize(psi_0)
 
     @classmethod
     def load_checkpoint(cls,
@@ -974,33 +1100,11 @@ class HopsTrajectory:
         data = np.load(filename, allow_pickle=True)
         params = data['params'].item()
 
-        # Update noise if needed
-        if add_seed1 is not None:
-            params['noise1_param']['SEED'] = add_seed1
+        traj = cls._instantiate_from_checkpoint(params,
+                                                 add_seed1, add_seed2,
+                                                 add_system_param)
 
-        # Update noise if needed
-        if add_seed2 is not None:
-            params['noise2_param']['SEED'] = add_seed2
-
-        # Update system parameters if needed
-        if add_system_param is not None:
-            params['system_param'] = add_system_param
-
-        # Instantiate a new trajectory object with the stored parameters
-        traj = cls(
-            params['system_param'],
-            eom_param=params['eom_param'],
-            noise_param=params['noise1_param'],
-            noise2_param=params['noise2_param'],
-            hierarchy_param=params['hierarchy_param'],
-            storage_param=params['storage_param'],
-            integration_param=params['integration_param'],
-        )
-
-        # Initialize the trajectory with the stored wave function
-        psi_0 = np.zeros(traj.basis.system.param['NSTATES'], dtype=np.complex128)
-        psi_0[data['state_list']] = data['phi'][:data['state_list'].size]
-        traj.initialize(psi_0)
+        traj._initialize_from_checkpoint(data['state_list'], data['phi'])
 
         # Set the auxiliary list based on the stored data
         list_aux = [AuxVec(aux, traj.basis.hierarchy.n_hmodes) for aux in data['aux_list']]
@@ -1017,20 +1121,41 @@ class HopsTrajectory:
         # auxiliaries that are added to the basis are within one step of a previously defined aux.)
         for depth in range(1,traj.basis.hierarchy.param["MAXHIER"]+1):
             list_aux_depth = [aux for aux in list_aux if aux._sum <= depth]
-            (traj.phi, traj.dsystem_dt) = traj.basis.update_basis(traj.phi,
+            (traj.phi, traj.z_mem, traj.dsystem_dt) = traj.basis.update_basis(traj.phi,
+                                                        traj.z_mem,
                                                         data['state_list'],
                                                         list_aux_depth)
 
         # The trajectory has the correct basis. Restore the: state vector,
         # noise memory and bookkeeping variables.
         traj.phi = data['phi']
-        traj.z_mem = data['z_mem'].item()
+        traj.z_mem = data['z_mem']
+        traj.basis.noise_memory.set_zmem_indexing(
+            list(data['list_zmemmodeidx_abs'])
+        )
+        traj.dsystem_dt = traj.basis.eom._prepare_derivative(
+            traj.basis.system,
+            traj.basis.hierarchy,
+            traj.basis.mode,
+            traj.basis.noise_memory,
+            skip_ksuper=True,
+        )
         traj.t = float(data['t'])
         traj._early_step_counter = int(data['early_counter'])
 
         # Restore the storage data from the checkpoint file
         traj.storage.data = data['storage_data'].item()
         traj.storage.metadata = data['storage_meta'].item()
+        traj.storage.dyadic_data = data.get(
+            'storage_dyadic_data',
+            np.array({}, dtype=object),
+        ).item()
+        # Restore the STORAGE_TIME: this is backwards-compatible with checkpoint
+        # files that have no STORAGE_TIME saved. In such a case, STORAGE_TIME
+        # defaults to True.
+        if not 'STORAGE_TIME' in traj.storage.metadata.keys():
+            traj.storage.metadata['STORAGE_TIME'] = True
+        traj.storage.storage_time = traj.storage.metadata['STORAGE_TIME']
         return traj
 
     def save_system_parameters(self, filepath: str | os.PathLike) -> None:
@@ -1101,13 +1226,12 @@ class HopsTrajectory:
         self._phi = phi
 
     @property
-    def z_mem(self) -> sparse.spmatrix:
+    def z_mem(self) -> np.ndarray:
         return self._z_mem
 
     @z_mem.setter
-    def z_mem(self, z_mem: sparse.spmatrix) -> None:
+    def z_mem(self, z_mem: np.ndarray) -> None:
         self._z_mem = z_mem
-
     @property
     def t(self) -> float:
         return self._t
@@ -1123,4 +1247,3 @@ class HopsTrajectory:
     @t.setter
     def t(self, t: float) -> None:
         self._t = t
-

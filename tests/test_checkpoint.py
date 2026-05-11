@@ -26,10 +26,10 @@ list_hierarchy_properties_obj = ['system']
 
 list_system_properties_path_dependent = [
     '__previous_state_list',  # Previous state list (for adaptive updates)
-    '__list_add_state',  # States to add in update
-    '__list_stable_state',  # States stable between updates
-    '_list_boundary_state',  # States coupled to basis by Hamiltonian
-    '__list_absindex_new_state_modes',  # New state mode indices (absolute)
+    '_list_newstateidx_abs',  # States to add in update
+    '_list_stblstateidx_abs',  # States stable between updates
+    '_list_bndstateidx_abs',  # States coupled to basis by Hamiltonian
+    '_list_newstatemodeidx_abs',  # New state mode indices (absolute)
 ]
 list_system_properties_obj = []
 
@@ -38,6 +38,9 @@ list_mode_properties_obj = ['system', 'hierarchy']
 
 list_aux_properties_path_dependent = []
 list_aux_properties_obj = []
+
+list_noise_memory_properties_path_dependent = []
+list_noise_memory_properties_obj = ['system', 'mode']
 
 
 def get_private(obj, name: str):
@@ -324,7 +327,8 @@ def test_compare_dictionaries(tmp_path, make_hops_nonadaptive):
         aux_list=aux_list,
         state_list=state_list,
         t_new=t_new,
-        z_mem_new=z_mem_new
+        z_mem_new=z_mem_new,
+        list_zmemmodeidx_abs=[0, 1, 2]
     )
 
     # Create reference dictionaries for testing
@@ -489,6 +493,76 @@ def test_checkpoint_nonadaptive(tmp_path, make_hops_nonadaptive):
     for key in storage_final:
         np.testing.assert_array_equal(hops_loaded.storage.data[key], storage_final[key])
 
+def test_checkpoint_storage_time(tmp_path, make_hops_nonadaptive):
+    """Ensures that the HopsStorage storage_time is correctly re-incorporated upon
+    loading a checkpoint, and that all stored data is generated identically as a
+    result."""
+    # Defines a HopsTrajectory that saves its storage every 2 fs of propagation.
+    storage_param = {"STORAGE_TIME": 2}
+    hops = make_hops_nonadaptive(storage_param=storage_param)
+    # Propagates out to 100 fs, saving 50 time points in storage.
+    hops.propagate(100.0, 1.0)
+
+    # Saves the checkpoint.
+    ckpt_path = tmp_path / "traj.npz"
+    hops.save_checkpoint(str(ckpt_path))
+
+    # Copies the HOPS trajectory and storage objects to make sure reloading the
+    # checkpoint doesn't break anything.
+    phi_mid = hops.phi.copy()
+    t_mid = hops.t
+    storage_mid = {k: list(v) if isinstance(v, list) else v for k, v in hops.storage.data.items()
+                   if k != 'ADAPTIVE'}
+
+    # Propagates out an additional 100 fs. Saves phi and the storage data for testing.
+    hops.propagate(100.0, 1.0)
+    phi_final = hops.phi.copy()
+    storage_final = hops.storage.data
+    t_final = hops.t
+
+    # Loads the checkpoint and tests that its phi matches with the saved phi_mid.
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+    np.testing.assert_allclose(hops_loaded.phi, phi_mid)
+    assert hops_loaded.t == t_mid
+
+    # Tests storage_mid values against loaded checkpoint's HopsStorage.
+    for key in storage_mid:
+        np.testing.assert_array_equal(hops_loaded.storage.data[key], storage_mid[key])
+
+    # Propagates out the loaded checkpoint another 100 fs so that hops_loaded should be
+    # identical to hops so long as the storage_time was handled correctly.
+    hops_loaded.propagate(100.0, 1.0)
+
+    # Tests the storage and phi of hops_loaded.
+    np.testing.assert_allclose(hops_loaded.phi, phi_final, atol=1e-100)
+    assert hops_loaded.t == t_final
+    for key in storage_final:
+        np.testing.assert_array_equal(hops_loaded.storage.data[key], storage_final[key])
+
+    # assert_allclose is correct because it catches the boolean, integer, and array
+    # cases for storage_time that we allow.
+    np.testing.assert_allclose(hops_loaded.storage.storage_time,
+                               hops.storage.storage_time)
+
+    # Tests that load_checkpoint is backwards-compatible with old .ckpt files with no
+    # STORAGE_TIME key in storage_meta. Unfortunately, the storage time is
+    # unrecoverable in these files and will default to True, but it's better than not
+    # being able to load them.
+    storage_param = {"STORAGE_TIME": 2}
+    hops = make_hops_nonadaptive(storage_param=storage_param)
+    hops.propagate(100.0, 1.0)
+
+    # Deletes the STORAGE_TIME metadata.
+    hops.storage.metadata.pop("STORAGE_TIME")
+    assert "STORAGE_TIME" not in hops.storage.metadata.keys()
+    ckpt_path = tmp_path / "traj.npz"
+    hops.save_checkpoint(str(ckpt_path))
+
+    # Checks that storage time is set to the default and added to the metadata.
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+    assert hops_loaded.storage.storage_time == True
+    assert hops_loaded.storage.metadata["STORAGE_TIME"] == True
+
 
 def test_checkpoint_early_time_integration(tmp_path, make_hops_nonadaptive):
     """Ensures checkpoints work during the early-time integration phase."""
@@ -650,6 +724,44 @@ def test_checkpoint_adaptive_storage(tmp_path, make_hops_adaptive):
     compare_dictionaries(storage_final, hops_loaded.storage.data)
 
 
+def test_checkpoint_preserves_list_permanent_sites(tmp_path):
+    """
+    Ensures list_permanent_sites is preserved across save/load checkpoint.
+    """
+    noise_param = {
+        "SEED": 0,
+        "MODEL": "FFT_FILTER",
+        "TLEN": 100.0,
+        "TAU": 1.0,
+    }
+    loperator = np.zeros([2, 2, 2], dtype=np.float64)
+    loperator[0, 0, 0] = 1.0
+    loperator[1, 1, 1] = 1.0
+    sys_param = {
+        "HAMILTONIAN": np.array([[0, 10.0], [10.0, 0]], dtype=np.float64),
+        "GW_SYSBATH": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+        "L_HIER": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "L_NOISE1": [loperator[0], loperator[0], loperator[1], loperator[1]],
+        "ALPHA_NOISE1": bcf_exp,
+        "PARAM_NOISE1": [[10.0, 10.0], [5.0, 5.0], [10.0, 10.0], [5.0, 5.0]],
+    }
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param={"MAXHIER": 3},
+        eom_param={"TIME_DEPENDENCE": False, "EQUATION_OF_MOTION": "NORMALIZED NONLINEAR"},
+    )
+    hops.make_adaptive(delta_a=1e-3, delta_s=1e-3, list_permanent_sites=[0, 1])
+    hops.initialize([1.0 + 0.0j, 0.0 + 0.0j])
+    hops.propagate(8.0, 2.0)
+
+    ckpt_path = tmp_path / "traj_list_permanent_sites.npz"
+    hops.save_checkpoint(str(ckpt_path))
+
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+    assert hops_loaded.basis.system.param["list_permanent_sites"] == [0, 1]
+
+
 def test_checkpoint_adaptive_hierarchy(tmp_path, make_hops_adaptive):
     """Ensures hierarchy objects are restored correctly in adaptive runs."""
 
@@ -657,12 +769,12 @@ def test_checkpoint_adaptive_hierarchy(tmp_path, make_hops_adaptive):
 
     # Propagate with adaptive calculation
     hops.propagate(50.0, 2.0)
-    list_hierarchy_properties = [str for str in hops.basis.hierarchy.__class__.__slots__]
-    list_hierarchy_properties_mid = [str for str in list_hierarchy_properties
-                                     if not (str in list_hierarchy_properties_path_dependent) and
-                                        not (str in list_hierarchy_properties_obj)]
-    list_hierarchy_properties_fin = [str for str in list_hierarchy_properties
-                                     if not (str in list_hierarchy_properties_obj)]
+    list_hierarchy_properties = [prop for prop in hops.basis.hierarchy.__class__.__slots__]
+    list_hierarchy_properties_mid = [prop for prop in list_hierarchy_properties
+                                     if not (prop in list_hierarchy_properties_path_dependent) and
+                                        not (prop in list_hierarchy_properties_obj)]
+    list_hierarchy_properties_fin = [prop for prop in list_hierarchy_properties
+                                     if not (prop in list_hierarchy_properties_obj)]
     original_hierarchy_mid = {prop: get_private(hops.basis.hierarchy, prop)
                              for prop in list_hierarchy_properties_mid}
 
@@ -692,12 +804,12 @@ def test_checkpoint_adaptive_modes(tmp_path, make_hops_adaptive):
     # Propagate with adaptive calculation
     hops.propagate(50.0, 2.0)
 
-    list_mode_properties = [str for str in hops.basis.mode.__class__.__slots__]
-    list_mode_properties_mid = [str for str in list_mode_properties
-                                     if not (str in list_mode_properties_path_dependent) and
-                                        not (str in list_mode_properties_obj)]
-    list_mode_properties_fin = [str for str in list_mode_properties
-                                     if not (str in list_mode_properties_obj)]
+    list_mode_properties = [prop for prop in hops.basis.mode.__class__.__slots__]
+    list_mode_properties_mid = [prop for prop in list_mode_properties
+                                     if not (prop in list_mode_properties_path_dependent) and
+                                        not (prop in list_mode_properties_obj)]
+    list_mode_properties_fin = [prop for prop in list_mode_properties
+                                     if not (prop in list_mode_properties_obj)]
 
     original_mode_mid = {prop: get_private(hops.basis.mode, prop)
                               for prop in list_mode_properties_mid}
@@ -729,12 +841,12 @@ def test_checkpoint_adaptive_system(tmp_path, make_hops_adaptive):
     # Propagate with adaptive calculation
     hops.propagate(50.0, 2.0)
 
-    list_system_properties = [str for str in hops.basis.system.__class__.__slots__]
-    list_system_properties_mid = [str for str in list_system_properties
-                                     if not (str in list_system_properties_path_dependent) and
-                                        not (str in list_system_properties_obj)]
-    list_system_properties_fin = [str for str in list_system_properties
-                                     if not (str in list_system_properties_obj)]
+    list_system_properties = [prop for prop in hops.basis.system.__class__.__slots__]
+    list_system_properties_mid = [prop for prop in list_system_properties
+                                     if not (prop in list_system_properties_path_dependent) and
+                                        not (prop in list_system_properties_obj)]
+    list_system_properties_fin = [prop for prop in list_system_properties
+                                     if not (prop in list_system_properties_obj)]
 
     hops.save_checkpoint(str(ckpt_path))
     orig_system_mid = {prop: get_private(hops.basis.system, prop)
@@ -753,6 +865,67 @@ def test_checkpoint_adaptive_system(tmp_path, make_hops_adaptive):
     compare_dictionaries(orig_system_mid, load_system_mid)
     compare_dictionaries(orig_system_fin, load_system_fin)
 
+
+def test_checkpoint_adaptive_noise_memory(tmp_path, make_hops_adaptive):
+    """Check that noise memory indexing is preserved across checkpoints."""
+    hops = make_hops_adaptive()
+
+    ckpt_path = tmp_path / "traj_adaptive.npz"
+
+    # Propagate with adaptive calculation
+    hops.propagate(50.0, 2.0)
+
+    # Build three property lists from HopsNoiseMemory.__slots__:
+    #   all_properties:  every slot on the class
+    #   properties_mid:  slots that can be compared right after a checkpoint,
+    #                    excluding path-dependent state (which is rebuilt during
+    #                    propagation) and object references (system, mode) that
+    #                    are compared in their own tests
+    #   properties_fin:  slots compared after further propagation, which now
+    #                    includes path-dependent state but still excludes
+    #                    object references
+    list_noise_mem_properties = [prop for prop in hops.basis.noise_memory.__class__.__slots__]
+    list_noise_mem_properties_mid = [
+        prop for prop in list_noise_mem_properties
+        if not (prop in list_noise_memory_properties_path_dependent)
+        and not (prop in list_noise_memory_properties_obj)
+    ]
+    list_noise_mem_properties_fin = [
+        prop for prop in list_noise_mem_properties
+        if not (prop in list_noise_memory_properties_obj)
+    ]
+
+    # Capture original noise memory state at checkpoint time.
+    hops.save_checkpoint(str(ckpt_path))
+    orig_noise_mem_mid = {
+        prop: get_private(hops.basis.noise_memory, prop)
+        for prop in list_noise_mem_properties_mid
+    }
+
+    # Propagate further to populate path-dependent state.
+    hops.propagate(100.0, 2.0)
+    orig_noise_mem_fin = {
+        prop: get_private(hops.basis.noise_memory, prop)
+        for prop in list_noise_mem_properties_fin
+    }
+
+    # Load checkpoint and compare noise memory at checkpoint time.
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+    load_noise_mem_mid = {
+        prop: get_private(hops_loaded.basis.noise_memory, prop)
+        for prop in list_noise_mem_properties_mid
+    }
+
+    # Propagate loaded trajectory the same distance and compare all state.
+    hops_loaded.propagate(100.0, 2.0)
+    load_noise_mem_fin = {
+        prop: get_private(hops_loaded.basis.noise_memory, prop)
+        for prop in list_noise_mem_properties_fin
+    }
+
+    compare_dictionaries(orig_noise_mem_mid, load_noise_mem_mid)
+    compare_dictionaries(orig_noise_mem_fin, load_noise_mem_fin)
+
 def test_checkpoint_adaptive_listaux(tmp_path, make_hops_adaptive):
     """Verifies auxiliary lists survive checkpointing in adaptive mode."""
     hops = make_hops_adaptive()
@@ -761,12 +934,12 @@ def test_checkpoint_adaptive_listaux(tmp_path, make_hops_adaptive):
 
     # Propagate with adaptive calculation
     hops.propagate(50.0, 2.0)
-    list_aux_properties = [str for str in hops.auxiliary_list[0].__class__.__slots__]
-    list_aux_properties_mid = [str for str in list_aux_properties
-                                     if not (str in list_aux_properties_path_dependent) and
-                                        not (str in list_aux_properties_obj)]
-    list_aux_properties_fin = [str for str in list_aux_properties
-                                     if not (str in list_aux_properties_obj)]
+    list_aux_properties = [prop for prop in hops.auxiliary_list[0].__class__.__slots__]
+    list_aux_properties_mid = [prop for prop in list_aux_properties
+                                     if not (prop in list_aux_properties_path_dependent) and
+                                        not (prop in list_aux_properties_obj)]
+    list_aux_properties_fin = [prop for prop in list_aux_properties
+                                     if not (prop in list_aux_properties_obj)]
     hops.save_checkpoint(str(ckpt_path))
 
     hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
@@ -790,24 +963,24 @@ def test_checkpoint_orphan_aux(tmp_path, make_hops_adaptive):
     hops.propagate(20.0, 2.0)
 
 
-    list_aux_properties = [str for str in hops.auxiliary_list[0].__class__.__slots__]
-    list_aux_properties_mid = [str for str in list_aux_properties
-                                     if not (str in list_aux_properties_path_dependent) and
-                                        not (str in list_aux_properties_obj)]
-    list_aux_properties_fin = [str for str in list_aux_properties
-                                     if not (str in list_aux_properties_obj)]
+    list_aux_properties = [prop for prop in hops.auxiliary_list[0].__class__.__slots__]
+    list_aux_properties_mid = [prop for prop in list_aux_properties
+                                     if not (prop in list_aux_properties_path_dependent) and
+                                        not (prop in list_aux_properties_obj)]
+    list_aux_properties_fin = [prop for prop in list_aux_properties
+                                     if not (prop in list_aux_properties_obj)]
 
 
-    list_hierarchy_properties = [str for str in hops.basis.hierarchy.__class__.__slots__]
-    list_hierarchy_properties_mid = [str for str in list_hierarchy_properties
-                                     if not (str in list_hierarchy_properties_path_dependent) and
-                                        not (str in list_hierarchy_properties_obj)]
-    list_hierarchy_properties_fin = [str for str in list_hierarchy_properties
-                                     if not (str in list_hierarchy_properties_obj)]
+    list_hierarchy_properties = [prop for prop in hops.basis.hierarchy.__class__.__slots__]
+    list_hierarchy_properties_mid = [prop for prop in list_hierarchy_properties
+                                     if not (prop in list_hierarchy_properties_path_dependent) and
+                                        not (prop in list_hierarchy_properties_obj)]
+    list_hierarchy_properties_fin = [prop for prop in list_hierarchy_properties
+                                     if not (prop in list_hierarchy_properties_obj)]
 
     # Construct an auxiliary list composed entirely of orphans
     list_aux = [aux for aux in hops.auxiliary_list if (aux._sum == 2 or aux._sum == 0)]
-    phi_tmp, dsystem_dt = hops.basis.update_basis(hops.phi, hops.state_list, list_aux)
+    phi_tmp, hops.z_mem, dsystem_dt = hops.basis.update_basis(hops.phi, hops.z_mem, hops.state_list, list_aux)
     hops.phi = phi_tmp
     hops.dsystem_dt = dsystem_dt
 
@@ -1195,3 +1368,280 @@ def test_noise1_seed_warning(tmp_path, make_hops_nonadaptive):
     ckpt_path = tmp_path / "checkpoint.npz"
     with pytest.warns(UserWarning):
         hops.save_checkpoint(ckpt_path, drop_seed=False)
+
+
+def test_checkpoint_list_zmemmodeidx_abs(tmp_path, make_hops_nonadaptive):
+    """
+    Test that list_zmemmodeidx_abs is saved in the checkpoint and that
+    on load the z_mem and indexing are restored consistently.
+    """
+    hops = make_hops_nonadaptive()
+    hops.propagate(20.0, 1.0)
+
+    # Capture current z_mem and the indexing list
+    z_saved = hops.z_mem.copy()
+    modes_saved = list(hops.basis.noise_memory.list_zmemmodeidx_abs)
+
+    # Save checkpoint
+    ckpt_path = tmp_path / "traj_modes_zmem.npz"
+    hops.save_checkpoint(str(ckpt_path))
+
+    # Inspect raw checkpoint contents
+    data = np.load(ckpt_path, allow_pickle=True)
+    assert "list_zmemmodeidx_abs" in data.files
+    np.testing.assert_array_equal(data["list_zmemmodeidx_abs"], np.array(modes_saved, dtype=int))
+    np.testing.assert_allclose(data["z_mem"], z_saved)
+
+    # Load and verify consistency
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+    np.testing.assert_allclose(hops_loaded.z_mem, z_saved)
+    assert list(hops_loaded.basis.noise_memory.list_zmemmodeidx_abs) == modes_saved
+    assert len(hops_loaded.z_mem) == len(modes_saved)
+
+    # Ensure further propagation works.  Both trajectories start from the
+    # exact same deterministic state with the same noise seed, so the results
+    # must be bitwise identical — atol=1e-100 is effectively zero tolerance.
+    hops.propagate(10.0, 1.0)
+    hops_loaded.propagate(10.0, 1.0)
+    np.testing.assert_allclose(hops_loaded.phi, hops.phi, atol=1e-100)
+    np.testing.assert_allclose(hops_loaded.z_mem, hops.z_mem, atol=1e-100)
+    assert hops_loaded.t == hops.t
+
+
+def test_checkpoint_dsystem_dt_consistency(tmp_path, make_hops_nonadaptive):
+    """Ensure dsystem_dt matches between original and loaded trajectories."""
+    hops = make_hops_nonadaptive()
+    hops.propagate(20.0, 1.0)
+
+    ckpt_path = tmp_path / "traj_dsystem_dt.npz"
+    hops.save_checkpoint(str(ckpt_path))
+
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+
+    # Prepare the z_mem step inputs (noise, delta_zmem, z_step) for both.
+    z_step_orig = hops._prepare_zstep(hops.z_mem)
+    z_step_load = hops_loaded._prepare_zstep(hops_loaded.z_mem)
+
+    # Evaluate the derivative at the checkpoint state.
+    deriv_phi_orig, deriv_zmem_orig = hops.dsystem_dt(
+        hops.phi, z_step_orig[2], z_step_orig[0], z_step_orig[1]
+    )
+    deriv_phi_load, deriv_zmem_load = hops_loaded.dsystem_dt(
+        hops_loaded.phi, z_step_load[2], z_step_load[0], z_step_load[1]
+    )
+
+    np.testing.assert_allclose(deriv_phi_load, deriv_phi_orig, atol=1e-100)
+    np.testing.assert_allclose(deriv_zmem_load, deriv_zmem_orig, atol=1e-100)
+
+
+def test_checkpoint_dsystem_dt_consistency_adaptive(tmp_path, make_hops_adaptive):
+    """Ensure dsystem_dt matches between original and loaded adaptive trajectories."""
+    hops = make_hops_adaptive()
+    hops.propagate(20.0, 1.0)
+
+    ckpt_path = tmp_path / "traj_dsystem_dt_adaptive.npz"
+    hops.save_checkpoint(str(ckpt_path))
+
+    hops_loaded = HOPS.load_checkpoint(str(ckpt_path))
+
+    # Prepare the z_mem step inputs for both.
+    z_step_orig = hops._prepare_zstep(hops.z_mem)
+    z_step_load = hops_loaded._prepare_zstep(hops_loaded.z_mem)
+
+    # Evaluate the derivative at the checkpoint state.
+    deriv_phi_orig, deriv_zmem_orig = hops.dsystem_dt(
+        hops.phi, z_step_orig[2], z_step_orig[0], z_step_orig[1]
+    )
+    deriv_phi_load, deriv_zmem_load = hops_loaded.dsystem_dt(
+        hops_loaded.phi, z_step_load[2], z_step_load[0], z_step_load[1]
+    )
+
+    np.testing.assert_allclose(deriv_phi_load, deriv_phi_orig, atol=1e-100)
+    np.testing.assert_allclose(deriv_zmem_load, deriv_zmem_orig, atol=1e-100)
+
+
+def test_checkpoint_zmem_longer_than_active_modes(tmp_path, make_hops_adaptive):
+    """
+    Edge case: list_zmemmodeidx_abs (and thus z_mem) can be larger than
+    mode.list_modeidx_abs due to inactive-but-not-yet-decayed modes.
+
+    This test forces that situation, checkpoints, reloads, then propagates one
+    step to ensure basis/noise-memory bookkeeping stays consistent.
+    """
+    hops = make_hops_adaptive()
+    hops.propagate(20.0, 1.0)
+
+    # Keep the current (adaptive) basis as our "baseline" basis to return to.
+    state_list0 = list(hops.state_list)
+
+    # Pick a state not currently in the basis.
+    n_states = hops.basis.system.param.get(
+        "NSTATES",
+        hops.basis.system.param["HAMILTONIAN"].shape[0],
+    )
+    candidates = [s for s in range(n_states) if s not in state_list0]
+    assert candidates, "No candidate states outside the current adaptive basis."
+
+    # Prefer a candidate state that introduces at least one new mode into z_mem space.
+    # If no such candidate is found, the test will fail later at the extra_modes assertion.
+    zmem_modes0 = set(hops.basis.noise_memory.list_zmemmodeidx_abs)
+    far_state = None
+    far_modes = None
+    for s in reversed(candidates):
+        modes_s = set(hops.basis.system.param["LIST_HMODE_INDICES_BY_STATE"][s])
+        if modes_s - zmem_modes0:
+            far_state = s
+            far_modes = sorted(modes_s)
+            break
+    if far_state is None:
+        far_state = candidates[-1]
+        far_modes = list(hops.basis.system.param["LIST_HMODE_INDICES_BY_STATE"][far_state])
+
+    # 1) Expand basis to include far_state (this updates system/mode/noise_memory bookkeeping).
+    expanded_state_list = sorted(set(state_list0) | {far_state})
+    hops.phi, hops.z_mem, hops.dsystem_dt = hops.basis.update_basis(
+        hops.phi, hops.z_mem, expanded_state_list, hops.auxiliary_list
+    )
+
+    # 2) Force the far_state modes to be "non-decayed" in z_mem so they persist
+    #    even after removing far_state from the active state basis.
+    abs_modes = list(hops.basis.noise_memory.list_zmemmodeidx_abs)
+    idx_map = {m: i for i, m in enumerate(abs_modes)}
+
+    z_mem_forced = np.array(hops.z_mem, dtype=np.complex128, copy=True)
+    for m in far_modes:
+        if m in idx_map:
+            z_mem_forced[idx_map[m]] = 1.0 + 0.0j
+    hops.z_mem = z_mem_forced
+
+    # 3) Shrink basis back to the original state basis (removing far_state).
+    hops.phi, hops.z_mem, hops.dsystem_dt = hops.basis.update_basis(
+        hops.phi, hops.z_mem, state_list0, hops.auxiliary_list
+    )
+
+    # Now we should have at least one mode that is present in z_mem indexing but not active modes.
+    active_modes = set(hops.basis.mode.list_modeidx_abs)
+    zmem_modes = set(hops.basis.noise_memory.list_zmemmodeidx_abs)
+
+    extra_modes = set(far_modes) - active_modes
+    assert extra_modes, "Setup failed: far_state didn't yield any modes outside the active mode basis."
+    assert extra_modes.issubset(zmem_modes)
+    assert len(hops.z_mem) == len(hops.basis.noise_memory.list_zmemmodeidx_abs)
+    assert len(hops.basis.noise_memory.list_zmemmodeidx_abs) > len(hops.basis.mode.list_modeidx_abs)
+
+    # ---- Checkpoint + reload ----
+    checkpoint_file = tmp_path / "checkpoint_zmem_longer.npz"
+    hops.save_checkpoint(str(checkpoint_file))
+
+    # Use the same loader pattern as the existing checkpoint tests
+    hops_loaded = HOPS.load_checkpoint(str(checkpoint_file))
+
+    # Reload should preserve z_mem and the zmem-mode indexing.
+    np.testing.assert_allclose(hops_loaded.z_mem, hops.z_mem, atol=1e-100)
+    assert list(hops_loaded.basis.noise_memory.list_zmemmodeidx_abs) == list(
+        hops.basis.noise_memory.list_zmemmodeidx_abs
+    )
+
+    # Derived noise_memory properties must also be restored correctly.
+    assert list(hops_loaded.basis.noise_memory.list_zmemactivemodeidx_rel) == \
+        list(hops.basis.noise_memory.list_zmemactivemodeidx_rel)
+    np.testing.assert_allclose(
+        hops_loaded.basis.noise_memory.list_zmemg_abs,
+        hops.basis.noise_memory.list_zmemg_abs)
+    np.testing.assert_allclose(
+        hops_loaded.basis.noise_memory.list_zmemw_abs,
+        hops.basis.noise_memory.list_zmemw_abs)
+
+    # One step after reload (t_advance=1.0 with tau=1.0).
+    hops_loaded.propagate(1.0, 1.0)
+
+    # Invariance must still hold.
+    assert len(hops_loaded.z_mem) == len(hops_loaded.basis.noise_memory.list_zmemmodeidx_abs)
+    assert len(hops_loaded.basis.noise_memory.list_zmemmodeidx_abs) >= len(
+        hops_loaded.basis.mode.list_modeidx_abs
+    )
+
+
+def test_checkpoint_zmem_longer_propagation_match(tmp_path, make_hops_adaptive):
+    """
+    Same setup as test_checkpoint_zmem_longer_than_active_modes, but propagates
+    both the original and reloaded trajectories and compares results.  This
+    isolates whether load_checkpoint produces a trajectory that evolves
+    identically to the original.
+    """
+    hops = make_hops_adaptive()
+    hops.propagate(20.0, 1.0)
+
+    # Save the current adaptive state basis as the baseline to return to.
+    state_list0 = list(hops.state_list)
+
+    # Pick a state not currently in the basis.
+    n_states = hops.basis.system.param.get(
+        "NSTATES",
+        hops.basis.system.param["HAMILTONIAN"].shape[0],
+    )
+    candidates = [s for s in range(n_states) if s not in state_list0]
+    assert candidates, "No candidate states outside the current adaptive basis."
+
+    # Prefer a candidate state that introduces at least one new mode into z_mem space.
+    # If no such candidate is found, the test will fail later at the extra_modes assertion.
+    zmem_modes0 = set(hops.basis.noise_memory.list_zmemmodeidx_abs)
+    far_state = None
+    far_modes = None
+    for s in reversed(candidates):
+        modes_s = set(hops.basis.system.param["LIST_HMODE_INDICES_BY_STATE"][s])
+        if modes_s - zmem_modes0:
+            far_state = s
+            far_modes = sorted(modes_s)
+            break
+    if far_state is None:
+        far_state = candidates[-1]
+        far_modes = list(hops.basis.system.param["LIST_HMODE_INDICES_BY_STATE"][far_state])
+
+    # 1) Expand basis to include far_state so its modes enter z_mem.
+    expanded_state_list = sorted(set(state_list0) | {far_state})
+    hops.phi, hops.z_mem, hops.dsystem_dt = hops.basis.update_basis(
+        hops.phi, hops.z_mem, expanded_state_list, hops.auxiliary_list
+    )
+
+    # 2) Force the far_state modes to be "non-decayed" in z_mem so they persist
+    #    even after removing far_state from the active state basis.
+    abs_modes = list(hops.basis.noise_memory.list_zmemmodeidx_abs)
+    idx_map = {m: i for i, m in enumerate(abs_modes)}
+
+    z_mem_forced = np.array(hops.z_mem, dtype=np.complex128, copy=True)
+    for m in far_modes:
+        if m in idx_map:
+            z_mem_forced[idx_map[m]] = 1.0 + 0.0j
+    hops.z_mem = z_mem_forced
+
+    # 3) Shrink basis back to the original state basis (removing far_state).
+    #    The forced z_mem values keep the far_state modes alive in noise memory.
+    hops.phi, hops.z_mem, hops.dsystem_dt = hops.basis.update_basis(
+        hops.phi, hops.z_mem, state_list0, hops.auxiliary_list
+    )
+
+    # Verify that we actually have modes in z_mem that are not in the active basis.
+    active_modes = set(hops.basis.mode.list_modeidx_abs)
+    zmem_modes = set(hops.basis.noise_memory.list_zmemmodeidx_abs)
+
+    extra_modes = set(far_modes) - active_modes
+    assert len(extra_modes) > 0, "Setup failed: far_state didn't yield any modes outside the active mode basis."
+    assert extra_modes.issubset(zmem_modes)
+    assert len(hops.z_mem) == len(hops.basis.noise_memory.list_zmemmodeidx_abs)
+    assert len(hops.basis.noise_memory.list_zmemmodeidx_abs) > len(hops.basis.mode.list_modeidx_abs)
+
+    # ---- Checkpoint + reload ----
+    checkpoint_file = tmp_path / "checkpoint_zmem_longer_prop.npz"
+    hops.save_checkpoint(str(checkpoint_file))
+    hops_loaded = HOPS.load_checkpoint(str(checkpoint_file))
+
+    # Propagate both trajectories identically.  Both start from the exact same
+    # deterministic state with the same noise seed, so atol=1e-100 is
+    # effectively zero tolerance.
+    hops.propagate(1.0, 1.0)
+    hops_loaded.propagate(1.0, 1.0)
+
+    np.testing.assert_allclose(hops_loaded.phi, hops.phi, atol=1e-100)
+    np.testing.assert_allclose(hops_loaded.z_mem, hops.z_mem, atol=1e-100)
+    assert hops_loaded.t == hops.t
