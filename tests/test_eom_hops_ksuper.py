@@ -323,7 +323,7 @@ def test_add_self_interaction_remove_aux():
     Tests that _add_self_interaction() produces the correct time-independent
     self-interaction time-evolution matrix a) in general and b) when we remove
     auxiliaries from the basis and add them back in (that is, check accuracy and
-    self-consistency of the pyHOPS architecture that manages the self-interaction
+    self-consistency of the MesoHOPS architecture that manages the self-interaction
     terms).
     """
     # Prepare Constants

@@ -1,13 +1,42 @@
+"""
+Time-integration routines for vector-based HOPS.
+
+Each integrator operates on the flat hierarchy vector (``phi``) used by
+``HopsTrajectory``.
+
+Functions
+---------
+runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau)
+    Classic RK4 step for the flat hierarchy vector.
+
+runge_kutta_variables(phi, z_mem, t, noise, noise2, tau, storage, ...)
+    Gathers noise samples at the three RK4 time points and returns a dict
+    ready to unpack into runge_kutta_step.
+"""
+from __future__ import annotations
+
 import copy
+from collections.abc import Callable
+
 import numpy as np
+
+from mesohops.noise.hops_noise import HopsNoise
+from mesohops.storage.hops_storage import HopsStorage
 from mesohops.util.physical_constants import hbar
 
-__title__ = "Integrators, Runge-Kutta"
-__author__ = "D. I. G. Bennett"
-__version__ = "1.2"
+__title__ = 'Integrators'
+__author__ = 'D. I. G. Bennett, B. Z. Citty'
+__version__ = '1.6'
 
 
-def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
+def runge_kutta_step(
+    dsystem_dt: Callable,
+    phi: np.ndarray,
+    z_mem: np.ndarray,
+    z_rnd: np.ndarray,
+    z_rnd2: np.ndarray,
+    tau: float,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Performs a single Runge-Kutta step from the current time to a time tau forward.
     Parameters
@@ -53,7 +82,6 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
         else:
             z_mem_tmp = z_mem + c_rk[i] * kz[i - 1] * tau / hbar
             phi_tmp = phi + c_rk[i] * k[i - 1] * tau / hbar
-
         # Calculate system derivatives
         k[i], kz[i] = dsystem_dt(
             phi_tmp, z_mem_tmp, z_rnd[:, i_zrnd[i]], z_rnd2[:, i_zrnd[i]]
@@ -66,8 +94,17 @@ def runge_kutta_step(dsystem_dt, phi, z_mem, z_rnd, z_rnd2, tau):
     return phi, z_mem
 
 
-def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage,
-                          list_l2idx_abs,effective_noise_integration=False):
+def runge_kutta_variables(
+    phi: np.ndarray,
+    z_mem: np.ndarray,
+    t: float,
+    noise: HopsNoise,
+    noise2: HopsNoise,
+    tau: float,
+    storage: HopsStorage,
+    list_l2idx_abs: list[int],
+    effective_noise_integration: bool = False,
+) -> dict:
     """
     Accepts a storage and noise objects and returns the pre-requisite variables for
     a runge-kutta integration step in a list that can be unraveled to correctly feed
@@ -84,7 +121,7 @@ def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage,
     5. noise2 : instance(HopsNoise)
     6. tau : float
              Integration time step [units: fs].
-             
+
     7. storage : instance(HopsStorage)
     8. effective_noise_integration: bool
                                     True indicates that the effective noise
@@ -96,12 +133,18 @@ def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage,
                    Dictionary of variables needed for Runge Kutta.
     """
     if effective_noise_integration:
+        # Number of fine noise sub-steps per integration step
         tau_ratio = round(tau/noise.param["TAU"])
         tau_ratio2 = round(tau / noise2.param["TAU"])
+        # Sample noise at fine resolution over [t, t + 1.5*tau)
         z_rnd_raw = noise.get_noise([t + (i/tau_ratio)*tau for i in
                                      range(round(tau_ratio*1.5))],list_l2idx_abs)
         z_rnd2_raw = noise2.get_noise([t + (i / tau_ratio2) * tau for i in
                                        range(round(tau_ratio2 * 1.5))],list_l2idx_abs)
+        # Average fine noise into 3 bins matching RK4 time-points:
+        #   bin 0: [t, t+tau/2)         -> noise at t
+        #   bin 1: [t+tau/2, t+tau)     -> noise at t+tau/2
+        #   bin 2: [t+tau, t+1.5*tau)   -> noise at t+tau
         z_rnd = np.array([np.mean(z_rnd_raw[:,:round(tau_ratio/2)], axis=1),
                           np.mean(z_rnd_raw[:,round(tau_ratio/2):tau_ratio], axis=1),
                           np.mean(z_rnd_raw[:, tau_ratio:], axis=1)]).T
@@ -113,5 +156,5 @@ def runge_kutta_variables(phi,z_mem, t, noise, noise2, tau, storage,
     else:
         z_rnd = noise.get_noise([t, t + tau * 0.5, t + tau],list_l2idx_abs)
         z_rnd2 = noise2.get_noise([t, t + tau * 0.5, t + tau],list_l2idx_abs)
-        
+
     return {"phi": phi, "z_mem": z_mem, "z_rnd": z_rnd, "z_rnd2": z_rnd2, "tau": tau}

@@ -1,5 +1,5 @@
 import numpy as np
-from mesohops.integrator.integrator_rk import runge_kutta_variables
+from mesohops.integrator.integrator import runge_kutta_variables
 from mesohops.noise.hops_noise import HopsNoise
 from mesohops.trajectory.exp_noise import bcf_exp
 
@@ -42,6 +42,13 @@ noise_corr = {
         "CORR_PARAM": sys_param["PARAM_NOISE1"],
     }
 
+# ============================================================
+# TEST SUITE: runge_kutta_variables()
+# ============================================================
+
+# ------------------------------------------------------------
+# TEST: effective noise integration averages noise correctly
+# ------------------------------------------------------------
 def test_effective_noise_integration():
     """
     Tests that the effective noise integration that averages the noise over all time

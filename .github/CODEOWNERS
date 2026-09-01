@@ -1,0 +1,3 @@
+# ABOUTME: Gates master merges - required approval must come from a listed owner.
+# ABOUTME: Works with branch protection require_code_owner_reviews; admins may bypass.
+* @digbennett @alexiahartzell

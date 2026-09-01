@@ -1,6 +1,6 @@
 [project]
 name = "mesohops"
-version = "1.7.0"
+version = "1.8.0"
 # numba and numpy are pinned to a single minor version. numba minor
 # releases have introduced stochastic test failures and memory issues,
 # and numba binds against a specific numpy ABI. Upper-bound bumps for

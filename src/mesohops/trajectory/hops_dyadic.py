@@ -49,7 +49,7 @@ class DyadicTrajectory(HopsTrajectory):
 
         6. integration_param: dict
                               Dictionary of user-defined integration parameters.
-                              [see integrator_rk.py and hops_trajectory.py]
+                              [see integrator.py and hops_trajectory.py]
 
         """
 

@@ -114,6 +114,9 @@ class HopsStorage:
         self.storage_dic.setdefault('psi_traj', True)
         self.storage_dic.setdefault('t_axis', True)
         self.storage_dic.setdefault('z_mem', False)
+        # Tensor-only: per-step <0,...,0|psi> for vacuum-convention
+        # spectroscopy (mirrors what gs_core gets via psi_traj[0]).
+        self.storage_dic.setdefault('psi_g_traj', False)
 
         if self._adaptive:
             self.storage_dic.setdefault('aux_list', True)

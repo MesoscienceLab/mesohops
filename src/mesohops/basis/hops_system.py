@@ -48,6 +48,7 @@ class HopsSystem:
         '_list_activel2idx_abs',           # Active L2 indices (absolute)
         '__list_destination_state',        # Destination states for each state
         '__dict_relindex_states',          # Relative state indices
+        'flag_nearest_neighbor_ham',         # True if Hamiltonian has only nearest-neighbor coupling
     )
 
     def __init__(self, system_param: dict[str, Any] | str | os.PathLike[str] | Path) -> None:
@@ -151,6 +152,9 @@ class HopsSystem:
                 self._dict_nzhamiltonian_abs[key] += data
             else:
                 self._dict_nzhamiltonian_abs[key] = data
+        self.flag_nearest_neighbor_ham = self._is_nearest_neighbor(
+            self.param['SPARSE_HAMILTONIAN']
+        )
 
     def initialize(self, flag_adaptive: bool, psi_0: np.ndarray) -> None:
         """
@@ -456,3 +460,26 @@ class HopsSystem:
         return sp.sparse.coo_matrix(
             (data, (row, col)), shape=(len(iter_states), len(iter_states))
         )
+
+    @staticmethod
+    def _is_nearest_neighbor(H2_ham_sparse: sp.sparse.spmatrix) -> bool:
+        """
+        Check if a Hamiltonian has only nearest-neighbor coupling.
+
+        Returns True if all non-zero elements satisfy |row - col| <= 1.
+
+        Parameters
+        ----------
+        1. H2_ham_sparse: sparse matrix
+                          System Hamiltonian in any scipy sparse format.
+
+        Returns
+        -------
+        1. flag_nearest_neighbor_ham: bool
+                                     True if nearest-neighbor, False otherwise.
+        """
+        H2_ham_coo = H2_ham_sparse.tocoo()
+        # Eliminate explicit zeros so that a user-supplied sparse matrix
+        # with stored zeros on far off-diagonals is not misclassified.
+        H2_ham_coo.eliminate_zeros()
+        return bool(np.all(np.abs(H2_ham_coo.row - H2_ham_coo.col) <= 1))
