@@ -38,6 +38,7 @@ INTEGRATION_DICT_DEFAULT = {
     "INCHWORM_CAP": 5,
     "STATIC_BASIS": None,
     "EFFECTIVE_NOISE_INTEGRATION": False,
+    "STORE_STEP_TIMING": False,
 }
 
 INTEGRATION_DICT_TYPES = {
@@ -47,6 +48,7 @@ INTEGRATION_DICT_TYPES = {
     "INCHWORM_CAP": [int],
     "STATIC_BASIS": [type(None), list, np.ndarray],
     "EFFECTIVE_NOISE_INTEGRATION": [bool],
+    "STORE_STEP_TIMING": [bool],
 }
 
 
@@ -153,7 +155,7 @@ class HopsTrajectory:
 
         6. integration_param: dict
                               Dictionary of user-defined integration parameters.
-                              [see integrator_rk.py]
+                              [see integrator.py]
             a. INTEGRATOR
             b. EARLY_ADAPTIVE_INTEGRATOR
             c. EARLY_INTEGRATOR_STEPS
@@ -241,8 +243,19 @@ class HopsTrajectory:
                           f'calculations. The number of early integrator steps has '
                           f'been reset to the default of {self.early_steps}.')
         self._early_step_counter = 0
+        self._setup_integrator()
+
+        # LOCKING VARIABLE
+        self.__initialized__ = False
+
+    def _setup_integrator(self) -> None:
+        """
+        Configures the integration step function and variable gatherer.
+
+        Subclasses override this to support additional integrators (e.g. TDVP).
+        """
         if self.integrator == "RUNGE_KUTTA":
-            from mesohops.integrator.integrator_rk import (
+            from mesohops.integrator.integrator import (
                 runge_kutta_step,
                 runge_kutta_variables,
             )
@@ -255,9 +268,6 @@ class HopsTrajectory:
                 ("Integrator of type " + str(self.integrator)),
                 type(self).__name__,
             )
-
-        # LOCKING VARIABLE
-        self.__initialized__ = False
 
     def initialize(
         self,
@@ -473,7 +483,11 @@ class HopsTrajectory:
 
         # Performs integration
         # -------------------
+        store_step_timing = self.integration_param["STORE_STEP_TIMING"]
+
         for (index_t, t) in enumerate(t_axis):
+            if store_step_timing:
+                t_step_start = timer.time()
             # Check that timestep is resolved
             if (tau > self.basis.system.system_timescale and
                     (tau_sys is None or tau_sys > self.basis.system.system_timescale)):
@@ -566,11 +580,17 @@ class HopsTrajectory:
                     list_zmemmodeidx_abs=self.basis.noise_memory.list_zmemmodeidx_abs,
                 )
 
+            if store_step_timing:
+                self.storage.metadata["LIST_PROPAGATION_TIME"].append(
+                    (t, timer.time() - t_step_start)
+                )
+
 
         # Stores propagation time
         # --------------------------
-        self.storage.metadata["LIST_PROPAGATION_TIME"].append(timer.time() -
-                                                              timer_checkpoint)
+        if not store_step_timing:
+            self.storage.metadata["LIST_PROPAGATION_TIME"].append(timer.time() -
+                                                                  timer_checkpoint)
 
         # Warn the user if overly aggressive time steps were detected.
         if tau_sys is not None:

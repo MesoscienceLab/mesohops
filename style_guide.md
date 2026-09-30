@@ -192,6 +192,11 @@ Brief description of class.
     - Numbered list:  
   `1. name: type1 | type2 [units: cm^-1]`  
         - Note: we use brackets, not parens, for units   
+        - When to annotate units:
+            * Every parameter, return, or attribute representing a dimensioned physical quantity carries `[units: ...]`.
+            * Explicitly dimensionless physical quantities (ratios, normalized amplitudes, relative errors) carry `[units: dimensionless]`.
+            * The bracket is omitted only for non-physical values (flags, indices, counts).
+            * For scalars and homogeneous containers the units bracket has a single entry; for heterogeneous structures the bracket matches the repeating element shown in the type — e.g., `list(tuple(complex, complex))` takes `[units: (cm^-2, cm^-1)]`.
     - Description on the next indented line, starting aligned with the first character after the colon.
 
 
@@ -218,6 +223,15 @@ Parameters
                 Brief description.
 2. rizzler: str [options: 'rizz_yes', 'rizz_no']
             Brief description.
+
+3. list_memory_terms: list(complex) [units: cm^-1]
+                      Brief description (units describe each element).
+4. list_gw: list(tuple(complex, complex)) [units: (cm^-2, cm^-1)]
+            Correlation-function (g, w) mode pairs.
+5. rel_error: float [units: dimensionless]
+              Brief description.
+6. n_modes: int
+            Mode count (non-physical: no units bracket).
 
 Returns
 -------

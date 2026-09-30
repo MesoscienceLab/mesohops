@@ -1,4 +1,5 @@
 import itertools as it
+import warnings
 from collections import Counter
 
 import numpy as np
@@ -13,12 +14,18 @@ __title__ = "Hierarchy Class"
 __author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd, B. Z. Citty"
 __version__ = "1.6"
 
-HIERARCHY_DICT_DEFAULT = {"MAXHIER": int(3), "TERMINATOR": False, "STATIC_FILTERS": []}
+HIERARCHY_DICT_DEFAULT = {
+    "MAXHIER": int(3),
+    "TERMINATOR": False,
+    "STATIC_FILTERS": [],
+    "TRUNCATION_METHOD": 'triangular',
+}
 
 HIERARCHY_DICT_TYPES = dict(
     MAXHIER=[type(int())],
     TERMINATOR=[type(False), type(str())],
     STATIC_FILTERS=[type([])],
+    TRUNCATION_METHOD=[type(str())],
 )
 
 
@@ -67,23 +74,26 @@ class HopsHierarchy(Dict_wDefaults):
 
         Inputs
         ------
-        1. hierarchy_param :
+        1. hierarchy_param:
             [see hops_basis.py]
-            a. MAXHIER : int
+            a. MAXHIER: int
                          Maximum depth in the hierarchy that will be kept in the
                          calculation (options: >= 0).
-            b. TERMINATOR : bool
+            b. TERMINATOR: bool
                             True indicates the terminator condition is used while False
                             indicates otherwise (options: False).
-            c. STATIC_FILTERS : str
+            c. STATIC_FILTERS: str
                                 Total set of nodes defined by MAXHIER can be further
                                 filtered. This is a list of filters [(filter_name1,
                                 [filter_param_1]), ...] (options: Triangular,
                                 Markovian, LongEdge, Domain).
+            d. TRUNCATION_METHOD: str
+                                 Hierarchy truncation scheme
+                                 (options: 'triangular', 'rectangular').
 
-        2. system_param :
+        2. system_param:
             [see hops_system.py]
-            a. N_HMODES : int
+            a. N_HMODES: int
                           Number of modes that appear in hierarchy.
 
         Returns
@@ -100,9 +110,9 @@ class HopsHierarchy(Dict_wDefaults):
 
         self.param = hierarchy_param
         if self.param["MAXHIER"] > 255:
-            print("Warning: using a hierarchy depth greater than 255 can cause "
-                  "integer overflow issues when calculating derivative error. "
-                  "Resetting hierarchy depth to 255.")
+            warnings.warn("Using a hierarchy depth greater than 255 can cause "
+                         "integer overflow issues when calculating derivative error. "
+                         "Resetting hierarchy depth to 255.")
             self.param["MAXHIER"] = 255
         self.n_hmodes = system_param["N_HMODES"]
         self._auxiliary_list = []
@@ -149,7 +159,7 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. flag_adaptive : bool
+        1. flag_adaptive: bool
                            True indicates an adaptive calculation while False indicates
                            otherwise.
 
@@ -159,32 +169,48 @@ class HopsHierarchy(Dict_wDefaults):
         """
         # Prepare the hierarchy
         # ---------------------
-        # The hierarchy is only predefined if the basis is not adaptive
+        trunc = self.param["TRUNCATION_METHOD"]
+        # Vector adaptive HOPS uses flux filters (hops_fluxfilters.py) that
+        # enforce the MAXHIER boundary via aux._sum (total depth), which is
+        # inherently triangular. Rectangular support would require per-mode
+        # depth checks in the filter logic.
+        # NOTE: Tensor HOPS bypasses hierarchy.initialize() entirely
+        # (hierarchy depth is encoded in MPS bond dimensions), so this
+        # guard only affects the vector path.
+        if flag_adaptive and trunc == 'rectangular':
+            raise NotImplementedError(
+                'Rectangular truncation is not yet supported for adaptive '
+                'calculations.'
+            )
         if not flag_adaptive:
-            # If there are no static filters, use the standard triangular hierarchy
-            # generator
-            if len(self.param["STATIC_FILTERS"]) == 0:
+            if trunc == 'rectangular':
+                if len(self.param["STATIC_FILTERS"]) > 0:
+                    warnings.warn(
+                        'STATIC_FILTERS with rectangular truncation: filters '
+                        'will be applied, but note that no tensor-specific '
+                        'filters exist yet.'
+                    )
                 self.auxiliary_list = self.filter_aux_list(
-                    self.define_triangular_hierarchy(self.n_hmodes,
-                                                     self.param["MAXHIER"]
-                                                     )
+                    self.define_rectangular_hierarchy(
+                        self.n_hmodes, self.param["MAXHIER"]
+                    )
                 )
-            # If the first static filter is not Markovian, use the standard
-            # triangular hierarchy generator and then apply filters
-            elif not "Markovian" in self.param["STATIC_FILTERS"][0]:
-                self.auxiliary_list = self.filter_aux_list(
-                    self.define_triangular_hierarchy(self.n_hmodes,
-                                                     self.param["MAXHIER"]
-                                                     )
-                )
-            # If the first static filter is Markovian, then use the Markovian
-            # triangular hierarchy generator
+            elif trunc == 'triangular':
+                # Triangular truncation with optional static filters
+                if "Markovian" in (self.param["STATIC_FILTERS"] or [[]])[0]:
+                    list_mark = self.param["STATIC_FILTERS"][0][1]
+                    self.auxiliary_list = self.filter_aux_list(
+                        self.define_markovian_filtered_triangular_hierarchy(
+                            self.n_hmodes, self.param["MAXHIER"], list_mark)
+                    )
+                else:
+                    self.auxiliary_list = self.filter_aux_list(
+                        self.define_triangular_hierarchy(
+                            self.n_hmodes, self.param["MAXHIER"]
+                        )
+                    )
             else:
-                list_mark = self.param["STATIC_FILTERS"][0][1]
-                self.auxiliary_list = self.filter_aux_list(
-                    self.define_markovian_filtered_triangular_hierarchy(
-                        self.n_hmodes, self.param["MAXHIER"], list_mark)
-                )
+                raise UnsupportedRequest(trunc, 'TRUNCATION_METHOD')
 
         else:
             # Initialize Guess for the hierarchy
@@ -200,6 +226,8 @@ class HopsHierarchy(Dict_wDefaults):
                 self.only_markovian_filter = False
             else:
                 self.only_markovian_filter = True
+                
+        
 
     def filter_aux_list(self, list_aux):
         """
@@ -208,12 +236,12 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. list_aux : list(instance(AuxVec))
+        1. list_aux: list(instance(AuxVec))
                       List of auxiliaries to be filtered.
 
         Returns
         -------
-        1. list_aux : list(instance(AuxVec))
+        1. list_aux: list(instance(AuxVec))
                       Filtered list of auxiliaries.
 
         """
@@ -230,18 +258,18 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. list_aux : list(instance(AuxVec))
+        1. list_aux: list(instance(AuxVec))
                       List of auxiliaries that needs to be filtered.
 
-        2. filter_name : str
+        2. filter_name: str
                          Name of filter.
 
-        3. params : list
+        3. params: list
                     List of parameters for the filter.
 
         Returns
         -------
-        1. list_aux : list(instance(AuxVec))
+        1. list_aux: list(instance(AuxVec))
                       List of filtered auxiliaries.
 
 
@@ -302,11 +330,11 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. aux : instance(AuxVec)
+        1. aux: instance(AuxVec)
 
         Returns
         -------
-        1. aux_index : int
+        1. aux_index: int
                        Relative or absolute index of a single auxiliary.
         """
         if aux._index is None:
@@ -315,27 +343,41 @@ class HopsHierarchy(Dict_wDefaults):
             return aux._index
 
     @staticmethod
-    def _const_aux_edge(absindex_mode, depth, n_hmodes):
+    def define_rectangular_hierarchy(n_hmodes, maxhier):
         """
-        Creates an auxiliary object for an edge node at
-        a particular depth along a given mode.
+        Creates a rectangular hierarchy for a given number of modes at a
+        given depth.
 
         Parameters
         ----------
-        1. absindex_mode : int
-                           Absolute index of the edge mode.
+        1. n_hmodes: int
+                     Number of modes that appear in the hierarchy.
 
-        2. depth : int
-                   Depth of the edge auxiliary.
-
-        3. n_hmodes : int
-                      Number of modes that appear in the hierarchy.
+        2. maxhier: int
+                    Maximum hierarchy depth per mode.
 
         Returns
         -------
-        1. aux : instance(AuxVec)
+        1. list_aux: list(AuxVec)
+                     List of auxiliaries in the new rectangular hierarchy.
         """
-        return AuxVec([(absindex_mode, depth)], n_hmodes)
+        list_aux = []
+        # Iterate over all Cartesian products of hierarchy depths
+        # [0, 1, ..., maxhier] across n_hmodes modes. Each tuple
+        # hier_depths is a vector k = (k_0, k_1, ..., k_{M-1}) where
+        # each k_i ∈ {0, ..., maxhier}, giving (maxhier+1)^n_hmodes
+        # auxiliary states in total.
+        iter_hier_depth = it.product(range(maxhier + 1), repeat=n_hmodes)
+        for hier_depths in iter_hier_depth:
+            # Build the sparse (mode_index, depth) representation for
+            # this auxiliary state. AuxVec stores only nonzero entries,
+            # so modes with depth 0 are omitted.
+            list_aux_input = [(idx_mode, depth) for idx_mode, depth
+                              in enumerate(hier_depths) if depth > 0]
+            list_aux.append(
+                AuxVec(list_aux_input, n_hmodes)
+            )
+        return list_aux
 
     @staticmethod
     def define_triangular_hierarchy(n_hmodes, maxhier):
@@ -345,17 +387,19 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. n_hmodes : int
+        1. n_hmodes: int
                       Number of modes that appear in the hierarchy.
 
-        2. maxhier : int
+        2. maxhier: int
                      Max single value of the hierarchy.
 
         Returns
         -------
-        1. list_aux : list(instance(AuxVec))
+        1. list_aux: list(instance(AuxVec))
                       List of auxiliaries in the new triangular hierarchy.
         """
+        
+        
         list_aux = []
         # first loop over hierarchy depth
         for k in range(maxhier + 1):
@@ -377,19 +421,19 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. n_hmodes : int
+        1. n_hmodes: int
                       Number of modes that appear in the hierarchy.
 
-        2. maxhier : int
+        2. maxhier: int
                      Max single value of the hierarchy.
 
-        3. list_boolean_mark : list(bool)
+        3. list_boolean_mark: list(bool)
                                List by modes. True indicates that the Markovian filter
                                will be applied while False indicates otherwise.
 
         Returns
         -------
-        1. list_aux : list(instance(AuxVec))
+        1. list_aux: list(instance(AuxVec))
                       List of auxiliaries in the new triangular hierarchy.
         """
         list_not_boolean_mark = [not bool_mark for bool_mark in list_boolean_mark]
@@ -423,9 +467,9 @@ class HopsHierarchy(Dict_wDefaults):
 
         Parameters
         ----------
-        1. aux : instance(AuxVec)
+        1. aux: instance(AuxVec)
 
-        2. type : str
+        2. type: str
                   Determines whether to add or remove (options: add, remove).
 
         Returns
@@ -462,7 +506,7 @@ class HopsHierarchy(Dict_wDefaults):
             elif value > 0:
                 list_modes_in_use.append(mode)
             else:
-                print(f'ERROR: _count_by_modes is negative for mode {mode}')
+                raise ValueError(f'_count_by_modes is negative for mode {mode}')
 
         [self._count_by_modes.pop(mode) for mode in list_to_remove]
         self._list_modes_in_use = sorted(list_modes_in_use)
@@ -488,24 +532,23 @@ class HopsHierarchy(Dict_wDefaults):
         for aux in self.list_aux_add:
             sum_aux = np.sum(aux)
             # add connections to k+1
-            if sum_aux < self.param['MAXHIER']:
-                list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up(
-                    self._list_modes_in_use)
-                for (rel_ind, my_id) in enumerate(list_id_p1):
-                    try:
-                        aux_p1 = self._dict_aux_by_id[my_id]
-                        aux.add_aux_connect(list_mode_connects_p1[rel_ind], aux_p1, 1)
+            list_id_p1, list_value_connects_p1, list_mode_connects_p1 = aux.get_list_id_up(
+                self._list_modes_in_use)
+            for (rel_ind, my_id) in enumerate(list_id_p1):
+                try:
+                    aux_p1 = self._dict_aux_by_id[my_id]
+                    aux.add_aux_connect(list_mode_connects_p1[rel_ind], aux_p1, 1)
 
-                        # We simply keep track of the index connections of new auxiliaries
-                        # Note: It does not matter that the indices will change because we only use this dictionary
-                        # once, immediately after it is created in eom.ksuper
-                        self._new_aux_id_conn_by_mode[list_mode_connects_p1[rel_ind]][
-                            aux.id] = [aux_p1.id, list_value_connects_p1[rel_ind] + 1]
-                        self._new_aux_index_conn_by_mode[
-                            list_mode_connects_p1[rel_ind]][aux._index] = [
-                            aux_p1._index, list_value_connects_p1[rel_ind] + 1]
-                    except:
-                        pass
+                    # We simply keep track of the index connections of new auxiliaries
+                    # Note: It does not matter that the indices will change because we only use this dictionary
+                    # once, immediately after it is created in eom.ksuper
+                    self._new_aux_id_conn_by_mode[list_mode_connects_p1[rel_ind]][
+                        aux.id] = [aux_p1.id, list_value_connects_p1[rel_ind] + 1]
+                    self._new_aux_index_conn_by_mode[
+                        list_mode_connects_p1[rel_ind]][aux._index] = [
+                        aux_p1._index, list_value_connects_p1[rel_ind] + 1]
+                except:
+                    pass
 
             # Add connections to k-1
             if sum_aux > 0:

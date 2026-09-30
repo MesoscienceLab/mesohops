@@ -104,12 +104,12 @@ class HopsEOM(Dict_wDefaults):
             self.normalized = False
         elif self.param["EQUATION_OF_MOTION"] == "LINEAR":
             self.normalized = False
+        
         else:
             raise UnsupportedRequest(
                 "EQUATION_OF_MOTION =" + self.param["EQUATION_OF_MOTION"],
                 type(self).__name__,
             )
-
         # Checks adaptive definition
         # -------------------------
         if self.param["ADAPTIVE_H"] or self.param["ADAPTIVE_S"]:
@@ -375,7 +375,6 @@ class HopsEOM(Dict_wDefaults):
                 2. z_mem1_deriv : np.array(complex)
                                   Derivative of z_mem with respect to time.
                 """
-                
                 # Construct noise terms
                 # ---------------------
                 z_hat1_tmp = (np.conj(z_rnd1_tmp) + compress_zmem(
@@ -400,7 +399,6 @@ class HopsEOM(Dict_wDefaults):
                         list_g,
                         list_w,
                     )
-                    
                 # Check for a low-temperature correction stemming from flux from
                 # Markovian auxiliaries
                 C2_gamma_LT_corr_to_norm_corr = 0
@@ -427,19 +425,19 @@ class HopsEOM(Dict_wDefaults):
                             np.array(list_lt_corr_param),
                             list_avg_L2,
                             list_avg_L2_sq
-                        )
 
-                
+                    )
                 # Calculates dphi/dt
                 # -----------------
                 
                 Φ_view_F = np.asarray(Φ).reshape([system.size,hierarchy.size],order="F")
                 Φ_view_C = np.asarray(Φ).reshape([hierarchy.size,system.size],order="C")
-                
                 Φ_deriv = K2_stable @ Φ
+                
                 Φ_deriv += (self.K2_k @ Φ_view_C).reshape([hierarchy.size * system.size],order="C")
                 Φ_deriv += ((-1j * system.hamiltonian) @ Φ_view_F).reshape([system.size * hierarchy.size],order="F")
-
+                
+                
                 Φ_deriv_view_F = np.asarray(Φ_deriv).reshape([system.size,hierarchy.size],order="F")
                 Φ_deriv_view_C = np.asarray(Φ_deriv).reshape([hierarchy.size,system.size],order="C")
                 
@@ -449,7 +447,7 @@ class HopsEOM(Dict_wDefaults):
                     Φ_deriv[:system.size] += C2_LT_corr_physical @ np.asarray(
                         Φ[:system.size])
                     norm_corr += C2_gamma_LT_corr_to_norm_corr
-                
+
                 if self.normalized:
                     Φ_deriv -= norm_corr * Φ
                 
@@ -464,12 +462,11 @@ class HopsEOM(Dict_wDefaults):
                             (z_hat1_tmp[j] - 1.0j * z_tmp2[j]) *
                             (list_l2_nz_csr[rel_index] @ Φ_view_red)
                     )
-                    
+
                     Φ_view_red = Φ_view_C[list_hier_mask_Zp1[rel_index][1],:]
                     Z2_kp1_red = Z2_kp1[rel_index][list_hier_mask_Zp1[rel_index][2]]
                     
                     Φ_deriv_view_C[list_hier_mask_Zp1[rel_index][0],:] += np.conj(list_avg_L2[j]) * (Z2_kp1_red @ Φ_view_red)
-
 
                     
                 # Calculates dz/dt
@@ -485,7 +482,7 @@ class HopsEOM(Dict_wDefaults):
                     list_l2idx_abs,
                     system.list_activel2idx_abs
                 )
-
+                
                 return Φ_deriv, z_mem1_deriv
 
         elif self.param["EQUATION_OF_MOTION"] == "LINEAR":

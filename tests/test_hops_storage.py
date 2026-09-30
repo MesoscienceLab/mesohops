@@ -1,13 +1,20 @@
+import copy
+
 import numpy as np
 import pytest
+from unittest.mock import MagicMock, patch
 
 import mesohops.storage.storage_functions as sf
 from mesohops.basis.hops_aux import AuxiliaryVector
 from mesohops.storage.hops_storage import HopsStorage
+from mesohops.storage.storage_functions import (
+    save_max_tensor_complexity,
+    save_phi_traj_tensor,
+    save_phi_norm_tensor,
+)
 from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.trajectory.hops_trajectory import HopsTrajectory
 from mesohops.util.exceptions import UnsupportedRequest
-from unittest.mock import patch
 
 
 # New Hops_Storage tests
@@ -553,3 +560,114 @@ def test_git_commit_hash_error_in_metadata(mock_get_hash):
     assert "GIT_COMMIT_HASH" in storage.metadata
     assert storage.metadata["GIT_COMMIT_HASH"] == ("A gigantic walrus ate the git "
                                                    "repository here too")
+
+
+# ============================================================
+# TEST SUITE: tensor storage functions
+# ============================================================
+
+
+# ------------------------------------------------------------
+# TEST: save_phi_traj_tensor returns deep copy of MPS cores
+# ------------------------------------------------------------
+@pytest.mark.level(1)
+def test_save_phi_traj_tensor_returns_deep_copy():
+    # This case tests that save_phi_traj_tensor returns a deep copy
+    # of the MPS cores, not a reference to the original list.
+    mock_wfn = MagicMock()
+    core_0 = np.array([[[1.0 + 0j, 2.0], [3.0, 4.0]]])
+    core_1 = np.array([[[5.0 + 0j], [6.0]], [[7.0], [8.0]]])
+    mock_wfn.list_cores_phi = [core_0, core_1]
+
+    result = save_phi_traj_tensor(wavefunction=mock_wfn)
+
+    assert len(result) == 2
+    np.testing.assert_array_equal(result[0], core_0)
+    np.testing.assert_array_equal(result[1], core_1)
+    # Verify deep copy: mutating original should not affect result
+    mock_wfn.list_cores_phi[0][0, 0, 0] = 999.0
+    assert result[0][0, 0, 0] != 999.0
+
+
+# ------------------------------------------------------------
+# TEST: save_phi_norm_tensor computes hierarchy norm via contraction
+# ------------------------------------------------------------
+@pytest.mark.level(1)
+def test_save_phi_norm_tensor():
+    # This case tests that save_phi_norm_tensor computes the correct
+    # hierarchy norm using contract_down_exact. For a simple 2-state
+    # fullstate MPS with known cores, verify the norm matches the
+    # analytical value.
+    mock_wfn = MagicMock()
+    # Simple 2-state fullstate MPS: state core + one mode core
+    # State core: (1, 2, 1), mode core: (1, 2, 1)
+    core_state = np.zeros((1, 2, 1), dtype=np.complex128)
+    core_state[0, 0, 0] = 1.0  # psi on state 0
+    core_state[0, 1, 0] = 0.5  # psi on state 1
+    core_mode = np.zeros((1, 2, 1), dtype=np.complex128)
+    core_mode[0, 0, 0] = 1.0  # k=0 occupation
+    core_mode[0, 1, 0] = 0.3  # k=1 occupation
+    mock_wfn.list_cores_phi = [core_state, core_mode]
+    mock_wfn.method = 'fullstate'
+    # M1_modes_per_site is the attribute save_phi_norm_tensor reads
+    mock_wfn.M1_modes_per_site = np.array([1, 1])
+
+    result = save_phi_norm_tensor(wavefunction=mock_wfn)
+
+    # Analytical: per-state norm^2 from double-layer contraction:
+    #   state 0: |1.0*1.0|^2 + |1.0*0.3|^2 = 1.09
+    #   state 1: |0.5*1.0|^2 + |0.5*0.3|^2 = 0.2725
+    # Total norm = sqrt(1.09 + 0.2725) = sqrt(1.3625)
+    expected = np.sqrt(1.3625)
+    np.testing.assert_allclose(result, expected, atol=1e-12)
+
+
+# ------------------------------------------------------------
+# TEST: per-state norms are individually correct
+# ------------------------------------------------------------
+@pytest.mark.level(1)
+def test_save_phi_norm_tensor_per_state():
+    # This case tests that the per-state norm-squared values from
+    # contract_down_exact match the analytical values, not just
+    # the total norm.
+    from mesohops.util.tensor_operations import contract_down_exact
+    mock_wfn = MagicMock()
+    core_state = np.zeros((1, 2, 1), dtype=np.complex128)
+    core_state[0, 0, 0] = 1.0
+    core_state[0, 1, 0] = 0.5
+    core_mode = np.zeros((1, 2, 1), dtype=np.complex128)
+    core_mode[0, 0, 0] = 1.0
+    core_mode[0, 1, 0] = 0.3
+    mock_wfn.list_cores_phi = [core_state, core_mode]
+    mock_wfn.method = 'fullstate'
+    mock_wfn.M1_modes_per_site = np.array([1, 1])
+
+    V1_norm_sq = contract_down_exact(
+        mock_wfn.list_cores_phi,
+        mock_wfn.method,
+        len(mock_wfn.M1_modes_per_site),
+    )
+    # Analytical per-state norm^2:
+    #   state 0: |1.0*1.0|^2 + |1.0*0.3|^2 = 1.09
+    #   state 1: |0.5*1.0|^2 + |0.5*0.3|^2 = 0.2725
+    np.testing.assert_allclose(V1_norm_sq[0].real, 1.09, atol=1e-12)
+    np.testing.assert_allclose(V1_norm_sq[1].real, 0.2725, atol=1e-12)
+
+
+# ------------------------------------------------------------
+# TEST: save_max_tensor_complexity returns the scalar verbatim
+# ------------------------------------------------------------
+@pytest.mark.level(1)
+def test_save_max_tensor_complexity():
+    # This case tests that save_max_tensor_complexity is an identity
+    # function over its `max_tensor_complexity` kwarg. Propagate passes
+    # the scalar from eom.max_complexity_step verbatim, and the storage
+    # callable forwards it unchanged into storage.data.
+    assert save_max_tensor_complexity(max_tensor_complexity=42) == 42
+    assert save_max_tensor_complexity(max_tensor_complexity=0) == 0
+    # Other kwargs are accepted (storage passes wavefunction etc. to
+    # every save function uniformly) and ignored here.
+    result = save_max_tensor_complexity(
+        max_tensor_complexity=7, wavefunction=None, t_new=1.5,
+    )
+    assert result == 7

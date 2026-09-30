@@ -716,3 +716,38 @@ def test_reduce_sparse_matrix_off_diag_reduce_non_keyerror_propagates():
 
     with pytest.raises(TypeError):
         HSystem.reduce_sparse_matrix(BrokenDict(), [0, 1], True, filter_nz=True)
+
+
+# ============================================================
+# TEST SUITE: _is_nearest_neighbor()
+# ============================================================
+
+
+# ------------------------------------------------------------
+# TEST: Auto-detects NN vs non-NN Hamiltonians
+# ------------------------------------------------------------
+@pytest.mark.level(1)
+def test_is_nearest_neighbor_auto_detection():
+    # This case tests that a tridiagonal Hamiltonian is detected as NN.
+    H2_nn_dense = np.zeros([4, 4], dtype=np.complex128)
+    H2_nn_dense[0, 1] = 40
+    H2_nn_dense[1, 0] = 40
+    H2_nn_dense[1, 2] = 10
+    H2_nn_dense[2, 1] = 10
+    H2_nn_dense[2, 3] = 40
+    H2_nn_dense[3, 2] = 40
+    H2_nn = sp.sparse.coo_matrix(H2_nn_dense)
+    assert HSystem._is_nearest_neighbor(H2_nn) is True
+
+    # This case tests that a Hamiltonian with long-range coupling is not NN.
+    H2_non_nn_dense = np.array(H2_nn_dense, dtype=np.complex128)
+    H2_non_nn_dense[0, 2] = 5.0
+    H2_non_nn_dense[2, 0] = 5.0
+    H2_non_nn = sp.sparse.coo_matrix(H2_non_nn_dense)
+    assert HSystem._is_nearest_neighbor(H2_non_nn) is False
+
+    # This case tests that explicit sparse zeros on far off-diagonals
+    # do not break NN detection.
+    H2_sparse_zero = sp.sparse.lil_matrix(H2_nn_dense)
+    H2_sparse_zero[0, 3] = 0.0
+    assert HSystem._is_nearest_neighbor(H2_sparse_zero.tocoo()) is True

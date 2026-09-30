@@ -48,7 +48,6 @@ class HopsModes:
         self._list_modeidx_abs = []
         self._list_l2idx_abs = []
 
-
     @property
     def list_index_L2_by_hmode(self):
         return self._list_index_L2_by_hmode

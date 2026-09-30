@@ -7,10 +7,16 @@ from mesohops.trajectory.exp_noise import bcf_exp
 from mesohops.util.exceptions import UnsupportedRequest
 
 
-__title__ = "test of hops hierarchy"
-__author__ = "D. I. G. Bennett, L. Varvelo, J. K. Lynd"
-__version__ = "1.6"
-__date__ = "Aug. 13, 2025"
+__title__ = 'Unit Tests for HopsHierarchy'
+__author__ = 'D. I. G. Bennett, L. Varvelo, J. K. Lynd'
+__version__ = '1.6'
+
+
+def test_maxhier_overflow_warning():
+    # This case tests that constructing a hierarchy with MAXHIER > 255
+    # emits a warning about integer overflow.
+    with pytest.warns(UserWarning, match='integer overflow'):
+        HHier({'MAXHIER': 256}, {'N_HMODES': 2})
 
 
 def test_hierarchy_initialize_true():
@@ -190,22 +196,8 @@ def test_aux_index_relative():
     assert HH._aux_index(test_aux) == 10
 
 
-def test_const_aux_edge():
-    """
-    Tests whether const_aux_edge is properly creating an auxiliary index tuple for
-    an edge node at a particular depth along a given mode.
-    """
 
-    hierarchy_param = {"MAXHIER": 4}
-    system_param = {"N_HMODES": 4}
-    HH = HHier(hierarchy_param, system_param)
-    HH.initialize(True)
-    tmp = HH._const_aux_edge(2, 1, 4)
-    known_index_tuple = AuxVec([(2, 1)], 4)
-    assert tmp == known_index_tuple
-
-
-# a function created to be used to test define_triangular_hierarchy
+# a helper used to test the hierarchy builder functions
 def map_to_auxvec(list_aux, n_hmodes):
     """
     Helper function that maps a list of auxiliary indexing vectors to a list of
@@ -215,12 +207,14 @@ def map_to_auxvec(list_aux, n_hmodes):
     ----------
     1. list_aux : list(list(int))
                   List of auxiliary indexing vectors in list form
+    2. n_hmodes : int
+                  Number of modes in the hierarchy
 
     RETURNS
     -------
     1. list_aux_vec : list(list(AuxVec))
                       List of AuxVec objects corresponding to the indexing vectors in
-                      list_aux in a hierarchy with 4 modes
+                      list_aux in a hierarchy with n_hmodes modes
     """
 
     list_aux_vec = []
@@ -522,3 +516,273 @@ def test_add_connections():
     assert vector_030._dict_aux_p1 == {}
     assert vector_003._dict_aux_m1 == {2:vector_002}
     assert vector_003._dict_aux_p1 == {}
+
+
+# ============================================================
+# TEST SUITE: define_rectangular_hierarchy()
+# ============================================================
+
+# ------------------------------------------------------------
+# TEST: Correct auxiliaries for two hierarchy modes
+# ------------------------------------------------------------
+def test_define_rect_hier_two_modes():
+    # This case tests n_hmodes=2, maxhier=2 producing all 9 Cartesian
+    # product combinations. Uses sorted list comparison (not set) to
+    # catch duplicates in the output.
+    list_aux = HHier.define_rectangular_hierarchy(2, 2)
+    known_list = map_to_auxvec([
+        [0, 0], [0, 1], [0, 2],
+        [1, 0], [1, 1], [1, 2],
+        [2, 0], [2, 1], [2, 2],
+    ], 2)
+    assert sorted(list_aux) == sorted(known_list), (
+        'Two-mode rectangular hierarchy does not match expected Cartesian product'
+    )
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular is a strict superset of triangular for
+#       n_hmodes > 1
+# ------------------------------------------------------------
+@pytest.mark.parametrize('n_hmodes, maxhier', [(3, 2), (2, 3)])
+def test_define_rect_hier_superset_of_triangular(n_hmodes, maxhier):
+    # This case tests that the rectangular hierarchy is a strict superset
+    # of the triangular hierarchy for n_hmodes > 1.
+    list_rect = HHier.define_rectangular_hierarchy(n_hmodes, maxhier)
+    list_tri = HHier.define_triangular_hierarchy(n_hmodes, maxhier)
+    set_rect = set(list_rect)
+    set_tri = set(list_tri)
+    assert set_tri.issubset(set_rect), (
+        'Triangular hierarchy should be a subset of rectangular hierarchy'
+    )
+    assert len(set_rect) > len(set_tri), (
+        'Rectangular hierarchy should be strictly larger than triangular '
+        f'for n_hmodes > 1 (rect={len(set_rect)}, tri={len(set_tri)})'
+    )
+
+
+# ------------------------------------------------------------
+# TEST: Single-mode rectangular and triangular are identical
+# ------------------------------------------------------------
+def test_define_rect_hier_single_mode_matches_triangular():
+    # This case tests that for n_hmodes=1, rectangular and triangular
+    # truncation produce identical hierarchies.
+    n_hmodes = 1
+    maxhier = 4
+    list_rect = HHier.define_rectangular_hierarchy(n_hmodes, maxhier)
+    list_tri = HHier.define_triangular_hierarchy(n_hmodes, maxhier)
+    assert set(list_rect) == set(list_tri), (
+        'Rectangular and triangular hierarchies should be identical for '
+        'n_hmodes=1'
+    )
+
+
+# ------------------------------------------------------------
+# TEST: Zero vector is always present in rectangular hierarchy
+# ------------------------------------------------------------
+def test_define_rect_hier_contains_zero_vector():
+    # This case tests that the zero auxiliary vector (vacuum state)
+    # is always present in the rectangular hierarchy.
+    n_hmodes = 3
+    maxhier = 2
+    list_aux = HHier.define_rectangular_hierarchy(n_hmodes, maxhier)
+    zero_aux = AuxVec([], n_hmodes)
+    assert zero_aux in list_aux, (
+        'Zero auxiliary vector should always be present in rectangular hierarchy'
+    )
+
+
+# ============================================================
+# TEST SUITE: HopsHierarchy.initialize() with rectangular truncation
+# ============================================================
+
+# ------------------------------------------------------------
+# TEST: Non-adaptive initialization with rectangular truncation
+#       produces the rectangular hierarchy
+# ------------------------------------------------------------
+def test_initialize_rect_trunc_nonadaptive():
+    # This case tests that initializing with TRUNCATION_METHOD='rectangular'
+    # produces the same hierarchy as define_rectangular_hierarchy.
+    hierarchy_param = {'MAXHIER': 2, 'TRUNCATION_METHOD': 'rectangular'}
+    system_param = {'N_HMODES': 2}
+    HH = HHier(hierarchy_param, system_param)
+    HH.initialize(False)
+    expected = HHier.define_rectangular_hierarchy(2, 2)
+    assert len(HH.auxiliary_list) == len(expected), (
+        f'Expected {len(expected)} auxiliaries, got {len(HH.auxiliary_list)}'
+    )
+    assert set(HH.auxiliary_list) == set(expected), (
+        'Initialized rect hierarchy does not match define_rectangular_hierarchy'
+    )
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular truncation with Markovian filter warns and
+#       produces correct filtered hierarchy
+# ------------------------------------------------------------
+def test_rect_trunc_with_markovian_filter():
+    # This case tests that rectangular truncation with a Markovian filter
+    # warns about tensor-specific filters, applies the filter, and
+    # produces the correct hierarchy.
+    hierarchy_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'rectangular',
+        'STATIC_FILTERS': [('Markovian', [False, True])],
+    }
+    system_param = {'N_HMODES': 2}
+    HH = HHier(hierarchy_param, system_param)
+    with pytest.warns(UserWarning, match='tensor-specific filters'):
+        HH.initialize(False)
+    # Markovian on mode 1 removes any aux with mode 1 active at total
+    # depth > 1. From the 9-element rectangular hierarchy, only 4 survive.
+    known = [
+        AuxVec([], 2),
+        AuxVec([(0, 1)], 2),
+        AuxVec([(1, 1)], 2),
+        AuxVec([(0, 2)], 2),
+    ]
+    assert sorted(HH.auxiliary_list) == sorted(known)
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular + Markovian filter matches triangular +
+#       Markovian filter (filtered modes produce same hierarchy)
+# ------------------------------------------------------------
+def test_rect_trunc_markovian_matches_triangular():
+    # This case tests that applying the same Markovian filter to
+    # rectangular and triangular hierarchies produces the same result,
+    # since filtering collapses the extra rectangular elements.
+    markov_filter = [('Markovian', [False, True])]
+    system_param = {'N_HMODES': 2}
+    rect_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'rectangular',
+        'STATIC_FILTERS': list(markov_filter),
+    }
+    tri_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'triangular',
+        'STATIC_FILTERS': list(markov_filter),
+    }
+    HH_rect = HHier(rect_param, system_param)
+    HH_tri = HHier(tri_param, system_param)
+    with pytest.warns(UserWarning, match='tensor-specific filters'):
+        HH_rect.initialize(False)
+    HH_tri.initialize(False)
+    assert sorted(HH_rect.auxiliary_list) == sorted(HH_tri.auxiliary_list)
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular truncation with Triangular filter produces
+#       correct filtered hierarchy
+# ------------------------------------------------------------
+def test_rect_trunc_with_triangular_filter():
+    # This case tests that applying a Triangular filter to a rectangular
+    # hierarchy correctly prunes auxiliaries. The Triangular filter on
+    # mode 1 with kmax=1 restricts the total depth in filtered modes
+    # to be <= 1.
+    hierarchy_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'rectangular',
+        'STATIC_FILTERS': [('Triangular', [[False, True], 1])],
+    }
+    system_param = {'N_HMODES': 2}
+    HH = HHier(hierarchy_param, system_param)
+    with pytest.warns(UserWarning, match='tensor-specific filters'):
+        HH.initialize(False)
+    # Triangular filter on mode 1 with kmax_2=1: keeps only auxiliaries
+    # where the sum of depth in filtered modes (mode 1) is <= 1.
+    for aux in HH.auxiliary_list:
+        depth_mode1 = aux.get(1, 0)
+        assert depth_mode1 <= 1, (
+            f'Triangular filter failed: aux {aux} has mode-1 depth '
+            f'{depth_mode1}, expected <= 1'
+        )
+    # Should be smaller than unfiltered rectangular
+    rect_unfiltered = HHier.define_rectangular_hierarchy(2, 2)
+    assert len(HH.auxiliary_list) < len(rect_unfiltered)
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular truncation with LongEdge filter produces
+#       correct filtered hierarchy
+# ------------------------------------------------------------
+def test_rect_trunc_with_longedge_filter():
+    # This case tests that applying a LongEdge filter to a rectangular
+    # hierarchy correctly prunes auxiliaries. LongEdge with kdepth=1
+    # on mode 1: beyond total depth 1, only edge terms (single-mode
+    # depth) are kept for filtered modes.
+    hierarchy_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'rectangular',
+        'STATIC_FILTERS': [('LongEdge', [[False, True], 1])],
+    }
+    system_param = {'N_HMODES': 2}
+    HH = HHier(hierarchy_param, system_param)
+    with pytest.warns(UserWarning, match='tensor-specific filters'):
+        HH.initialize(False)
+    known = [
+        AuxVec([], 2),
+        AuxVec([(0, 1)], 2),
+        AuxVec([(1, 1)], 2),
+        AuxVec([(0, 2)], 2),
+        AuxVec([(1, 2)], 2),
+    ]
+    assert sorted(HH.auxiliary_list) == sorted(known)
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular + LongEdge matches triangular + LongEdge
+# ------------------------------------------------------------
+def test_rect_trunc_longedge_matches_triangular():
+    # This case tests that applying the same LongEdge filter to
+    # rectangular and triangular hierarchies produces the same result.
+    longedge_filter = [('LongEdge', [[False, True], 1])]
+    system_param = {'N_HMODES': 2}
+    rect_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'rectangular',
+        'STATIC_FILTERS': list(longedge_filter),
+    }
+    tri_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'triangular',
+        'STATIC_FILTERS': list(longedge_filter),
+    }
+    HH_rect = HHier(rect_param, system_param)
+    HH_tri = HHier(tri_param, system_param)
+    with pytest.warns(UserWarning, match='tensor-specific filters'):
+        HH_rect.initialize(False)
+    HH_tri.initialize(False)
+    assert sorted(HH_rect.auxiliary_list) == sorted(HH_tri.auxiliary_list)
+
+
+# ------------------------------------------------------------
+# TEST: Rectangular truncation with multiple filters
+#       (Markovian + Triangular)
+# ------------------------------------------------------------
+def test_rect_trunc_with_combined_filters():
+    # This case tests that applying multiple filters to a rectangular
+    # hierarchy correctly chains the filtering. Markovian on mode 1
+    # followed by Triangular on mode 0 with kmax=1.
+    hierarchy_param = {
+        'MAXHIER': 2,
+        'TRUNCATION_METHOD': 'rectangular',
+        'STATIC_FILTERS': [
+            ('Markovian', [False, True]),
+            ('Triangular', [[True, False], 1]),
+        ],
+    }
+    system_param = {'N_HMODES': 2}
+    HH = HHier(hierarchy_param, system_param)
+    with pytest.warns(UserWarning, match='tensor-specific filters'):
+        HH.initialize(False)
+    # Markovian on mode 1 gives: {}, {0:1}, {1:1}, {0:2}
+    # Triangular on mode 0 with kmax=1 keeps only depth <= 1 in mode 0
+    # That removes {0:2}, leaving: {}, {0:1}, {1:1}
+    known = [
+        AuxVec([], 2),
+        AuxVec([(0, 1)], 2),
+        AuxVec([(1, 1)], 2),
+    ]
+    assert sorted(HH.auxiliary_list) == sorted(known)

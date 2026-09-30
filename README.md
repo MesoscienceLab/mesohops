@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/MesoscienceLab/mesohops/graph/badge.svg?token=EZAW5BW4P4)](https://codecov.io/gh/MesoscienceLab/mesohops)
+
 # What is MesoHOPS?
 
 MesoHOPS is a Python library for running simulations with the Hierarchy of Pure States (HOPS), a formally exact trajectory-based approach for solving the time-evolution of open quantum systems coupled to non-Markovian thermal environments. The main feature of MesoHOPS is the implementation of adaptive HOPS (adHOPS), an extension of the HOPS formalism that leverages the dynamic localization of excitations to construct an adaptive basis. The moving adHOPS basis significantly reduces the computational cost of simulations and exhibits a size-invariant scaling in large systems.

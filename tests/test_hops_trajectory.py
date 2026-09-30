@@ -68,6 +68,7 @@ integrator_param = {
         'INCHWORM_CAP': 5,
         'STATIC_BASIS': None,
         'EFFECTIVE_NOISE_INTEGRATION': False,
+        'STORE_STEP_TIMING': False,
     }
 integrator_param_empty = {}
 integrator_param_partial = {
@@ -519,6 +520,56 @@ def test_normalize_else():
     norm = hops.normalize([2, 3])
     known_norm = [2, 3]
     assert np.allclose(norm, known_norm)
+
+
+# ------------------------------------------------------------
+# TEST: single RK4 step keeps norm within 1e-10 before normalize()
+# ------------------------------------------------------------
+def test_normalize_single_step_norm_drift():
+    """
+    Test
+    ----
+    Tests that a single RK4 step preserves the physical wavefunction norm to
+    within 1e-10 of unity, before normalize() is applied.
+
+    Case
+    ----
+    2-site system with NORMALIZED NONLINEAR EOM. The norm correction term in
+    the derivative should keep the dynamics approximately norm-preserving. If
+    the correction is wrong (e.g. wrong prefactor), the pre-normalization norm
+    drifts measurably even in a single step.
+    """
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param,
+    )
+    hops.initialize(psi_0)
+    tau = 2.0  # 2 * noise TAU so RK4 samples [0, 1, 2] land on the noise grid
+
+    # Gather integration variables (noise, z_mem, etc.) for one step
+    var_list = hops.integration_var(
+        hops.phi, hops.z_mem, hops.t, hops.noise1, hops.noise2,
+        tau, hops.storage, hops.basis.mode.list_l2idx_abs,
+        hops.effective_noise_integration,
+    )
+
+    # Call RK4 directly — bypasses normalize()
+    phi_raw, _ = hops.step(hops.dsystem_dt, **var_list)
+
+    # Norm of the physical wavefunction (first n_state elements)
+    n_state = hops.n_state
+    norm_psi = np.linalg.norm(phi_raw[:n_state])
+
+    np.testing.assert_allclose(
+        norm_psi, 1.0, atol=1e-10,
+        err_msg=(
+            f'Single-step norm drift {abs(norm_psi - 1.0):.2e} exceeds 1e-10. '
+            'The norm correction term in the EOM derivative may be wrong.'
+        ),
+    )
 
 
 def test_inchworm_aux():
@@ -1297,6 +1348,76 @@ def test_propagation_timing():
             f"Propagation timing deviates by more than tolerance: control={prop_time_control:.4f}s, with_sleep={prop_time_plus_1sec:.4f}s",
             RuntimeWarning,
         )
+
+
+def test_propagation_step_timing_flag_default_off():
+    """
+    Checks that with STORE_STEP_TIMING absent (default False),
+    LIST_PROPAGATION_TIME retains its pre-flag behavior: one float
+    per propagate() call.
+    """
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integrator_param_empty,
+    )
+    hops.initialize(psi_0)
+    hops.propagate(4.0, 2.0)
+    hops.propagate(4.0, 2.0)
+
+    list_prop_time = hops.storage.metadata["LIST_PROPAGATION_TIME"]
+    assert len(list_prop_time) == 2
+    for entry in list_prop_time:
+        assert isinstance(entry, float)
+        assert entry >= 0
+
+
+def test_propagation_step_timing_flag_on():
+    """
+    Checks that with STORE_STEP_TIMING=True, LIST_PROPAGATION_TIME
+    holds (t_fs, wall_seconds) tuples — one per integration step,
+    sim-time stamps match the propagation grid, wall times are
+    non-negative, and entries concatenate across propagate() calls
+    with a monotonic time axis.
+    """
+    integration_param = dict(integrator_param_empty)
+    integration_param["STORE_STEP_TIMING"] = True
+    hops = HOPS(
+        sys_param,
+        noise_param=noise_param,
+        hierarchy_param=hier_param,
+        eom_param=eom_param,
+        integration_param=integration_param,
+    )
+    hops.initialize(psi_0)
+
+    tau = 2.0
+    t_first = 4.0
+    n_first = int(np.ceil(t_first / tau))
+    hops.propagate(t_first, tau)
+
+    list_prop_time = hops.storage.metadata["LIST_PROPAGATION_TIME"]
+    assert len(list_prop_time) == n_first
+    for entry in list_prop_time:
+        assert isinstance(entry, tuple) and len(entry) == 2
+    list_t = [t for t, _ in list_prop_time]
+    list_dt = [dt for _, dt in list_prop_time]
+    assert all(dt >= 0 for dt in list_dt)
+    np.testing.assert_allclose(list_t, tau * np.arange(1, n_first + 1))
+
+    # Second propagate call: entries append, time axis stays monotonic.
+    t_second = 4.0
+    n_second = int(np.ceil(t_second / tau))
+    hops.propagate(t_second, tau)
+
+    list_prop_time = hops.storage.metadata["LIST_PROPAGATION_TIME"]
+    assert len(list_prop_time) == n_first + n_second
+    list_t = [t for t, _ in list_prop_time]
+    list_dt = [dt for _, dt in list_prop_time]
+    assert all(dt >= 0 for dt in list_dt)
+    assert np.all(np.diff(list_t) > 0)
 
 
 def test_operator():
